@@ -5,6 +5,26 @@ const {
   mapInfo,
   mapActivity
 } = require('./shared');
+const { normalizeAiConfig, validateAiConfig } = require('./ai-client');
+
+function mapPreset(row) {
+  return {
+    id: String(row.id),
+    name: row.name,
+    provider: row.provider,
+    baseUrl: row.base_url,
+    apiKey: row.api_key,
+    model: row.model,
+    temperature: row.temperature,
+    topP: row.top_p,
+    maxTokens: row.max_tokens,
+    presencePenalty: row.presence_penalty,
+    frequencyPenalty: row.frequency_penalty,
+    systemPrompt: row.system_prompt,
+    isDefault: Boolean(row.is_default),
+    isActive: Boolean(row.is_active)
+  };
+}
 
 module.exports = function registerAdminRoutes(app, db) {
   app.get('/api/admin/dashboard', requireAdmin, (_req, res) => {
@@ -156,5 +176,98 @@ module.exports = function registerAdminRoutes(app, db) {
       activitiesByType: db.all('SELECT activity_type AS name, COUNT(*) AS value FROM activities GROUP BY activity_type'),
       runTrend: db.all(`SELECT substr(date, 1, 10) AS name, ROUND(SUM(distance), 2) AS value FROM runs GROUP BY substr(date, 1, 10) ORDER BY name DESC LIMIT 7`).reverse()
     });
+  });
+
+  app.get('/api/admin/ai-models', requireAdmin, (_req, res) => {
+    const rows = db.all('SELECT * FROM ai_model_presets ORDER BY is_default DESC, id ASC');
+    res.json({ list: rows.map(mapPreset) });
+  });
+
+  app.post('/api/admin/ai-models', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const config = normalizeAiConfig(body);
+    const error = validateAiConfig(config);
+    if (!String(body.name || '').trim()) {
+      return res.status(400).json({ message: '默认模型名称不能为空' });
+    }
+    if (error) {
+      return res.status(400).json({ message: error });
+    }
+    if (body.isDefault) {
+      db.run('UPDATE ai_model_presets SET is_default = 0, updated_at = ?', [new Date().toISOString()]);
+    }
+    db.run(
+      `INSERT INTO ai_model_presets
+      (name, provider, base_url, api_key, model, temperature, top_p, max_tokens, presence_penalty, frequency_penalty, system_prompt, is_default, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        String(body.name).trim(),
+        config.provider,
+        config.baseUrl,
+        config.apiKey,
+        config.model,
+        config.temperature,
+        config.topP,
+        config.maxTokens,
+        config.presencePenalty,
+        config.frequencyPenalty,
+        config.systemPrompt,
+        body.isDefault ? 1 : 0,
+        body.isActive === false ? 0 : 1,
+        new Date().toISOString(),
+        new Date().toISOString()
+      ]
+    );
+    res.json({ success: true });
+  });
+
+  app.put('/api/admin/ai-models/:id', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const config = normalizeAiConfig(body);
+    const error = validateAiConfig(config);
+    if (!String(body.name || '').trim()) {
+      return res.status(400).json({ message: '默认模型名称不能为空' });
+    }
+    if (error) {
+      return res.status(400).json({ message: error });
+    }
+    if (body.isDefault) {
+      db.run('UPDATE ai_model_presets SET is_default = 0, updated_at = ? WHERE id <> ?', [new Date().toISOString(), req.params.id]);
+    }
+    db.run(
+      `UPDATE ai_model_presets SET
+      name = ?, provider = ?, base_url = ?, api_key = ?, model = ?, temperature = ?, top_p = ?, max_tokens = ?, presence_penalty = ?, frequency_penalty = ?, system_prompt = ?, is_default = ?, is_active = ?, updated_at = ?
+      WHERE id = ?`,
+      [
+        String(body.name).trim(),
+        config.provider,
+        config.baseUrl,
+        config.apiKey,
+        config.model,
+        config.temperature,
+        config.topP,
+        config.maxTokens,
+        config.presencePenalty,
+        config.frequencyPenalty,
+        config.systemPrompt,
+        body.isDefault ? 1 : 0,
+        body.isActive === false ? 0 : 1,
+        new Date().toISOString(),
+        req.params.id
+      ]
+    );
+    res.json({ success: true });
+  });
+
+  app.delete('/api/admin/ai-models/:id', requireAdmin, (req, res) => {
+    db.run('DELETE FROM ai_model_presets WHERE id = ?', [req.params.id]);
+    const hasDefault = db.get('SELECT id FROM ai_model_presets WHERE is_default = 1 LIMIT 1');
+    if (!hasDefault) {
+      const fallback = db.get('SELECT id FROM ai_model_presets ORDER BY id ASC LIMIT 1');
+      if (fallback) {
+        db.run('UPDATE ai_model_presets SET is_default = 1, updated_at = ? WHERE id = ?', [new Date().toISOString(), fallback.id]);
+      }
+    }
+    res.json({ success: true });
   });
 };

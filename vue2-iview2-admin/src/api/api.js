@@ -31,3 +31,7 @@ export const createActivity = (payload) => http.post('/admin/activities', payloa
 export const updateActivity = (id, payload) => http.put(`/admin/activities/${id}`, payload).then((res) => res.data);
 export const deleteActivity = (id) => http.delete(`/admin/activities/${id}`).then((res) => res.data);
 export const getReports = () => http.get('/admin/reports').then((res) => res.data);
+export const getAiModels = () => http.get('/admin/ai-models').then((res) => res.data);
+export const createAiModel = (payload) => http.post('/admin/ai-models', payload).then((res) => res.data);
+export const updateAiModel = (id, payload) => http.put(`/admin/ai-models/${id}`, payload).then((res) => res.data);
+export const deleteAiModel = (id) => http.delete(`/admin/ai-models/${id}`).then((res) => res.data);

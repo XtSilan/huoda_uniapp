@@ -11,6 +11,20 @@ const DEFAULT_AI_CONFIG = {
   systemPrompt: '你是小达老师，是一个面向校园场景的 AI 助手。请优先用简洁、友好的中文回答。'
 };
 
+const DEFAULT_USER_AI_SETTINGS = {
+  mode: 'preset',
+  selectedPresetId: '',
+  customOpenAI: {
+    ...DEFAULT_AI_CONFIG,
+    provider: 'openai'
+  },
+  customAnthropic: {
+    ...DEFAULT_AI_CONFIG,
+    provider: 'anthropic',
+    baseUrl: 'https://api.anthropic.com/v1'
+  }
+};
+
 function parseJson(value, fallback) {
   try {
     if (!value) {
@@ -193,6 +207,7 @@ async function validateAiConnection(rawConfig) {
 
 module.exports = {
   DEFAULT_AI_CONFIG,
+  DEFAULT_USER_AI_SETTINGS,
   parseJson,
   normalizeAiConfig,
   validateAiConfig,

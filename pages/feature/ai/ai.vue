@@ -3,7 +3,7 @@
     <view class="page-header">
       <view>
         <view class="page-title">小达老师</view>
-        <view class="page-subtitle">{{ providerLabel }} / {{ aiConfig.model || '未设置模型' }}</view>
+        <view class="page-subtitle">{{ currentModeLabel }} / {{ currentModelLabel }}</view>
       </view>
       <view class="gear-btn" @click="openSettings">⚙</view>
     </view>
@@ -20,7 +20,7 @@
         <view class="message-content">{{ message.content }}</view>
         <view class="message-time">{{ message.time }}</view>
       </view>
-      <view v-if="isLoading" class="loading">正在调用 {{ providerLabel }}...</view>
+      <view v-if="isLoading" class="loading">正在思考中...</view>
       <view class="chat-bottom-space"></view>
     </scroll-view>
 
@@ -42,73 +42,81 @@
         <view class="settings-title">AI 模型设置</view>
 
         <view class="form-item">
-          <view class="label">模型供应商</view>
-          <view class="provider-row">
+          <view class="label">使用方案</view>
+          <view class="mode-row">
             <view
-              v-for="item in providerOptions"
+              v-for="item in modeOptions"
               :key="item.value"
-              class="provider-chip"
-              :class="{ active: draftAiConfig.provider === item.value }"
-              @click="draftAiConfig.provider = item.value"
+              class="mode-chip"
+              :class="{ active: draftSettings.mode === item.value }"
+              @click="draftSettings.mode = item.value"
             >
               {{ item.label }}
             </view>
           </view>
         </view>
 
-        <view class="form-item">
-          <view class="label">Base URL</view>
-          <input v-model="draftAiConfig.baseUrl" class="field-input" placeholder="例如 https://api.openai.com/v1" />
-          <view class="field-tip">这里按你填写的地址原样请求，不会自动追加 `/v1`。</view>
+        <view v-if="draftSettings.mode === 'preset'" class="form-item">
+          <view class="label">默认模型</view>
+          <view
+            v-for="item in presets"
+            :key="item.id"
+            class="preset-card"
+            :class="{ active: draftSettings.selectedPresetId === item.id }"
+            @click="draftSettings.selectedPresetId = item.id"
+          >
+            <view class="preset-title">{{ item.name }} <text v-if="item.isDefault" class="default-tag">默认</text></view>
+            <view class="preset-meta">{{ item.provider }} / {{ item.model }}</view>
+            <view class="preset-meta">{{ item.baseUrl }}</view>
+          </view>
         </view>
 
-        <view class="form-item">
-          <view class="label">API Key</view>
-          <input v-model="draftAiConfig.apiKey" class="field-input" password placeholder="输入你的 API Key" />
-        </view>
-
-        <view class="form-item">
-          <view class="label">模型名称</view>
-          <input v-model="draftAiConfig.model" class="field-input" placeholder="例如 gpt-4.1-mini / MiniMax-Text-01" />
-        </view>
-
-        <view class="form-item">
-          <view class="label">System Prompt</view>
-          <textarea v-model="draftAiConfig.systemPrompt" class="textarea" placeholder="设置小达老师的系统提示词"></textarea>
-        </view>
-
-        <view class="form-item">
-          <view class="label">Temperature</view>
-          <input v-model="draftAiConfig.temperature" class="field-input" type="digit" placeholder="0 - 2" />
-        </view>
-
-        <view class="form-item">
-          <view class="label">Top P</view>
-          <input v-model="draftAiConfig.topP" class="field-input" type="digit" placeholder="0 - 1" />
-        </view>
-
-        <view class="form-item">
-          <view class="label">Max Tokens</view>
-          <input v-model="draftAiConfig.maxTokens" class="field-input" type="number" placeholder="例如 512" />
-        </view>
-
-        <view v-if="draftAiConfig.provider === 'openai'" class="form-item">
-          <view class="label">Presence Penalty</view>
-          <input v-model="draftAiConfig.presencePenalty" class="field-input" type="digit" placeholder="-2 到 2" />
-        </view>
-
-        <view v-if="draftAiConfig.provider === 'openai'" class="form-item">
-          <view class="label">Frequency Penalty</view>
-          <input v-model="draftAiConfig.frequencyPenalty" class="field-input" type="digit" placeholder="-2 到 2" />
+        <view v-else>
+          <view class="form-item">
+            <view class="label">Base URL</view>
+            <input v-model="activeCustomConfig.baseUrl" class="field-input" placeholder="例如 https://api.openai.com/v1" />
+          </view>
+          <view class="form-item">
+            <view class="label">API Key</view>
+            <input v-model="activeCustomConfig.apiKey" class="field-input" password placeholder="输入你的 API Key" />
+          </view>
+          <view class="form-item">
+            <view class="label">模型名称</view>
+            <input v-model="activeCustomConfig.model" class="field-input" placeholder="输入模型名称" />
+          </view>
+          <view class="form-item">
+            <view class="label">System Prompt</view>
+            <textarea v-model="activeCustomConfig.systemPrompt" class="textarea" placeholder="输入系统提示词"></textarea>
+          </view>
+          <view class="form-item">
+            <view class="label">Temperature</view>
+            <input v-model="activeCustomConfig.temperature" class="field-input" type="digit" placeholder="0 - 2" />
+          </view>
+          <view class="form-item">
+            <view class="label">Top P</view>
+            <input v-model="activeCustomConfig.topP" class="field-input" type="digit" placeholder="0 - 1" />
+          </view>
+          <view class="form-item">
+            <view class="label">Max Tokens</view>
+            <input v-model="activeCustomConfig.maxTokens" class="field-input" type="number" placeholder="例如 512" />
+          </view>
+          <view v-if="draftSettings.mode === 'custom-openai'" class="form-item">
+            <view class="label">Presence Penalty</view>
+            <input v-model="activeCustomConfig.presencePenalty" class="field-input" type="digit" placeholder="-2 到 2" />
+          </view>
+          <view v-if="draftSettings.mode === 'custom-openai'" class="form-item">
+            <view class="label">Frequency Penalty</view>
+            <input v-model="activeCustomConfig.frequencyPenalty" class="field-input" type="digit" placeholder="-2 到 2" />
+          </view>
         </view>
 
         <view class="hint">
-          OpenAI 走 `chat/completions`，Anthropic 走 `messages`。当前配置只会保存到你自己的账号下。
+          管理员可在后台维护默认模型。你也可以保留自己的 OpenAI 或 Anthropic 配置，切换后只会保存到自己的账号。
         </view>
 
         <view class="actions">
-          <button class="secondary-btn" :loading="validating" @click="validateConfig">校验配置</button>
-          <button class="primary-btn" :loading="saving" @click="saveConfig">保存配置</button>
+          <button class="secondary-btn" :loading="validating" @click="validateConfig">校验当前方案</button>
+          <button class="primary-btn" :loading="saving" @click="saveSettings">保存设置</button>
         </view>
         <button class="ghost-btn" @click="closeSettings">关闭</button>
       </scroll-view>
@@ -130,12 +138,20 @@ const DEFAULT_AI_CONFIG = {
   systemPrompt: '你是小达老师，是一个面向校园场景的 AI 助手。请优先用简洁、友好的中文回答。'
 };
 
+const createDefaultSettings = () => ({
+  mode: 'preset',
+  selectedPresetId: '',
+  customOpenAI: { ...DEFAULT_AI_CONFIG, provider: 'openai' },
+  customAnthropic: { ...DEFAULT_AI_CONFIG, provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' }
+});
+
 export default {
   data() {
     return {
-      providerOptions: [
-        { label: 'OpenAI', value: 'openai' },
-        { label: 'Anthropic', value: 'anthropic' }
+      modeOptions: [
+        { label: '默认模型', value: 'preset' },
+        { label: '自定义 OpenAI', value: 'custom-openai' },
+        { label: '自定义 Anthropic', value: 'custom-anthropic' }
       ],
       showSettings: false,
       saving: false,
@@ -144,11 +160,12 @@ export default {
       inputMessage: '',
       relatedInfos: [],
       scrollIntoView: '',
-      aiConfig: { ...DEFAULT_AI_CONFIG },
-      draftAiConfig: { ...DEFAULT_AI_CONFIG },
+      presets: [],
+      aiSettings: createDefaultSettings(),
+      draftSettings: createDefaultSettings(),
       messages: [
         {
-          content: '你好，我是小达老师。右上角可以配置 Base URL、API Key、模型和参数，保存后就能开始真实对话。',
+          content: '你好，我是小达老师。默认会使用管理员配置的模型，你也可以在右上角切换到自己的 OpenAI 或 Anthropic 配置。',
           isMine: false,
           time: new Date().toLocaleTimeString()
         }
@@ -156,32 +173,51 @@ export default {
     };
   },
   computed: {
-    providerLabel() {
-      const current = this.providerOptions.find((item) => item.value === this.aiConfig.provider);
-      return current ? current.label : 'OpenAI';
+    activeCustomConfig() {
+      return this.draftSettings.mode === 'custom-anthropic'
+        ? this.draftSettings.customAnthropic
+        : this.draftSettings.customOpenAI;
+    },
+    currentModeLabel() {
+      const current = this.modeOptions.find((item) => item.value === this.aiSettings.mode);
+      return current ? current.label : '默认模型';
+    },
+    currentModelLabel() {
+      if (this.aiSettings.mode === 'preset') {
+        const preset = this.presets.find((item) => item.id === this.aiSettings.selectedPresetId) || this.presets.find((item) => item.isDefault);
+        return preset ? `${preset.name} / ${preset.model}` : '未配置默认模型';
+      }
+      const config = this.aiSettings.mode === 'custom-anthropic' ? this.aiSettings.customAnthropic : this.aiSettings.customOpenAI;
+      return config.model || '未设置模型';
     }
   },
   onShow() {
-    this.loadAiConfig();
+    this.loadSettings();
   },
   methods: {
-    normalizeLocalConfig(source = this.draftAiConfig) {
-      const provider = source.provider === 'anthropic' ? 'anthropic' : 'openai';
+    normalizeConfig(config, provider) {
       return {
         provider,
-        baseUrl: String(source.baseUrl || '').trim().replace(/\/$/, ''),
-        apiKey: String(source.apiKey || '').trim(),
-        model: String(source.model || '').trim(),
-        temperature: Number(source.temperature),
-        topP: Number(source.topP),
-        maxTokens: Number(source.maxTokens),
-        presencePenalty: Number(source.presencePenalty),
-        frequencyPenalty: Number(source.frequencyPenalty),
-        systemPrompt: String(source.systemPrompt || '').trim()
+        baseUrl: String(config.baseUrl || '').trim().replace(/\/$/, ''),
+        apiKey: String(config.apiKey || '').trim(),
+        model: String(config.model || '').trim(),
+        temperature: Number(config.temperature),
+        topP: Number(config.topP),
+        maxTokens: Number(config.maxTokens),
+        presencePenalty: Number(config.presencePenalty),
+        frequencyPenalty: Number(config.frequencyPenalty),
+        systemPrompt: String(config.systemPrompt || '').trim()
       };
     },
-    validateLocalConfig(source = this.draftAiConfig) {
-      const config = this.normalizeLocalConfig(source);
+    buildPayload(source = this.draftSettings) {
+      return {
+        mode: source.mode,
+        selectedPresetId: String(source.selectedPresetId || ''),
+        customOpenAI: this.normalizeConfig(source.customOpenAI, 'openai'),
+        customAnthropic: this.normalizeConfig(source.customAnthropic, 'anthropic')
+      };
+    },
+    validateCustomConfig(config, provider) {
       if (!config.baseUrl) return '请填写 Base URL';
       if (!/^https?:\/\//i.test(config.baseUrl)) return 'Base URL 必须以 http:// 或 https:// 开头';
       if (!config.apiKey) return '请填写 API Key';
@@ -189,39 +225,63 @@ export default {
       if (Number.isNaN(config.temperature) || config.temperature < 0 || config.temperature > 2) return 'Temperature 需在 0 到 2 之间';
       if (Number.isNaN(config.topP) || config.topP < 0 || config.topP > 1) return 'Top P 需在 0 到 1 之间';
       if (Number.isNaN(config.maxTokens) || config.maxTokens < 1) return 'Max Tokens 必须大于 0';
-      if (config.provider === 'openai') {
+      if (provider === 'openai') {
         if (Number.isNaN(config.presencePenalty) || config.presencePenalty < -2 || config.presencePenalty > 2) return 'Presence Penalty 需在 -2 到 2 之间';
         if (Number.isNaN(config.frequencyPenalty) || config.frequencyPenalty < -2 || config.frequencyPenalty > 2) return 'Frequency Penalty 需在 -2 到 2 之间';
       }
       return '';
     },
-    async loadAiConfig() {
+    validatePayload(payload) {
+      if (payload.mode === 'preset') {
+        const hasPreset = payload.selectedPresetId || this.presets.find((item) => item.isDefault);
+        return hasPreset ? '' : '当前没有可用的默认模型';
+      }
+      if (payload.mode === 'custom-openai') {
+        return this.validateCustomConfig(payload.customOpenAI, 'openai');
+      }
+      return this.validateCustomConfig(payload.customAnthropic, 'anthropic');
+    },
+    async loadSettings() {
       try {
         const res = await this.$api.ai.getSettings();
-        this.aiConfig = { ...DEFAULT_AI_CONFIG, ...res };
-        this.draftAiConfig = { ...this.aiConfig };
+        this.presets = res.presets || [];
+        this.aiSettings = {
+          ...createDefaultSettings(),
+          ...res,
+          customOpenAI: { ...createDefaultSettings().customOpenAI, ...(res.customOpenAI || {}) },
+          customAnthropic: { ...createDefaultSettings().customAnthropic, ...(res.customAnthropic || {}) }
+        };
+        if (!this.aiSettings.selectedPresetId) {
+          const defaultPreset = this.presets.find((item) => item.isDefault);
+          this.aiSettings.selectedPresetId = defaultPreset ? defaultPreset.id : '';
+        }
+        this.draftSettings = JSON.parse(JSON.stringify(this.aiSettings));
       } catch (error) {
-        uni.showToast({ title: error.message || '加载 AI 配置失败', icon: 'none' });
+        uni.showToast({ title: error.message || '加载 AI 设置失败', icon: 'none' });
       }
     },
     openSettings() {
-      this.draftAiConfig = { ...this.aiConfig };
+      this.draftSettings = JSON.parse(JSON.stringify(this.aiSettings));
       this.showSettings = true;
     },
     closeSettings() {
       this.showSettings = false;
     },
     async validateConfig() {
-      const error = this.validateLocalConfig();
+      const payload = this.buildPayload();
+      const error = this.validatePayload(payload);
       if (error) {
         uni.showToast({ title: error, icon: 'none' });
         return;
       }
+      if (payload.mode === 'preset') {
+        uni.showToast({ title: '默认模型由后台维护，无需单独校验', icon: 'none' });
+        return;
+      }
       this.validating = true;
       try {
-        const payload = this.normalizeLocalConfig();
-        const res = await this.$api.ai.validateSettings(payload);
-        this.draftAiConfig = { ...this.draftAiConfig, baseUrl: payload.baseUrl };
+        const config = payload.mode === 'custom-openai' ? payload.customOpenAI : payload.customAnthropic;
+        const res = await this.$api.ai.validateSettings(config);
         uni.showModal({
           title: '校验成功',
           content: res.preview || '模型接口已连通',
@@ -233,19 +293,22 @@ export default {
         this.validating = false;
       }
     },
-    async saveConfig() {
-      const error = this.validateLocalConfig();
+    async saveSettings() {
+      const payload = this.buildPayload();
+      const error = this.validatePayload(payload);
       if (error) {
         uni.showToast({ title: error, icon: 'none' });
         return;
       }
       this.saving = true;
       try {
-        const payload = this.normalizeLocalConfig();
         const res = await this.$api.ai.updateSettings(payload);
-        this.aiConfig = { ...DEFAULT_AI_CONFIG, ...(res.config || payload) };
-        this.draftAiConfig = { ...this.aiConfig };
-        uni.showToast({ title: 'AI 配置已保存', icon: 'success' });
+        this.aiSettings = {
+          ...this.aiSettings,
+          ...(res.settings || payload)
+        };
+        this.draftSettings = JSON.parse(JSON.stringify(this.aiSettings));
+        uni.showToast({ title: 'AI 设置已保存', icon: 'success' });
         this.closeSettings();
       } catch (error) {
         uni.showToast({ title: error.message || '保存失败', icon: 'none' });
@@ -258,10 +321,10 @@ export default {
       if (!message || this.isLoading) {
         return;
       }
-
-      const configError = this.validateLocalConfig(this.aiConfig);
+      const payload = this.buildPayload(this.aiSettings);
+      const configError = this.validatePayload(payload);
       if (configError) {
-        uni.showToast({ title: '请先完成并保存 AI 配置', icon: 'none' });
+        uni.showToast({ title: configError, icon: 'none' });
         this.openSettings();
         return;
       }
@@ -291,7 +354,7 @@ export default {
         this.relatedInfos = res.relatedInfos || [];
       } catch (error) {
         this.messages.push({
-          content: error.message || '调用失败，请检查模型配置。',
+          content: error.message || '调用失败，请检查当前模型配置。',
           isMine: false,
           time: new Date().toLocaleTimeString()
         });
@@ -521,12 +584,13 @@ export default {
   color: #374151;
 }
 
-.provider-row {
+.mode-row {
   display: flex;
   gap: 12rpx;
+  flex-wrap: wrap;
 }
 
-.provider-chip {
+.mode-chip {
   padding: 12rpx 22rpx;
   border-radius: 999rpx;
   background: #f3f4f6;
@@ -534,9 +598,40 @@ export default {
   font-size: 24rpx;
 }
 
-.provider-chip.active {
+.mode-chip.active {
   background: #1e88e5;
   color: #ffffff;
+}
+
+.preset-card {
+  margin-top: 12rpx;
+  padding: 18rpx 20rpx;
+  border: 2rpx solid #dbe3ef;
+  border-radius: 16rpx;
+}
+
+.preset-card.active {
+  border-color: #1e88e5;
+  background: #eef5ff;
+}
+
+.preset-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.default-tag {
+  margin-left: 10rpx;
+  color: #1e88e5;
+  font-size: 22rpx;
+}
+
+.preset-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #6b7280;
+  word-break: break-all;
 }
 
 .field-input {
@@ -548,12 +643,6 @@ export default {
   background: #ffffff;
   font-size: 28rpx;
   box-sizing: border-box;
-}
-
-.field-tip {
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #64748b;
 }
 
 .textarea {

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
-const { DEFAULT_AI_CONFIG } = require('./ai-client');
+const { DEFAULT_AI_CONFIG, DEFAULT_USER_AI_SETTINGS } = require('./ai-client');
 
 const dataDir = path.resolve(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'huoda.sqlite');
@@ -175,9 +175,28 @@ async function getDb() {
       created_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS ai_model_presets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'openai',
+      base_url TEXT NOT NULL,
+      api_key TEXT DEFAULT '',
+      model TEXT NOT NULL,
+      temperature REAL DEFAULT 0.7,
+      top_p REAL DEFAULT 1,
+      max_tokens INTEGER DEFAULT 512,
+      presence_penalty REAL DEFAULT 0,
+      frequency_penalty REAL DEFAULT 0,
+      system_prompt TEXT DEFAULT '',
+      is_default INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
-  ensureColumn(db, 'user_settings', 'ai_settings', `TEXT DEFAULT '${JSON.stringify(DEFAULT_AI_CONFIG)}'`);
+  ensureColumn(db, 'user_settings', 'ai_settings', `TEXT DEFAULT '${JSON.stringify(DEFAULT_USER_AI_SETTINGS)}'`);
 
   await seed(db);
   return db;
@@ -216,7 +235,7 @@ async function seed(db) {
           '就业',
           JSON.stringify({ activity: true, lecture: true, partTime: true }),
           JSON.stringify({ darkMode: false, autoRefresh: true }),
-          JSON.stringify(DEFAULT_AI_CONFIG),
+          JSON.stringify(DEFAULT_USER_AI_SETTINGS),
           now
         ]
       );
@@ -227,8 +246,33 @@ async function seed(db) {
     `UPDATE user_settings
     SET ai_settings = COALESCE(NULLIF(ai_settings, ''), ?)
     WHERE ai_settings IS NULL OR ai_settings = ''`,
-    [JSON.stringify(DEFAULT_AI_CONFIG)]
+    [JSON.stringify(DEFAULT_USER_AI_SETTINGS)]
   );
+
+  if (!db.get('SELECT COUNT(*) AS count FROM ai_model_presets').count) {
+    db.run(
+      `INSERT INTO ai_model_presets
+      (name, provider, base_url, api_key, model, temperature, top_p, max_tokens, presence_penalty, frequency_penalty, system_prompt, is_default, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        '平台默认模型',
+        DEFAULT_AI_CONFIG.provider,
+        DEFAULT_AI_CONFIG.baseUrl,
+        DEFAULT_AI_CONFIG.apiKey,
+        DEFAULT_AI_CONFIG.model || 'gpt-4.1-mini',
+        DEFAULT_AI_CONFIG.temperature,
+        DEFAULT_AI_CONFIG.topP,
+        DEFAULT_AI_CONFIG.maxTokens,
+        DEFAULT_AI_CONFIG.presencePenalty,
+        DEFAULT_AI_CONFIG.frequencyPenalty,
+        DEFAULT_AI_CONFIG.systemPrompt,
+        1,
+        1,
+        now,
+        now
+      ]
+    );
+  }
 
   if (!db.get('SELECT COUNT(*) AS count FROM banners').count) {
     [

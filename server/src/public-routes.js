@@ -10,6 +10,7 @@ const {
 } = require('./shared');
 const {
   DEFAULT_AI_CONFIG,
+  DEFAULT_USER_AI_SETTINGS,
   parseJson,
   normalizeAiConfig,
   validateAiConfig,
@@ -17,6 +18,74 @@ const {
   chatWithAi,
   validateAiConnection
 } = require('./ai-client');
+
+function mapPreset(row) {
+  return {
+    id: String(row.id),
+    name: row.name,
+    provider: row.provider,
+    baseUrl: row.base_url,
+    model: row.model,
+    temperature: row.temperature,
+    topP: row.top_p,
+    maxTokens: row.max_tokens,
+    presencePenalty: row.presence_penalty,
+    frequencyPenalty: row.frequency_penalty,
+    systemPrompt: row.system_prompt,
+    isDefault: Boolean(row.is_default),
+    isActive: Boolean(row.is_active)
+  };
+}
+
+function parseUserAiSettings(rawValue, db) {
+  const raw = parseJson(rawValue, null);
+  const defaultPreset = db.get('SELECT * FROM ai_model_presets WHERE is_default = 1 ORDER BY id ASC LIMIT 1');
+  const defaultPresetId = defaultPreset ? String(defaultPreset.id) : '';
+
+  if (!raw || !raw.mode) {
+    const legacy = normalizeAiConfig(raw || DEFAULT_AI_CONFIG);
+    return {
+      mode: 'preset',
+      selectedPresetId: defaultPresetId,
+      customOpenAI: normalizeAiConfig(legacy.provider === 'openai' ? legacy : DEFAULT_USER_AI_SETTINGS.customOpenAI),
+      customAnthropic: normalizeAiConfig(legacy.provider === 'anthropic' ? legacy : DEFAULT_USER_AI_SETTINGS.customAnthropic)
+    };
+  }
+
+  return {
+    mode: ['preset', 'custom-openai', 'custom-anthropic'].includes(raw.mode) ? raw.mode : 'preset',
+    selectedPresetId: String(raw.selectedPresetId || defaultPresetId || ''),
+    customOpenAI: normalizeAiConfig({ ...DEFAULT_USER_AI_SETTINGS.customOpenAI, ...(raw.customOpenAI || {}) }),
+    customAnthropic: normalizeAiConfig({ ...DEFAULT_USER_AI_SETTINGS.customAnthropic, ...(raw.customAnthropic || {}) })
+  };
+}
+
+function resolveUserAiConfig(aiSettings, db) {
+  if (aiSettings.mode === 'custom-openai') {
+    return aiSettings.customOpenAI;
+  }
+  if (aiSettings.mode === 'custom-anthropic') {
+    return aiSettings.customAnthropic;
+  }
+  const selectedPreset = aiSettings.selectedPresetId
+    ? db.get('SELECT * FROM ai_model_presets WHERE id = ? AND is_active = 1', [aiSettings.selectedPresetId])
+    : null;
+  const preset = selectedPreset || db.get('SELECT * FROM ai_model_presets WHERE is_default = 1 AND is_active = 1 ORDER BY id ASC LIMIT 1');
+  return preset
+    ? normalizeAiConfig({
+        provider: preset.provider,
+        baseUrl: preset.base_url,
+        apiKey: preset.api_key,
+        model: preset.model,
+        temperature: preset.temperature,
+        topP: preset.top_p,
+        maxTokens: preset.max_tokens,
+        presencePenalty: preset.presence_penalty,
+        frequencyPenalty: preset.frequency_penalty,
+        systemPrompt: preset.system_prompt
+      })
+    : normalizeAiConfig(DEFAULT_AI_CONFIG);
+}
 
 module.exports = function registerPublicRoutes(app, db) {
   app.get('/api/health', (_req, res) => {
@@ -100,6 +169,7 @@ module.exports = function registerPublicRoutes(app, db) {
     const body = req.body || {};
     const current = db.get('SELECT * FROM user_settings WHERE user_id = ?', [req.user.id]);
     const currentSettings = parseSettings(current);
+    const currentAiSettings = parseUserAiSettings(current && current.ai_settings, db);
     const merged = {
       grade: body.grade !== undefined ? body.grade : currentSettings.grade,
       educationType: body.educationType !== undefined ? body.educationType : currentSettings.educationType,
@@ -107,7 +177,7 @@ module.exports = function registerPublicRoutes(app, db) {
       futurePlan: body.futurePlan !== undefined ? body.futurePlan : currentSettings.futurePlan,
       notification: body.notification !== undefined ? body.notification : currentSettings.notification,
       theme: body.theme !== undefined ? body.theme : currentSettings.theme,
-      aiConfig: body.aiConfig !== undefined ? normalizeAiConfig(body.aiConfig) : normalizeAiConfig(currentSettings.aiConfig || DEFAULT_AI_CONFIG)
+      aiConfig: body.aiConfig !== undefined ? body.aiConfig : currentAiSettings
     };
     db.run(
       `UPDATE user_settings SET
@@ -120,7 +190,7 @@ module.exports = function registerPublicRoutes(app, db) {
         merged.futurePlan || '',
         JSON.stringify(merged.notification || {}),
         JSON.stringify(merged.theme || {}),
-        JSON.stringify(merged.aiConfig || DEFAULT_AI_CONFIG),
+        JSON.stringify(merged.aiConfig || currentAiSettings),
         new Date().toISOString(),
         req.user.id
       ]
@@ -362,21 +432,44 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/ai/settings', requireAuth, (req, res) => {
     const row = db.get('SELECT ai_settings FROM user_settings WHERE user_id = ?', [req.user.id]);
-    res.json(normalizeAiConfig(parseJson(row && row.ai_settings, DEFAULT_AI_CONFIG)));
+    const presets = db.all('SELECT * FROM ai_model_presets WHERE is_active = 1 ORDER BY is_default DESC, id ASC');
+    const settings = parseUserAiSettings(row && row.ai_settings, db);
+    res.json({
+      ...settings,
+      presets: presets.map(mapPreset)
+    });
   });
 
   app.put('/api/ai/settings', requireAuth, (req, res) => {
-    const config = normalizeAiConfig(req.body || {});
-    const error = validateAiConfig(config);
+    const body = req.body || {};
+    const settings = {
+      mode: ['preset', 'custom-openai', 'custom-anthropic'].includes(body.mode) ? body.mode : 'preset',
+      selectedPresetId: String(body.selectedPresetId || ''),
+      customOpenAI: normalizeAiConfig({ ...DEFAULT_USER_AI_SETTINGS.customOpenAI, ...(body.customOpenAI || {}) }),
+      customAnthropic: normalizeAiConfig({ ...DEFAULT_USER_AI_SETTINGS.customAnthropic, ...(body.customAnthropic || {}) })
+    };
+    let error = '';
+    if (settings.mode === 'preset') {
+      const preset = settings.selectedPresetId
+        ? db.get('SELECT id FROM ai_model_presets WHERE id = ? AND is_active = 1', [settings.selectedPresetId])
+        : db.get('SELECT id FROM ai_model_presets WHERE is_default = 1 AND is_active = 1 LIMIT 1');
+      if (!preset) {
+        error = '未找到可用的默认模型配置';
+      }
+    } else if (settings.mode === 'custom-openai') {
+      error = validateAiConfig(settings.customOpenAI);
+    } else if (settings.mode === 'custom-anthropic') {
+      error = validateAiConfig(settings.customAnthropic);
+    }
     if (error) {
       return res.status(400).json({ message: error });
     }
     db.run('UPDATE user_settings SET ai_settings = ?, updated_at = ? WHERE user_id = ?', [
-      JSON.stringify(config),
+      JSON.stringify(settings),
       new Date().toISOString(),
       req.user.id
     ]);
-    res.json({ success: true, config });
+    res.json({ success: true, settings });
   });
 
   app.post('/api/ai/validate', requireAuth, async (req, res) => {
@@ -392,8 +485,8 @@ module.exports = function registerPublicRoutes(app, db) {
     try {
       const body = req.body || {};
       const row = db.get('SELECT ai_settings FROM user_settings WHERE user_id = ?', [req.user.id]);
-      const savedConfig = normalizeAiConfig(parseJson(row && row.ai_settings, DEFAULT_AI_CONFIG));
-      const config = body.config ? normalizeAiConfig(body.config) : savedConfig;
+      const savedSettings = parseUserAiSettings(row && row.ai_settings, db);
+      const config = body.config ? normalizeAiConfig(body.config) : resolveUserAiConfig(savedSettings, db);
       const messages = sanitizeMessages(body.messages || [{ role: 'user', content: body.message || '' }]);
       const response = await chatWithAi(config, messages);
       const keyword = String(body.message || (messages[messages.length - 1] && messages[messages.length - 1].content) || '').trim();
