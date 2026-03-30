@@ -1,6 +1,6 @@
-export const SERVER_ORIGIN = 'http://localhost:3000';
+export const SERVER_ORIGIN = 'http://0.0.0.0:3000';
 export const BASE_URL = `${SERVER_ORIGIN}/api`;
-export const ADMIN_ORIGIN = 'http://localhost:8081';
+export const ADMIN_ORIGIN = 'http://0.0.0.0:8081';
 export const ADMIN_LOGIN_URL = `${ADMIN_ORIGIN}/#/login`;
 
 const API = {

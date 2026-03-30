@@ -31,7 +31,7 @@ async function start() {
   registerAdminRoutes(app, db);
 
   app.listen(PORT, () => {
-    console.log(`Huoda server listening on http://localhost:${PORT}`);
+    console.log(`Huoda server listening on http://0.0.0.0:${PORT}`);
     console.log(`SQLite database: ${dbPath}`);
   });
 }
