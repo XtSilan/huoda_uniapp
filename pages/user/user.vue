@@ -30,6 +30,9 @@
       <view class="function-item" @click="goTo('/pages/user/settings')">
         <view class="function-text">设置</view>
       </view>
+      <view v-if="userInfo.role === 'admin'" class="function-item" @click="goToAdmin">
+        <view class="function-text">进入管理后台</view>
+      </view>
       <view class="function-item logout" @click="logout">
         <view class="function-text">退出登录</view>
       </view>
@@ -38,6 +41,8 @@
 </template>
 
 <script>
+import { ADMIN_LOGIN_URL } from '../../config/api';
+
 export default {
   data() {
     return {
@@ -54,6 +59,20 @@ export default {
     this.loadUserInfo();
   },
   methods: {
+    buildAdminRedirect() {
+      const token = uni.getStorageSync('token');
+      const userInfo = this.userInfo && this.userInfo.id ? this.userInfo : uni.getStorageSync('userInfo');
+      const returnTo =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}${window.location.pathname}#/pages/user/user`
+          : '';
+      const query = [
+        `token=${encodeURIComponent(token || '')}`,
+        `user=${encodeURIComponent(JSON.stringify(userInfo || {}))}`,
+        `returnTo=${encodeURIComponent(returnTo)}`
+      ].join('&');
+      return `${ADMIN_LOGIN_URL}?${query}`;
+    },
     checkLoginStatus() {
       const token = uni.getStorageSync('token');
       if (!token) {
@@ -74,6 +93,13 @@ export default {
     },
     goTo(url) {
       uni.navigateTo({ url });
+    },
+    goToAdmin() {
+      if (typeof window !== 'undefined') {
+        window.open(this.buildAdminRedirect(), '_blank');
+      } else {
+        uni.showToast({ title: '请在 H5 管理端打开', icon: 'none' });
+      }
     },
     logout() {
       uni.removeStorageSync('token');

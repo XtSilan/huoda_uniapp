@@ -1,4 +1,7 @@
-export const BASE_URL = 'http://localhost:3000/api';
+export const SERVER_ORIGIN = 'http://localhost:3000';
+export const BASE_URL = `${SERVER_ORIGIN}/api`;
+export const ADMIN_ORIGIN = 'http://localhost:8081';
+export const ADMIN_LOGIN_URL = `${ADMIN_ORIGIN}/#/login`;
 
 const API = {
   auth: {
@@ -38,6 +41,8 @@ const API = {
     applications: `${BASE_URL}/publish/applications`
   },
   ai: {
+    settings: `${BASE_URL}/ai/settings`,
+    validate: `${BASE_URL}/ai/validate`,
     chat: `${BASE_URL}/ai/chat`,
     search: `${BASE_URL}/ai/search`,
     recommend: `${BASE_URL}/ai/recommend`,

@@ -17,12 +17,15 @@
       </view>
 
       <button class="login-btn" :loading="loading" @click="login">登录</button>
-      <view class="tips">默认测试账号：`20240001` / `123456`</view>
+      <view class="tips">用户账号：20240001 / 123456</view>
+      <view class="tips">管理员账号：admin001 / admin123</view>
     </view>
   </view>
 </template>
 
 <script>
+import { ADMIN_LOGIN_URL } from '../../config/api';
+
 export default {
   data() {
     return {
@@ -34,6 +37,18 @@ export default {
     };
   },
   methods: {
+    buildAdminRedirect(token, user) {
+      const returnTo =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}${window.location.pathname}#/pages/user/user`
+          : '';
+      const query = [
+        `token=${encodeURIComponent(token)}`,
+        `user=${encodeURIComponent(JSON.stringify(user))}`,
+        `returnTo=${encodeURIComponent(returnTo)}`
+      ].join('&');
+      return `${ADMIN_LOGIN_URL}?${query}`;
+    },
     async login() {
       if (!this.loginForm.studentId || !this.loginForm.password) {
         uni.showToast({ title: '请输入学号和密码', icon: 'none' });
@@ -48,6 +63,10 @@ export default {
         uni.setStorageSync('userInfo', res.user);
         uni.showToast({ title: '登录成功', icon: 'success' });
         setTimeout(() => {
+          if (res.user && res.user.role === 'admin' && typeof window !== 'undefined') {
+            window.location.href = this.buildAdminRedirect(res.token, res.user);
+            return;
+          }
           uni.switchTab({ url: '/pages/index/index' });
         }, 300);
       } catch (error) {

@@ -11,6 +11,7 @@
     <view class="content-section">
       <view class="section-title">活动详情</view>
       <view class="content">{{ activity.content }}</view>
+      <button class="apply-btn secondary" @click="toggleCollection">收藏活动</button>
     </view>
 
     <view class="bottom-bar">
@@ -46,6 +47,14 @@ export default {
       uni.showLoading({ title: '加载中' });
       try {
         this.activity = await this.$api.publish.getDetail(id);
+        try {
+          await this.$api.user.recordHistory({
+            targetType: 'activity',
+            targetId: id,
+            title: this.activity.title,
+            summary: this.activity.summary || this.activity.content
+          });
+        } catch (e) {}
       } catch (error) {
         uni.showToast({ title: error.message || '加载失败', icon: 'none' });
       } finally {
@@ -61,6 +70,17 @@ export default {
         uni.showToast({ title: error.message || '报名失败', icon: 'none' });
       } finally {
         this.applying = false;
+      }
+    },
+    async toggleCollection() {
+      try {
+        await this.$api.user.toggleCollection({
+          targetType: 'activity',
+          targetId: Number(this.activity.id)
+        });
+        uni.showToast({ title: '收藏状态已更新', icon: 'success' });
+      } catch (error) {
+        uni.showToast({ title: error.message || '操作失败', icon: 'none' });
       }
     },
     formatDate(dateString) {
@@ -116,5 +136,11 @@ export default {
   background: #1e88e5;
   color: #ffffff;
   border-radius: 10rpx;
+}
+
+.secondary {
+  margin-top: 24rpx;
+  background: #eef5ff;
+  color: #1e88e5;
 }
 </style>

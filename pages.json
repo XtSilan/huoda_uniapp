@@ -55,6 +55,12 @@
       }
     },
     {
+      "path": "pages/feature/banner-placeholder/banner-placeholder",
+      "style": {
+        "navigationBarTitleText": "轮播图测试页"
+      }
+    },
+    {
       "path": "pages/feature/ai/ai",
       "style": {
         "navigationBarTitleText": "小达老师"

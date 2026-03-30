@@ -4,6 +4,8 @@
   "description": "活达校园平台 uni-app 前端",
   "main": "main.js",
   "scripts": {
+    "dev:h5": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-serve --platform h5",
+    "build:h5": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-build --platform h5",
     "dev:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-serve --platform mp-weixin",
     "build:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-build --platform mp-weixin",
     "server": "npm --prefix server run dev",

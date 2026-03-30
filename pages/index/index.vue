@@ -12,6 +12,14 @@
       <view class="feature-item" @click="goTo('/pages/feature/publish/create')">活动发布</view>
     </view>
 
+    <view class="banner-section" v-if="banners.length">
+      <swiper class="banner-swiper" circular autoplay indicator-dots>
+        <swiper-item v-for="item in banners" :key="item.id" @click="goToBanner(item)">
+          <image class="banner-image" :src="item.imageUrl" mode="aspectFill"></image>
+        </swiper-item>
+      </swiper>
+    </view>
+
     <view class="section">
       <view class="section-title">
         <text>个性推荐</text>
@@ -52,6 +60,7 @@ export default {
   data() {
     return {
       searchText: '',
+      banners: [],
       recommendList: [],
       hotList: [],
       activities: []
@@ -63,14 +72,11 @@ export default {
   methods: {
     async loadData() {
       try {
-        const [recommendRes, infoRes, publishRes] = await Promise.all([
-          this.$api.ai.getRecommendations(),
-          this.$api.info.getInfoList({ pageSize: 4 }),
-          this.$api.publish.getList()
-        ]);
-        this.recommendList = recommendRes.recommendations || [];
-        this.hotList = infoRes.list || [];
-        this.activities = (publishRes.list || []).slice(0, 3);
+        const res = await this.$api.home.getOverview();
+        this.banners = res.banners || [];
+        this.recommendList = res.recommendations || [];
+        this.hotList = res.hotInfos || [];
+        this.activities = res.latestActivities || [];
       } catch (error) {
         uni.showToast({ title: error.message || '加载首页失败', icon: 'none' });
       }
@@ -82,6 +88,11 @@ export default {
     },
     goTo(url) {
       uni.navigateTo({ url });
+    },
+    goToBanner(item) {
+      uni.navigateTo({
+        url: item.linkUrl || `/pages/feature/banner-placeholder/banner-placeholder?id=${item.id}`
+      });
     },
     goToAI() {
       uni.navigateTo({ url: '/pages/feature/ai/ai' });
@@ -125,6 +136,21 @@ export default {
   display: flex;
   gap: 12rpx;
   margin-bottom: 20rpx;
+}
+
+.banner-section {
+  margin-bottom: 24rpx;
+}
+
+.banner-swiper {
+  height: 260rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.banner-image {
+  width: 100%;
+  height: 100%;
 }
 
 .feature-item {
