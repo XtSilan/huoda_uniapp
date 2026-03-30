@@ -1,64 +1,47 @@
-// API地址配置
-const baseUrl = 'http://localhost:3000/api';
+export const BASE_URL = 'http://localhost:3000/api';
 
 const API = {
-  // 认证相关
   auth: {
-    login: `${baseUrl}/auth/login`,
-    refresh: `${baseUrl}/auth/refresh`
+    login: `${BASE_URL}/auth/login`,
+    refresh: `${BASE_URL}/auth/refresh`
   },
-  
-  // 用户相关
   user: {
-    profile: `${baseUrl}/user/profile`,
-    avatar: `${baseUrl}/user/avatar`
+    profile: `${BASE_URL}/user/profile`
   },
-  
-  // 信息相关
   info: {
-    list: `${baseUrl}/info/list`,
-    detail: `${baseUrl}/info/detail`,
-    collect: `${baseUrl}/info/collect`,
-    uncollect: `${baseUrl}/info/uncollect`,
-    comment: `${baseUrl}/info/comment`,
-    search: `${baseUrl}/info/search`
+    list: `${BASE_URL}/info/list`,
+    detail: `${BASE_URL}/info/detail`,
+    search: `${BASE_URL}/info/search`,
+    collect: `${BASE_URL}/info/collect`,
+    uncollect: `${BASE_URL}/info/uncollect`,
+    comment: `${BASE_URL}/info/comment`
   },
-  
-  // 乐跑相关
   run: {
-    start: `${baseUrl}/run/start`,
-    end: `${baseUrl}/run/end`,
-    history: `${baseUrl}/run/history`,
-    ranking: `${baseUrl}/run/ranking`,
-    target: `${baseUrl}/run/target`
+    start: `${BASE_URL}/run/start`,
+    end: `${BASE_URL}/run/end`,
+    history: `${BASE_URL}/run/history`,
+    ranking: `${BASE_URL}/run/ranking`,
+    target: `${BASE_URL}/run/target`
   },
-  
-  // 签到相关
   sign: {
-    create: `${baseUrl}/sign/create`,
-    do: `${baseUrl}/sign/do`,
-    statistics: `${baseUrl}/sign/statistics`,
-    history: `${baseUrl}/sign/history`,
-    leave: `${baseUrl}/sign/leave`
+    do: `${BASE_URL}/sign/do`,
+    history: `${BASE_URL}/sign/history`,
+    statistics: `${BASE_URL}/sign/statistics`,
+    leave: `${BASE_URL}/sign/leave`
   },
-  
-  // 活动发布相关
   publish: {
-    create: `${baseUrl}/publish/create`,
-    update: `${baseUrl}/publish/update`,
-    detail: `${baseUrl}/publish/detail`,
-    list: `${baseUrl}/publish/list`,
-    delete: `${baseUrl}/publish/delete`,
-    apply: `${baseUrl}/publish/apply`,
-    applications: `${baseUrl}/publish/applications`
+    create: `${BASE_URL}/publish/create`,
+    detail: `${BASE_URL}/publish/detail`,
+    list: `${BASE_URL}/publish/list`,
+    delete: `${BASE_URL}/publish/delete`,
+    apply: `${BASE_URL}/publish/apply`,
+    applications: `${BASE_URL}/publish/applications`
   },
-  
-  // 人工智能对话框相关
   ai: {
-    chat: `${baseUrl}/ai/chat`,
-    search: `${baseUrl}/ai/search`,
-    recommend: `${baseUrl}/ai/recommend`,
-    history: `${baseUrl}/ai/history`
+    chat: `${BASE_URL}/ai/chat`,
+    search: `${BASE_URL}/ai/search`,
+    recommend: `${BASE_URL}/ai/recommend`,
+    history: `${BASE_URL}/ai/history`
   }
 };
 

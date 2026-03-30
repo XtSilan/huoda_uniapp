@@ -15,7 +15,7 @@
     {
       "path": "pages/info/info",
       "style": {
-        "navigationBarTitleText": "信息"
+        "navigationBarTitleText": "资讯"
       }
     },
     {
@@ -39,19 +39,25 @@
     {
       "path": "pages/feature/publish/publish",
       "style": {
-        "navigationBarTitleText": "发现"
+        "navigationBarTitleText": "发现活动"
       }
     },
     {
-      "path": "pages/feature/ai/ai",
+      "path": "pages/feature/publish/detail",
       "style": {
-        "navigationBarTitleText": "小达老师"
+        "navigationBarTitleText": "活动详情"
       }
     },
     {
       "path": "pages/feature/publish/create",
       "style": {
         "navigationBarTitleText": "创建活动"
+      }
+    },
+    {
+      "path": "pages/feature/ai/ai",
+      "style": {
+        "navigationBarTitleText": "小达老师"
       }
     },
     {
@@ -114,7 +120,7 @@
       },
       {
         "pagePath": "pages/info/info",
-        "text": "信息"
+        "text": "资讯"
       },
       {
         "pagePath": "pages/feature/publish/publish",

@@ -3,34 +3,21 @@
     <view class="login-form">
       <view class="logo">
         <text class="logo-text">活达</text>
-        <text class="logo-subtitle">大学生个性化与信息聚合平台</text>
+        <text class="logo-subtitle">校园信息与活动聚合平台</text>
       </view>
-      
+
       <view class="form-item">
         <text class="label">学号</text>
-        <input
-          class="input"
-          placeholder="请输入学号"
-          v-model="loginForm.studentId"
-          type="number"
-        />
+        <input class="input" placeholder="请输入学号" v-model="loginForm.studentId" />
       </view>
-      
+
       <view class="form-item">
         <text class="label">密码</text>
-        <input
-          class="input"
-          placeholder="请输入密码"
-          v-model="loginForm.password"
-          type="password"
-        />
+        <input class="input" placeholder="请输入密码" v-model="loginForm.password" password />
       </view>
-      
-      <button class="login-btn" @click="login">登录</button>
-      
-      <view class="forgot-password">
-        <text>忘记密码？</text>
-      </view>
+
+      <button class="login-btn" :loading="loading" @click="login">登录</button>
+      <view class="tips">默认测试账号：`20240001` / `123456`</view>
     </view>
   </view>
 </template>
@@ -39,43 +26,35 @@
 export default {
   data() {
     return {
+      loading: false,
       loginForm: {
-        studentId: '',
-        password: ''
+        studentId: '20240001',
+        password: '123456'
       }
     };
   },
   methods: {
-    login() {
-      // 表单验证
-      if (!this.loginForm.studentId) {
-        uni.showToast({ title: '请输入学号', icon: 'none' });
+    async login() {
+      if (!this.loginForm.studentId || !this.loginForm.password) {
+        uni.showToast({ title: '请输入学号和密码', icon: 'none' });
         return;
       }
-      if (!this.loginForm.password) {
-        uni.showToast({ title: '请输入密码', icon: 'none' });
-        return;
-      }
-      
-      // 模拟登录
-      uni.showLoading({ title: '登录中...' });
-      setTimeout(() => {
-        uni.hideLoading();
-        uni.showToast({ title: '登录成功', icon: 'success' });
-        // 保存登录状态
+
+      this.loading = true;
+      try {
+        const res = await this.$api.auth.login(this.loginForm);
+        uni.setStorageSync('token', res.token);
         uni.setStorageSync('isLoggedIn', true);
-        uni.setStorageSync('userInfo', {
-          studentId: this.loginForm.studentId,
-          name: '测试用户',
-          avatar: ''
-        });
-        // 保存用户密码（实际应用中应该加密存储）
-        uni.setStorageSync('userPassword', this.loginForm.password);
-        // 跳转到首页
-        uni.switchTab({
-          url: '/pages/index/index'
-        });
-      }, 1000);
+        uni.setStorageSync('userInfo', res.user);
+        uni.showToast({ title: '登录成功', icon: 'success' });
+        setTimeout(() => {
+          uni.switchTab({ url: '/pages/index/index' });
+        }, 300);
+      } catch (error) {
+        uni.showToast({ title: error.message || '登录失败', icon: 'none' });
+      } finally {
+        this.loading = false;
+      }
     }
   }
 };
@@ -83,21 +62,20 @@ export default {
 
 <style scoped>
 .container {
-  padding: 40rpx;
-  background-color: #f5f5f5;
   min-height: 100vh;
+  padding: 40rpx;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
 }
 
 .login-form {
   width: 100%;
-  max-width: 600rpx;
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  padding: 40rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
+  max-width: 640rpx;
+  background: #ffffff;
+  border-radius: 20rpx;
+  padding: 48rpx 40rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
 }
 
 .logo {
@@ -107,51 +85,50 @@ export default {
 
 .logo-text {
   display: block;
-  font-size: 48rpx;
+  font-size: 56rpx;
   font-weight: bold;
-  color: #1E88E5;
-  margin-bottom: 16rpx;
+  color: #1e88e5;
+  margin-bottom: 12rpx;
 }
 
 .logo-subtitle {
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: #666666;
 }
 
 .form-item {
-  margin-bottom: 32rpx;
+  margin-bottom: 28rpx;
 }
 
 .label {
   display: block;
-  font-size: 28rpx;
-  font-weight: bold;
   margin-bottom: 12rpx;
-  color: #333333;
+  font-size: 28rpx;
+  font-weight: 600;
 }
 
 .input {
   width: 100%;
+  border: 2rpx solid #e5e7eb;
+  border-radius: 12rpx;
   padding: 20rpx;
-  border: 2rpx solid #e0e0e0;
-  border-radius: 8rpx;
   font-size: 28rpx;
+  background: #fdfdfd;
 }
 
 .login-btn {
+  margin-top: 12rpx;
   width: 100%;
-  padding: 20rpx;
-  background-color: #1E88E5;
+  background: #1e88e5;
   color: #ffffff;
-  border-radius: 8rpx;
-  font-size: 32rpx;
-  margin-top: 16rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
 }
 
-.forgot-password {
-  text-align: right;
-  margin-top: 24rpx;
+.tips {
+  margin-top: 20rpx;
+  text-align: center;
+  color: #888888;
   font-size: 24rpx;
-  color: #1E88E5;
 }
 </style>

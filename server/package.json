@@ -1,0 +1,14 @@
+{
+  "name": "huoda-server",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "db:init": "node src/index.js --init-db"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

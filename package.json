@@ -1,11 +1,13 @@
 {
-  "name": "huoda-unapp",
+  "name": "huoda-uniapp",
   "version": "1.0.0",
-  "description": "活达-大学生个性化与信息聚合平台",
+  "description": "活达校园平台 uni-app 前端",
   "main": "main.js",
   "scripts": {
     "dev:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-serve --platform mp-weixin",
-    "build:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-build --platform mp-weixin"
+    "build:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-build --platform mp-weixin",
+    "server": "npm --prefix server run dev",
+    "server:init-db": "npm --prefix server run db:init"
   },
   "dependencies": {
     "@dcloudio/uni-ui": "^1.4.26"
