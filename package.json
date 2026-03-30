@@ -1,0 +1,28 @@
+{
+  "name": "huoda-unapp",
+  "version": "1.0.0",
+  "description": "活达-大学生个性化与信息聚合平台",
+  "main": "main.js",
+  "scripts": {
+    "dev:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-serve --platform mp-weixin",
+    "build:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-build --platform mp-weixin"
+  },
+  "dependencies": {
+    "@dcloudio/uni-ui": "^1.4.26"
+  },
+  "devDependencies": {
+    "@dcloudio/uni-app": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-cli-i18n": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-cli-shared": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-h5": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-i18n": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-migration": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-mp-weixin": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-stat": "^2.0.2-5000520260324002",
+    "@dcloudio/uni-template-compiler": "^2.0.2-5000520260324002",
+    "@dcloudio/vue-cli-plugin-uni": "^2.0.2-5000520260324002",
+    "@dcloudio/webpack-uni-mp-loader": "^2.0.2-5000520260324002",
+    "@dcloudio/webpack-uni-pages-loader": "^2.0.2-5000520260324002",
+    "@vue/cli-service": "^4.5.15"
+  }
+}
