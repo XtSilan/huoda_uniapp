@@ -4,7 +4,13 @@
       <view class="group-name">{{ group.groupName }}</view>
       <view class="group-meta">{{ group.memberCount }} 人在群</view>
       <view class="group-announcement">{{ group.announcement || '暂无群公告' }}</view>
-      <image v-if="group.qrCode" class="qr-code" :src="getQrCode(group.qrCode)" mode="aspectFit"></image>
+      <image
+        v-if="group.qrCode"
+        class="qr-code"
+        :src="getQrCode(group.qrCode)"
+        mode="aspectFit"
+        @click="previewQrCode"
+      ></image>
     </view>
 
     <view class="section">
@@ -79,6 +85,16 @@ export default {
         return '';
       }
       return value.startsWith('http') ? value : `http://localhost:3000${value}`;
+    },
+    previewQrCode() {
+      const url = this.getQrCode(this.group && this.group.qrCode);
+      if (!url) {
+        return;
+      }
+      uni.previewImage({
+        urls: [url],
+        current: url
+      });
     }
   }
 };
