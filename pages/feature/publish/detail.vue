@@ -15,7 +15,7 @@
       <view class="meta-item">时间：{{ formatDate(activity.startTime) }} - {{ formatDate(activity.endTime) }}</view>
       <view class="meta-item">地点：{{ activity.location || '待补充' }}</view>
       <scroll-view v-if="activity.images && activity.images.length" class="image-strip" scroll-x>
-        <image v-for="(item, index) in activity.images" :key="`${item}-${index}`" class="preview-image" :src="item" mode="aspectFill"></image>
+        <image v-for="(item, index) in activity.images" :key="index" class="preview-image" :src="item" mode="aspectFill"></image>
       </scroll-view>
     </view>
 

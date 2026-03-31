@@ -30,7 +30,7 @@
           <text class="section-heading">资讯结果</text>
         </view>
         <view v-if="searchInfos.length === 0" class="empty-state">暂无匹配资讯</view>
-        <view v-for="item in searchInfos" :key="`info-${item.id}`" class="content-card" @click="goToDetail(item.id)">
+        <view v-for="item in searchInfos" :key="item.id" class="content-card" @click="goToDetail(item.id)">
           <view class="content-card__title">{{ item.title }}</view>
           <view class="content-card__desc">{{ item.summary || item.content }}</view>
           <view class="content-card__meta">{{ item.source }} · {{ item.locationType || '资讯' }}</view>
@@ -42,7 +42,7 @@
           <text class="section-heading">活动结果</text>
         </view>
         <view v-if="searchActivities.length === 0" class="empty-state">暂无匹配活动</view>
-        <view v-for="item in searchActivities" :key="`activity-${item.id}`" class="content-card" @click="goToActivity(item.id)">
+        <view v-for="item in searchActivities" :key="item.id" class="content-card" @click="goToActivity(item.id)">
           <view class="content-card__title">{{ item.title }}</view>
           <view class="content-card__desc">{{ item.summary || item.content }}</view>
           <view class="content-card__meta">{{ item.organizer }} · {{ item.location }}</view>

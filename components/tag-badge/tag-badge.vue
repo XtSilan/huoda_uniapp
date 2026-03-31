@@ -1,5 +1,5 @@
 <template>
-  <view class="badge" :class="`badge--${tone}`">
+  <view class="badge" :class="toneClass">
     <text class="badge__text">{{ text }}</text>
   </view>
 </template>
@@ -15,6 +15,11 @@ export default {
     tone: {
       type: String,
       default: 'purple'
+    }
+  },
+  computed: {
+    toneClass() {
+      return 'badge--' + this.tone;
     }
   }
 };

@@ -73,7 +73,7 @@
         <text class="field-title">活动图片</text>
         <view class="image-list">
           <view class="upload-box" @click="chooseImages">+</view>
-          <image v-for="(item, index) in activity.images" :key="`${item}-${index}`" class="preview-image" :src="item" mode="aspectFill"></image>
+          <image v-for="(item, index) in activity.images" :key="index" class="preview-image" :src="item" mode="aspectFill"></image>
         </view>
       </view>
     </view>
