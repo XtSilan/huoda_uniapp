@@ -2,6 +2,7 @@ node_modules/
 unpackage/
 server/node_modules/
 server/data/
+server/uploads/
 server/*.log
 vue2-iview2-admin/node_modules/
 vue2-iview2-admin/dist/
