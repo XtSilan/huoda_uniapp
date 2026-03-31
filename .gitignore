@@ -26,6 +26,8 @@ pnpm-debug.log*
 *.sln
 Thumbs.db
 .DS_Store
+mainfest.json
+
 
 # Local build and temp files
 dist/
