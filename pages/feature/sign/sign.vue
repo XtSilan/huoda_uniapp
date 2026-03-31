@@ -1,55 +1,74 @@
 <template>
-  <view class="container">
+  <view class="page-shell sign-page">
+    <view class="page-header">
+      <view class="page-eyebrow">班级签到</view>
+      <view class="page-title">{{ className || '还没有绑定班级' }}</view>
+      <view class="page-subtitle">把签到、课程提醒、历史记录和请假申请收成同一套卡片体验。</view>
+    </view>
+
     <view class="status-card">
-      <view class="status-title">班级签到</view>
-      <view class="status-subtitle">{{ className || '未设置班级' }}</view>
-      <view class="status-content">
-        <view class="stat-item">
-          <view class="stat-value">{{ totalSigns }}</view>
-          <view class="stat-label">总签到次数</view>
+      <view class="status-grid">
+        <view class="status-item">
+          <view class="status-label">总签到次数</view>
+          <view class="status-value">{{ totalSigns }}</view>
         </view>
-        <view class="stat-item">
-          <view class="stat-value">{{ attendanceRate }}%</view>
-          <view class="stat-label">出勤率</view>
+        <view class="status-item">
+          <view class="status-label">出勤率</view>
+          <view class="status-value">{{ attendanceRate }}%</view>
         </view>
       </view>
     </view>
 
-    <view class="today-section">
-      <view class="section-title">今日课程</view>
-      <view class="today-list">
-        <view v-for="course in todayCourses" :key="course.id" class="today-item">
-          <view>
+    <view class="section-block">
+      <view class="section-row">
+        <text class="section-heading">今日课程</text>
+      </view>
+      <view class="surface-card section-card">
+        <view v-if="todayCourses.length === 0" class="empty-state">今天没有课程安排</view>
+        <view v-for="course in todayCourses" :key="course.id" class="course-item">
+          <view class="course-item__body">
             <view class="course-name">{{ course.courseName }}</view>
-            <view class="course-teacher">{{ course.teacher }}</view>
-            <view class="course-time">{{ course.time }}</view>
+            <view class="course-meta">{{ course.teacher }} · {{ course.time }}</view>
           </view>
-          <button class="sign-btn" :disabled="todaySigned" @click="doSign(course)">
-            {{ todaySigned ? '已签到' : '立即签到' }}
-          </button>
+          <view class="course-action">
+            <custom-button :text="todaySigned ? '已签到' : '立即签到'" :ghost="todaySigned" @click="doSign(course)" />
+          </view>
         </view>
       </view>
     </view>
 
-    <view class="history-section">
-      <view class="section-title">签到历史</view>
-      <view class="history-list">
+    <view class="section-block">
+      <view class="section-row">
+        <text class="section-heading">签到历史</text>
+      </view>
+      <view class="surface-card section-card">
+        <view v-if="historyList.length === 0" class="empty-state">暂无签到历史</view>
         <view v-for="item in historyList" :key="item.id" class="history-item">
           <view>
             <view class="course-name">{{ item.courseName }}</view>
-            <view class="course-teacher">{{ item.teacher }}</view>
+            <view class="course-meta">{{ item.teacher }}</view>
           </view>
-          <view>{{ formatDate(item.time) }}</view>
+          <view class="history-time">{{ formatDate(item.time) }}</view>
         </view>
       </view>
     </view>
 
-    <view class="leave-section">
-      <view class="section-title">请假申请</view>
-      <view class="leave-form">
-        <input class="input" v-model="leaveReason" placeholder="请输入请假原因" />
-        <input class="input" v-model="leaveTime" placeholder="请输入请假时间" />
-        <button class="leave-btn" @click="applyLeave">提交请假申请</button>
+    <view class="section-block">
+      <view class="section-row">
+        <text class="section-heading">请假申请</text>
+      </view>
+      <view class="surface-card leave-card">
+        <text class="field-title">请假原因</text>
+        <view class="field-panel">
+          <input class="field-input" v-model="leaveReason" placeholder="请输入请假原因" />
+        </view>
+        <text class="field-title field-gap">请假时间</text>
+        <view class="field-panel">
+          <input class="field-input" v-model="leaveTime" placeholder="请输入请假时间" />
+        </view>
+        <view class="leave-action">
+          <custom-button text="提交请假申请" @click="applyLeave" />
+        </view>
       </view>
     </view>
   </view>
@@ -91,6 +110,9 @@ export default {
       }
     },
     async doSign(course) {
+      if (this.todaySigned) {
+        return;
+      }
       try {
         await this.$api.sign.doSign({
           courseName: course.courseName,
@@ -121,108 +143,109 @@ export default {
       }
     },
     formatDate(value) {
-      return new Date(value).toLocaleString();
+      return value ? new Date(value).toLocaleString() : '-';
     }
   }
 };
 </script>
 
 <style scoped>
-.container {
-  padding: 16rpx;
-}
-
 .status-card {
-  background: #1e88e5;
+  padding: 28rpx;
+  border-radius: 36rpx;
+  background: linear-gradient(135deg, rgba(138, 100, 255, 0.95), rgba(107, 72, 255, 1));
   color: #ffffff;
-  border-radius: 16rpx;
+  box-shadow: var(--shadow-md);
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.status-item {
+  padding: 22rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.status-label {
+  font-size: 22rpx;
+  opacity: 0.85;
+}
+
+.status-value {
+  margin-top: 10rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+}
+
+.section-card,
+.leave-card {
   padding: 24rpx;
-  margin-bottom: 16rpx;
 }
 
-.status-title {
-  font-size: 34rpx;
-  font-weight: 700;
-}
-
-.status-subtitle {
-  margin-top: 8rpx;
-  font-size: 24rpx;
-}
-
-.status-content {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 24rpx;
-}
-
-.stat-item {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 44rpx;
-  font-weight: 700;
-}
-
-.today-list,
-.history-list,
-.leave-form {
-  background: #ffffff;
-  border-radius: 12rpx;
-  padding: 16rpx;
-}
-
-.today-item,
+.course-item,
 .history-item {
   display: flex;
   justify-content: space-between;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #ececec;
+  align-items: center;
+  gap: 18rpx;
+  padding: 18rpx 0;
 }
 
-.today-item:last-child,
-.history-item:last-child {
-  border-bottom: none;
+.course-item + .course-item,
+.history-item + .history-item {
+  border-top: 1rpx solid #eef1f7;
 }
 
-.section-title {
-  font-size: 30rpx;
-  font-weight: 700;
-  margin-bottom: 12rpx;
-}
-
-.today-section,
-.history-section,
-.leave-section {
-  margin-bottom: 24rpx;
+.course-item__body {
+  flex: 1;
 }
 
 .course-name {
   font-size: 28rpx;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--text-main);
 }
 
-.course-teacher,
-.course-time,
-.input {
+.course-meta,
+.history-time {
+  margin-top: 10rpx;
   font-size: 24rpx;
-  color: #666666;
-  margin-top: 8rpx;
+  color: var(--text-sub);
 }
 
-.input {
+.course-action {
+  width: 180rpx;
+}
+
+.field-title {
+  display: block;
+  margin-bottom: 14rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.field-gap {
+  margin-top: 20rpx;
+}
+
+.field-panel {
+  background: #f6f7fb;
+  border-radius: 24rpx;
+  padding: 0 24rpx;
+}
+
+.field-input {
   width: 100%;
-  padding: 16rpx;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 10rpx;
-  margin-bottom: 16rpx;
+  height: 88rpx;
+  font-size: 28rpx;
 }
 
-.sign-btn,
-.leave-btn {
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 10rpx;
+.leave-action {
+  margin-top: 24rpx;
 }
 </style>

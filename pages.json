@@ -21,19 +21,19 @@
     {
       "path": "pages/feature/run/run",
       "style": {
-        "navigationBarTitleText": "校园乐跑"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/feature/sign/sign",
       "style": {
-        "navigationBarTitleText": "班级签到"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/feature/sign/group-chat",
       "style": {
-        "navigationBarTitleText": "班级群聊"
+        "navigationStyle": "custom"
       }
     },
     {

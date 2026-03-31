@@ -1,48 +1,71 @@
 <template>
-  <view class="container">
-    <view class="status-card" v-if="!isRunning">
-      <view class="status-title">校园乐跑</view>
-      <view class="status-content">
-        <view class="stat-item">
-          <view class="stat-value">{{ totalDistance }}</view>
-          <view class="stat-label">总里程(km)</view>
-        </view>
-        <view class="stat-item">
-          <view class="stat-value">{{ totalDuration }}</view>
-          <view class="stat-label">总时长(min)</view>
-        </view>
-        <view class="stat-item">
-          <view class="stat-value">{{ totalCalories }}</view>
-          <view class="stat-label">总消耗(kcal)</view>
-        </view>
-      </view>
-      <button class="start-btn" @click="startRun">开始跑步</button>
+  <view class="page-shell run-page">
+    <view class="page-header">
+      <view class="page-eyebrow">校园乐跑</view>
+      <view class="page-title">{{ isRunning ? '正在跑步' : '把今天的步伐记录下来' }}</view>
+      <view class="page-subtitle">跑步状态、历史和排行榜都统一成更清爽的卡片式布局。</view>
     </view>
 
-    <view class="running-card" v-else>
+    <view v-if="!isRunning" class="surface-card summary-card">
+      <view class="summary-grid">
+        <view class="summary-item">
+          <view class="summary-icon tone-purple">距</view>
+          <view class="summary-value">{{ totalDistance }}</view>
+          <view class="summary-label">总里程(km)</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-icon tone-blue">时</view>
+          <view class="summary-value">{{ totalDuration }}</view>
+          <view class="summary-label">总时长(min)</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-icon tone-green">卡</view>
+          <view class="summary-value">{{ totalCalories }}</view>
+          <view class="summary-label">总消耗(kcal)</view>
+        </view>
+      </view>
+      <view class="summary-action">
+        <custom-button text="开始跑步" @click="startRun" />
+      </view>
+    </view>
+
+    <view v-else class="running-card">
+      <view class="running-chip">RUNNING NOW</view>
       <view class="running-time">{{ runningTime }}</view>
       <view class="running-distance">{{ runningDistance }} km</view>
       <view class="running-calories">{{ runningCalories }} kcal</view>
-      <button class="stop-btn" :loading="submitting" @click="stopRun">结束跑步</button>
+      <view class="running-action">
+        <custom-button text="结束跑步" :loading="submitting" ghost @click="stopRun" />
+      </view>
     </view>
 
-    <view class="history-section">
-      <view class="section-title">跑步历史</view>
-      <view class="history-list">
-        <view v-for="item in historyList" :key="item.id" class="history-item">
-          <view>{{ formatDate(item.date) }}</view>
-          <view>{{ item.distance }} km / {{ formatDuration(item.duration) }} / {{ item.calories }} kcal</view>
+    <view class="section-block">
+      <view class="section-row">
+        <text class="section-heading">跑步历史</text>
+      </view>
+      <view class="surface-card list-card">
+        <view v-if="historyList.length === 0" class="empty-state">还没有跑步记录</view>
+        <view v-for="item in historyList" :key="item.id" class="list-item">
+          <view class="list-item__body">
+            <view class="list-item__title">{{ formatDate(item.date) }}</view>
+            <view class="list-item__meta">{{ item.distance }} km / {{ formatDuration(item.duration) }} / {{ item.calories }} kcal</view>
+          </view>
         </view>
       </view>
     </view>
 
-    <view class="ranking-section">
-      <view class="section-title">排行榜</view>
-      <view class="ranking-list">
-        <view v-for="item in rankingList" :key="item.userId" class="ranking-item">
-          <text>{{ item.rank }}</text>
-          <text>{{ item.name }}</text>
-          <text>{{ item.distance }} km</text>
+    <view class="section-block">
+      <view class="section-row">
+        <text class="section-heading">排行榜</text>
+      </view>
+      <view class="surface-card list-card">
+        <view v-if="rankingList.length === 0" class="empty-state">排行榜稍后更新</view>
+        <view v-for="item in rankingList" :key="item.userId" class="list-item rank-item">
+          <view class="rank-badge">{{ item.rank }}</view>
+          <view class="list-item__body">
+            <view class="list-item__title">{{ item.name }}</view>
+            <view class="list-item__meta">{{ item.distance }} km</view>
+          </view>
         </view>
       </view>
     </view>
@@ -80,7 +103,6 @@ export default {
           this.$api.run.getHistory(),
           this.$api.run.getRanking()
         ]);
-
         this.historyList = historyRes.list || [];
         this.rankingList = rankingRes.list || [];
         this.totalDistance = this.historyList.reduce((sum, item) => sum + Number(item.distance || 0), 0).toFixed(2);
@@ -97,13 +119,11 @@ export default {
         uni.showToast({ title: error.message || '无法开始跑步', icon: 'none' });
         return;
       }
-
       this.isRunning = true;
       this.elapsedSeconds = 0;
       this.runningTime = '00:00:00';
       this.runningDistance = '0.00';
       this.runningCalories = 0;
-
       this.timer = setInterval(() => {
         this.elapsedSeconds += 1;
         this.runningTime = this.formatTime(this.elapsedSeconds);
@@ -142,7 +162,7 @@ export default {
       return `${h}:${m}:${s}`;
     },
     formatDate(dateString) {
-      return new Date(dateString).toLocaleString();
+      return dateString ? new Date(dateString).toLocaleString() : '-';
     },
     formatDuration(seconds) {
       const minutes = Math.floor(seconds / 60);
@@ -154,88 +174,135 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  padding: 16rpx;
+.summary-card,
+.list-card {
+  padding: 24rpx;
 }
 
-.status-card,
-.running-card {
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+
+.summary-item {
   text-align: center;
 }
 
-.status-content {
+.summary-icon {
+  width: 64rpx;
+  height: 64rpx;
+  margin: 0 auto 14rpx;
+  border-radius: 20rpx;
   display: flex;
-  justify-content: space-between;
-  margin: 24rpx 0;
-}
-
-.stat-item {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 44rpx;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
   font-weight: 700;
 }
 
-.stat-label {
-  font-size: 24rpx;
+.tone-purple {
+  background: var(--primary-light);
+  color: var(--primary-color);
+}
+
+.tone-blue {
+  background: var(--blue-bg);
+  color: var(--blue-color);
+}
+
+.tone-green {
+  background: var(--green-bg);
+  color: var(--green-color);
+}
+
+.summary-value {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.summary-label {
   margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--text-sub);
+}
+
+.summary-action {
+  margin-top: 28rpx;
+}
+
+.running-card {
+  padding: 34rpx 28rpx;
+  border-radius: 36rpx;
+  background: var(--primary-gradient);
+  color: #ffffff;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.running-chip {
+  display: inline-flex;
+  padding: 10rpx 18rpx;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 22rpx;
+  font-weight: 700;
 }
 
 .running-time {
-  font-size: 64rpx;
-  font-weight: bold;
+  margin-top: 24rpx;
+  font-size: 68rpx;
+  font-weight: 700;
 }
 
 .running-distance,
 .running-calories {
-  margin-top: 16rpx;
-  font-size: 30rpx;
+  margin-top: 12rpx;
+  font-size: 28rpx;
 }
 
-.start-btn,
-.stop-btn {
-  margin-top: 24rpx;
-  background: #ffffff;
-  color: #1e88e5;
-  border-radius: 10rpx;
+.running-action {
+  margin-top: 28rpx;
 }
 
-.history-section,
-.ranking-section {
-  margin-bottom: 24rpx;
+.list-item {
+  padding: 18rpx 0;
 }
 
-.section-title {
-  font-size: 32rpx;
+.list-item + .list-item {
+  border-top: 1rpx solid #eef1f7;
+}
+
+.list-item__title {
+  font-size: 28rpx;
   font-weight: 700;
-  margin-bottom: 12rpx;
+  color: var(--text-main);
 }
 
-.history-list,
-.ranking-list {
-  background: #ffffff;
-  border-radius: 12rpx;
-  padding: 16rpx;
+.list-item__meta {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: var(--text-sub);
 }
 
-.history-item,
-.ranking-item {
+.rank-item {
   display: flex;
-  justify-content: space-between;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #ededed;
-  font-size: 26rpx;
+  align-items: center;
+  gap: 16rpx;
 }
 
-.history-item:last-child,
-.ranking-item:last-child {
-  border-bottom: none;
+.rank-badge {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 18rpx;
+  background: var(--primary-light);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 </style>
