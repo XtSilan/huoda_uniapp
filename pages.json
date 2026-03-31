@@ -15,7 +15,7 @@
     {
       "path": "pages/info/info",
       "style": {
-        "navigationBarTitleText": "资讯"
+        "navigationBarTitleText": "信息"
       }
     },
     {
@@ -39,7 +39,7 @@
     {
       "path": "pages/feature/publish/publish",
       "style": {
-        "navigationBarTitleText": "发现活动"
+        "navigationBarTitleText": "发现"
       }
     },
     {
@@ -57,7 +57,7 @@
     {
       "path": "pages/feature/banner-placeholder/banner-placeholder",
       "style": {
-        "navigationBarTitleText": "轮播图测试页"
+        "navigationBarTitleText": "轮播图页面"
       }
     },
     {
@@ -125,12 +125,12 @@
         "text": "首页"
       },
       {
-        "pagePath": "pages/info/info",
-        "text": "资讯"
-      },
-      {
         "pagePath": "pages/feature/publish/publish",
         "text": "发现"
+      },
+      {
+        "pagePath": "pages/info/info",
+        "text": "信息"
       },
       {
         "pagePath": "pages/user/user",

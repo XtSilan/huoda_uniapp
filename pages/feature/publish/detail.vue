@@ -6,6 +6,9 @@
       <view class="meta-item">时间：{{ formatDate(activity.startTime) }} - {{ formatDate(activity.endTime) }}</view>
       <view class="meta-item">地点：{{ activity.location }}</view>
       <view class="meta-item">报名人数：{{ activity.applyCount }}</view>
+      <scroll-view v-if="activity.images && activity.images.length" class="image-strip" scroll-x>
+        <image v-for="(item, index) in activity.images" :key="`${item}-${index}`" class="preview-image" :src="item" mode="aspectFill"></image>
+      </scroll-view>
     </view>
 
     <view class="content-section">
@@ -33,6 +36,7 @@ export default {
         endTime: '',
         location: '',
         organizer: '',
+        images: [],
         applyCount: 0
       }
     };
@@ -94,6 +98,7 @@ export default {
 .container {
   min-height: 100vh;
   background: #f5f5f5;
+  padding-bottom: 120rpx;
 }
 
 .info-section,
@@ -121,6 +126,18 @@ export default {
   font-size: 30rpx;
   font-weight: 700;
   margin-bottom: 16rpx;
+}
+
+.image-strip {
+  white-space: nowrap;
+  margin-top: 16rpx;
+}
+
+.preview-image {
+  width: 220rpx;
+  height: 160rpx;
+  border-radius: 12rpx;
+  margin-right: 12rpx;
 }
 
 .bottom-bar {

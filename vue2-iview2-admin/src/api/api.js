@@ -30,6 +30,8 @@ export const getActivities = () => http.get('/admin/activities').then((res) => r
 export const createActivity = (payload) => http.post('/admin/activities', payload).then((res) => res.data);
 export const updateActivity = (id, payload) => http.put(`/admin/activities/${id}`, payload).then((res) => res.data);
 export const deleteActivity = (id) => http.delete(`/admin/activities/${id}`).then((res) => res.data);
+export const getClassGroups = () => http.get('/admin/class-groups').then((res) => res.data);
+export const updateClassGroup = (id, payload) => http.put(`/admin/class-groups/${id}`, payload).then((res) => res.data);
 export const getReports = () => http.get('/admin/reports').then((res) => res.data);
 export const getAiModels = () => http.get('/admin/ai-models').then((res) => res.data);
 export const createAiModel = (payload) => http.post('/admin/ai-models', payload).then((res) => res.data);

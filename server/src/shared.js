@@ -27,9 +27,17 @@ function requireAdmin(req, res, next) {
     return res.status(401).json({ message: '请先登录' });
   }
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: '无后台权限' });
+    return res.status(403).json({ message: '暂无后台权限' });
   }
   next();
+}
+
+function parseJson(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch (error) {
+    return fallback;
+  }
 }
 
 function mapUser(row) {
@@ -70,7 +78,7 @@ function mapInfo(row) {
     locationType: row.location_type,
     status: row.status,
     publishTime: row.publish_time,
-    viewCount: 100 + row.id * 11
+    viewCount: 100 + Number(row.id || 0) * 11
   };
 }
 
@@ -85,7 +93,7 @@ function mapActivity(row) {
     location: row.location,
     locationType: row.location_type,
     organizer: row.organizer,
-    images: JSON.parse(row.images || '[]'),
+    images: parseJson(row.images, []),
     activityType: row.activity_type,
     status: row.status,
     publishTime: row.publish_time,
@@ -93,15 +101,28 @@ function mapActivity(row) {
   };
 }
 
+function mapClassGroup(row) {
+  return {
+    id: String(row.id),
+    className: row.class_name,
+    groupName: row.group_name,
+    announcement: row.announcement || '',
+    qrCode: row.qr_code || '',
+    onlineCount: Number(row.online_count || 0),
+    classmates: parseJson(row.classmates, []),
+    messages: parseJson(row.messages, [])
+  };
+}
+
 function parseSettings(row) {
   return {
     grade: row.grade || '',
     educationType: row.education_type || '',
-    interests: JSON.parse(row.interests || '[]'),
+    interests: parseJson(row.interests, []),
     futurePlan: row.future_plan || '',
-    notification: JSON.parse(row.notification_settings || '{}'),
-    theme: JSON.parse(row.theme_settings || '{}'),
-    aiConfig: JSON.parse(row.ai_settings || '{}')
+    notification: parseJson(row.notification_settings, {}),
+    theme: parseJson(row.theme_settings, {}),
+    aiConfig: parseJson(row.ai_settings, {})
   };
 }
 
@@ -118,10 +139,12 @@ module.exports = {
   parseToken,
   requireAuth,
   requireAdmin,
+  parseJson,
   mapUser,
   mapBanner,
   mapInfo,
   mapActivity,
+  mapClassGroup,
   parseSettings,
   recordBrowse
 };

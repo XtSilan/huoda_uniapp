@@ -5,13 +5,14 @@ const {
   mapBanner,
   mapInfo,
   mapActivity,
+  mapClassGroup,
   parseSettings,
+  parseJson,
   recordBrowse
 } = require('./shared');
 const {
   DEFAULT_AI_CONFIG,
   DEFAULT_USER_AI_SETTINGS,
-  parseJson,
   normalizeAiConfig,
   validateAiConfig,
   sanitizeMessages,
@@ -87,6 +88,17 @@ function resolveUserAiConfig(aiSettings, db) {
     : normalizeAiConfig(DEFAULT_AI_CONFIG);
 }
 
+function buildSearchConditions(search, columns, params) {
+  if (!search) {
+    return '';
+  }
+  const condition = columns.map((column) => `${column} LIKE ?`).join(' OR ');
+  columns.forEach(() => {
+    params.push(`%${search}%`);
+  });
+  return `(${condition})`;
+}
+
 module.exports = function registerPublicRoutes(app, db) {
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
@@ -119,7 +131,7 @@ module.exports = function registerPublicRoutes(app, db) {
     const banners = db.all('SELECT * FROM banners WHERE is_active = 1 ORDER BY sort_order ASC, id ASC');
     const activities = db.all('SELECT * FROM activities ORDER BY datetime(publish_time) DESC LIMIT 4');
     const settings = req.user ? db.get('SELECT * FROM user_settings WHERE user_id = ?', [req.user.id]) : null;
-    const interests = settings ? JSON.parse(settings.interests || '[]') : [];
+    const interests = settings ? parseJson(settings.interests, []) : [];
 
     let recommendations = [];
     if (interests.length) {
@@ -292,17 +304,22 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/info/list', (req, res) => {
-    const { search = '', category = '', page = 1, pageSize = 20 } = req.query;
+    const { search = '', category = '', locationType = '', page = 1, pageSize = 50 } = req.query;
     const conditions = [];
     const params = [];
-    if (search) {
-      conditions.push('(title LIKE ? OR content LIKE ? OR summary LIKE ?)');
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    const searchCondition = buildSearchConditions(search, ['title', 'content', 'summary', 'source'], params);
+    if (searchCondition) {
+      conditions.push(searchCondition);
     }
     if (category) {
       conditions.push('category = ?');
       params.push(category);
     }
+    if (locationType) {
+      conditions.push('location_type = ?');
+      params.push(locationType);
+    }
+
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = Number(pageSize);
     const offset = (Number(page) - 1) * limit;
@@ -312,15 +329,38 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/info/search', (req, res) => {
-    const search = req.query.search || req.query.q || '';
-    const rows = db.all(`SELECT * FROM infos WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? ORDER BY datetime(publish_time) DESC LIMIT 20`, [`%${search}%`, `%${search}%`, `%${search}%`]);
-    res.json({ list: rows.map(mapInfo), total: rows.length, page: 1, pageSize: rows.length });
+    const search = String(req.query.search || req.query.q || '').trim();
+    const infoRows = search
+      ? db.all(
+          `SELECT * FROM infos
+          WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? OR source LIKE ?
+          ORDER BY datetime(publish_time) DESC LIMIT 20`,
+          [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
+        )
+      : [];
+    const activityRows = search
+      ? db.all(
+          `SELECT * FROM activities
+          WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? OR organizer LIKE ? OR location LIKE ?
+          ORDER BY datetime(publish_time) DESC LIMIT 20`,
+          [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
+        )
+      : [];
+
+    const infos = infoRows.map(mapInfo);
+    const activities = activityRows.map(mapActivity);
+    const list = [
+      ...infos.map((item) => ({ ...item, targetType: 'info' })),
+      ...activities.map((item) => ({ ...item, targetType: 'activity' }))
+    ].sort((a, b) => new Date(b.publishTime || b.startTime || 0) - new Date(a.publishTime || a.startTime || 0));
+
+    res.json({ infos, activities, list, total: list.length, page: 1, pageSize: list.length });
   });
 
   app.get('/api/info/detail', (req, res) => {
     const row = db.get('SELECT * FROM infos WHERE id = ?', [req.query.id]);
     if (!row) {
-      return res.status(404).json({ message: '资讯不存在' });
+      return res.status(404).json({ message: '信息不存在' });
     }
     if (req.user) {
       recordBrowse(db, req.user.id, 'info', row.id, row.title, row.summary);
@@ -347,11 +387,29 @@ module.exports = function registerPublicRoutes(app, db) {
   app.post('/api/publish/create', requireAuth, (req, res) => {
     const body = req.body || {};
     const now = new Date().toISOString();
+    const summary = String(body.summary || body.content || '').slice(0, 60);
     db.run(
       `INSERT INTO activities
       (title, summary, content, start_time, end_time, location, location_type, organizer, images, activity_type, status, publish_time, creator_user_id, apply_count, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [body.title, body.summary || body.content.slice(0, 40), body.content, body.startTime, body.endTime, body.location, body.locationType || '校内', body.organizer, JSON.stringify(body.images || []), body.activityType || '其他', body.status || 'upcoming', now, req.user.id, 0, now, now]
+      [
+        body.title,
+        summary,
+        body.content,
+        body.startTime,
+        body.endTime,
+        body.location,
+        body.locationType || '校内',
+        body.organizer,
+        JSON.stringify(body.images || []),
+        body.activityType || '其他',
+        body.status || 'upcoming',
+        now,
+        req.user.id,
+        0,
+        now,
+        now
+      ]
     );
     const created = db.get('SELECT * FROM activities ORDER BY id DESC LIMIT 1');
     res.json(mapActivity(created));
@@ -383,6 +441,48 @@ module.exports = function registerPublicRoutes(app, db) {
       [req.user.id]
     );
     res.json({ list: rows.map(mapActivity) });
+  });
+
+  app.get('/api/class-group/current', requireAuth, (req, res) => {
+    const className = String(req.user.class_name || '').trim();
+    if (!className) {
+      return res.status(400).json({ message: '请先在个人资料中完善班级信息' });
+    }
+    const row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
+    if (!row) {
+      return res.status(404).json({ message: '暂未找到对应班级群' });
+    }
+    const group = mapClassGroup(row);
+    res.json({
+      ...group,
+      classmates: group.classmates.length ? group.classmates : [{ id: req.user.id, name: req.user.name, role: '群成员' }]
+    });
+  });
+
+  app.post('/api/class-group/messages', requireAuth, (req, res) => {
+    const className = String(req.user.class_name || '').trim();
+    if (!className) {
+      return res.status(400).json({ message: '请先在个人资料中完善班级信息' });
+    }
+    const row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
+    if (!row) {
+      return res.status(404).json({ message: '暂未找到对应班级群' });
+    }
+    const text = String((req.body || {}).text || '').trim();
+    if (!text) {
+      return res.status(400).json({ message: '消息内容不能为空' });
+    }
+    const messages = parseJson(row.messages, []);
+    messages.push({
+      id: Date.now(),
+      sender: req.user.name,
+      text,
+      time: new Date().toISOString(),
+      type: 'self'
+    });
+    db.run('UPDATE class_groups SET messages = ?, updated_at = ? WHERE id = ?', [JSON.stringify(messages.slice(-100)), new Date().toISOString(), row.id]);
+    const updated = db.get('SELECT * FROM class_groups WHERE id = ?', [row.id]);
+    res.json(mapClassGroup(updated));
   });
 
   app.get('/api/run/history', requireAuth, (req, res) => {

@@ -7,9 +7,16 @@
       <Input v-model="form.summary" placeholder="摘要" style="margin-bottom: 10px;" />
       <Input v-model="form.organizer" placeholder="组织方" style="margin-bottom: 10px;" />
       <Input v-model="form.location" placeholder="地点" style="margin-bottom: 10px;" />
-      <Input v-model="form.activityType" placeholder="类型" style="margin-bottom: 10px;" />
+      <Select v-model="form.locationType" style="margin-bottom: 10px;">
+        <Option value="校内">校内</Option>
+        <Option value="校外">校外</Option>
+      </Select>
+      <Select v-model="form.activityType" style="margin-bottom: 10px;">
+        <Option v-for="item in activityTypes" :key="item" :value="item">{{ item }}</Option>
+      </Select>
       <Input v-model="form.startTime" placeholder="开始时间 ISO" style="margin-bottom: 10px;" />
       <Input v-model="form.endTime" placeholder="结束时间 ISO" style="margin-bottom: 10px;" />
+      <Input v-model="imagesText" type="textarea" :rows="3" placeholder="图片地址，一行一个" style="margin-bottom: 10px;" />
       <Input v-model="form.content" type="textarea" :rows="6" placeholder="内容" />
     </Modal>
   </div>
@@ -24,14 +31,25 @@ export default {
       activities: [],
       visible: false,
       editingId: null,
+      imagesText: '',
+      activityTypes: ['讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他', '运动'],
       form: {
-        title: '', summary: '', organizer: '', location: '', activityType: '其他',
-        startTime: new Date().toISOString(), endTime: new Date(Date.now() + 3600000).toISOString(),
-        content: '', locationType: '校内', status: 'upcoming'
+        title: '',
+        summary: '',
+        organizer: '',
+        location: '',
+        activityType: '其他',
+        startTime: new Date().toISOString(),
+        endTime: new Date(Date.now() + 3600000).toISOString(),
+        content: '',
+        locationType: '校内',
+        status: 'upcoming',
+        images: []
       },
       columns: [
         { title: '标题', key: 'title' },
         { title: '类型', key: 'activityType' },
+        { title: '地点', key: 'locationType' },
         { title: '组织方', key: 'organizer' },
         { title: '报名人数', key: 'applyCount' },
         {
@@ -54,16 +72,35 @@ export default {
     },
     openCreate() {
       this.editingId = null;
+      this.imagesText = '';
+      this.form = {
+        title: '',
+        summary: '',
+        organizer: '',
+        location: '',
+        activityType: '其他',
+        startTime: new Date().toISOString(),
+        endTime: new Date(Date.now() + 3600000).toISOString(),
+        content: '',
+        locationType: '校内',
+        status: 'upcoming',
+        images: []
+      };
       this.visible = true;
     },
     openEdit(row) {
       this.editingId = row.id;
-      this.form = { ...row };
+      this.form = { ...row, images: row.images || [] };
+      this.imagesText = (row.images || []).join('\n');
       this.visible = true;
     },
     async submit() {
-      if (this.editingId) await updateActivity(this.editingId, this.form);
-      else await createActivity(this.form);
+      const payload = {
+        ...this.form,
+        images: this.imagesText.split('\n').map((item) => item.trim()).filter(Boolean)
+      };
+      if (this.editingId) await updateActivity(this.editingId, payload);
+      else await createActivity(payload);
       this.loadActivities();
     },
     async remove(id) {

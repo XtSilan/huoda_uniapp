@@ -11,6 +11,10 @@ const API = {
   user: {
     profile: `${BASE_URL}/user/profile`
   },
+  classGroup: {
+    current: `${BASE_URL}/class-group/current`,
+    messages: `${BASE_URL}/class-group/messages`
+  },
   info: {
     list: `${BASE_URL}/info/list`,
     detail: `${BASE_URL}/info/detail`,

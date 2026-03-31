@@ -13,8 +13,11 @@ const searchInfo = (params = {}) => {
   return request(query ? `${API.info.search}?${query}` : API.info.search);
 };
 
+const getCategories = (locationType) => getInfoList({ locationType, pageSize: 100 });
+
 export default {
   getInfoList,
   getInfoDetail,
-  searchInfo
+  searchInfo,
+  getCategories
 };

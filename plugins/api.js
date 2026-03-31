@@ -2,6 +2,7 @@ import authService from '../services/auth';
 import homeService from '../services/home';
 import userService from '../services/user';
 import infoService from '../services/info';
+import classGroupService from '../services/class-group';
 import runService from '../services/run';
 import signService from '../services/sign';
 import publishService from '../services/publish';
@@ -13,6 +14,7 @@ const apiPlugin = {
       auth: authService,
       home: homeService,
       user: userService,
+      classGroup: classGroupService,
       info: infoService,
       run: runService,
       sign: signService,

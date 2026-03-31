@@ -1,12 +1,18 @@
 <template>
   <div>
-    <Button type="primary" @click="openCreate" style="margin-bottom: 12px;">新增资讯</Button>
+    <Button type="primary" @click="openCreate" style="margin-bottom: 12px;">新增信息</Button>
     <Table border :columns="columns" :data="infos"></Table>
-    <Modal v-model="visible" title="资讯编辑" @on-ok="submit">
+    <Modal v-model="visible" title="信息编辑" @on-ok="submit">
       <Input v-model="form.title" placeholder="标题" style="margin-bottom: 10px;" />
       <Input v-model="form.summary" placeholder="摘要" style="margin-bottom: 10px;" />
       <Input v-model="form.source" placeholder="来源" style="margin-bottom: 10px;" />
-      <Input v-model="form.category" placeholder="分类" style="margin-bottom: 10px;" />
+      <Select v-model="form.locationType" style="margin-bottom: 10px;">
+        <Option value="校内">校内</Option>
+        <Option value="校外">校外</Option>
+      </Select>
+      <Select v-model="form.category" style="margin-bottom: 10px;">
+        <Option v-for="item in categories" :key="item" :value="item">{{ item }}</Option>
+      </Select>
       <Input v-model="form.content" type="textarea" :rows="6" placeholder="内容" />
     </Modal>
   </div>
@@ -21,10 +27,12 @@ export default {
       infos: [],
       visible: false,
       editingId: null,
-      form: { title: '', summary: '', source: '', category: '资讯', content: '' },
+      categories: ['讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他'],
+      form: { title: '', summary: '', source: '', category: '其他', locationType: '校内', content: '' },
       columns: [
         { title: '标题', key: 'title' },
         { title: '分类', key: 'category' },
+        { title: '范围', key: 'locationType' },
         { title: '来源', key: 'source' },
         {
           title: '操作',
@@ -46,7 +54,7 @@ export default {
     },
     openCreate() {
       this.editingId = null;
-      this.form = { title: '', summary: '', source: '', category: '资讯', content: '' };
+      this.form = { title: '', summary: '', source: '', category: '其他', locationType: '校内', content: '' };
       this.visible = true;
     },
     openEdit(row) {

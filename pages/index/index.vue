@@ -3,7 +3,6 @@
     <view class="search-bar">
       <input class="search-input" placeholder="搜索资讯、活动" v-model="searchText" @confirm="onSearch" />
       <button class="search-btn" @click="onSearch">搜索</button>
-      <button class="ai-btn" @click="goToAI">AI</button>
     </view>
 
     <view class="features">
@@ -22,34 +21,44 @@
 
     <view class="section">
       <view class="section-title">
-        <text>个性推荐</text>
-        <text class="more" @click="goTo('/pages/info/info')">更多</text>
+        <text>个性化推荐</text>
+        <text class="more" @click="switchToInfo()">更多</text>
       </view>
       <view v-for="item in recommendList" :key="item.id" class="card" @click="goToInfoDetail(item.id)">
         <view class="title">{{ item.title }}</view>
-        <view class="content">{{ item.content }}</view>
+        <view class="content">{{ item.summary || item.content }}</view>
+        <view class="meta">{{ item.source }}</view>
       </view>
     </view>
 
     <view class="section">
       <view class="section-title">
         <text>热门资讯</text>
-        <text class="more" @click="goTo('/pages/info/info')">更多</text>
+        <text class="more" @click="switchToInfo()">更多</text>
       </view>
       <view v-for="item in hotList" :key="item.id" class="card" @click="goToInfoDetail(item.id)">
         <view class="title">{{ item.title }}</view>
-        <view class="content">{{ item.content }}</view>
+        <view class="content">{{ item.summary || item.content }}</view>
+        <view class="meta">{{ formatTime(item.publishTime) }}</view>
       </view>
     </view>
 
     <view class="section">
       <view class="section-title">
         <text>最新活动</text>
-        <text class="more" @click="goTo('/pages/feature/publish/publish')">更多</text>
+        <text class="more" @click="switchToDiscover()">更多</text>
       </view>
-      <view v-for="item in activities" :key="item.id" class="card" @click="goToPublishDetail(item.id)">
-        <view class="title">{{ item.title }}</view>
-        <view class="content">{{ item.content }}</view>
+      <view v-for="item in activities" :key="item.id" class="activity-card" @click="goToPublishDetail(item.id)">
+        <image v-if="item.images && item.images.length" class="activity-image" :src="item.images[0]" mode="aspectFill"></image>
+        <view class="activity-body">
+          <view class="title">{{ item.title }}</view>
+          <view class="content">{{ item.summary || item.content }}</view>
+          <view class="activity-meta">
+            <text>{{ item.activityType || '活动' }}</text>
+            <text>{{ item.location }}</text>
+            <text>{{ formatDate(item.startTime) }}</text>
+          </view>
+        </view>
       </view>
     </view>
   </view>
@@ -82,9 +91,8 @@ export default {
       }
     },
     onSearch() {
-      uni.navigateTo({
-        url: `/pages/info/info?search=${encodeURIComponent(this.searchText || '')}`
-      });
+      uni.setStorageSync('pendingInfoSearch', this.searchText || '');
+      uni.switchTab({ url: '/pages/info/info' });
     },
     goTo(url) {
       uni.navigateTo({ url });
@@ -94,14 +102,27 @@ export default {
         url: item.linkUrl || `/pages/feature/banner-placeholder/banner-placeholder?id=${item.id}`
       });
     },
-    goToAI() {
-      uni.navigateTo({ url: '/pages/feature/ai/ai' });
-    },
     goToInfoDetail(id) {
       uni.navigateTo({ url: `/pages/info/info?id=${id}` });
     },
     goToPublishDetail(id) {
       uni.navigateTo({ url: `/pages/feature/publish/detail?id=${id}` });
+    },
+    switchToInfo() {
+      uni.switchTab({ url: '/pages/info/info' });
+    },
+    switchToDiscover() {
+      uni.switchTab({ url: '/pages/feature/publish/publish' });
+    },
+    formatTime(value) {
+      return value ? new Date(value).toLocaleString() : '-';
+    },
+    formatDate(value) {
+      if (!value) {
+        return '-';
+      }
+      const date = new Date(value);
+      return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
     }
   }
 };
@@ -114,28 +135,37 @@ export default {
 
 .search-bar {
   display: flex;
-  gap: 8rpx;
-  margin-bottom: 16rpx;
+  gap: 12rpx;
+  margin-bottom: 18rpx;
 }
 
 .search-input {
   flex: 1;
   background: #ffffff;
-  border-radius: 10rpx;
-  padding: 16rpx;
+  border-radius: 12rpx;
+  padding: 18rpx 20rpx;
 }
 
-.search-btn,
-.ai-btn {
+.search-btn {
   background: #1e88e5;
   color: #ffffff;
-  border-radius: 10rpx;
+  border-radius: 12rpx;
+  padding: 0 28rpx;
 }
 
 .features {
   display: flex;
   gap: 12rpx;
   margin-bottom: 20rpx;
+}
+
+.feature-item {
+  flex: 1;
+  background: #ffffff;
+  padding: 24rpx 0;
+  text-align: center;
+  border-radius: 12rpx;
+  font-size: 26rpx;
 }
 
 .banner-section {
@@ -153,15 +183,6 @@ export default {
   height: 100%;
 }
 
-.feature-item {
-  flex: 1;
-  background: #ffffff;
-  padding: 24rpx 0;
-  text-align: center;
-  border-radius: 12rpx;
-  font-size: 26rpx;
-}
-
 .section {
   margin-bottom: 24rpx;
 }
@@ -177,5 +198,52 @@ export default {
 .more {
   font-size: 24rpx;
   color: #1e88e5;
+}
+
+.card,
+.activity-card {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-bottom: 14rpx;
+}
+
+.activity-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.activity-image {
+  width: 100%;
+  height: 220rpx;
+}
+
+.activity-body {
+  padding: 20rpx;
+}
+
+.title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #222222;
+}
+
+.content {
+  margin-top: 10rpx;
+  color: #666666;
+  font-size: 24rpx;
+}
+
+.meta,
+.activity-meta {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #999999;
+}
+
+.activity-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10rpx;
 }
 </style>

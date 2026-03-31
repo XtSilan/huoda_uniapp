@@ -3,7 +3,9 @@ const {
   mapUser,
   mapBanner,
   mapInfo,
-  mapActivity
+  mapActivity,
+  mapClassGroup,
+  parseJson
 } = require('./shared');
 const { normalizeAiConfig, validateAiConfig } = require('./ai-client');
 
@@ -51,7 +53,7 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json({
       list: rows.map((row) => ({
         ...mapUser(row),
-        interests: JSON.parse(row.interests || '[]'),
+        interests: parseJson(row.interests, []),
         futurePlan: row.future_plan || '',
         createdAt: row.created_at,
         lastLoginAt: row.last_login_at
@@ -117,7 +119,7 @@ module.exports = function registerAdminRoutes(app, db) {
     db.run(
       `INSERT INTO infos (title, summary, content, source, category, location_type, status, publish_time, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [body.title, body.summary || '', body.content, body.source || '后台发布', body.category || '资讯', body.locationType || '校内', body.status || 'published', now, now, now]
+      [body.title, body.summary || '', body.content, body.source || '后台发布', body.category || '其他', body.locationType || '校内', body.status || 'published', now, now, now]
     );
     res.json({ success: true });
   });
@@ -126,7 +128,7 @@ module.exports = function registerAdminRoutes(app, db) {
     const body = req.body || {};
     db.run(
       `UPDATE infos SET title = ?, summary = ?, content = ?, source = ?, category = ?, location_type = ?, status = ?, updated_at = ? WHERE id = ?`,
-      [body.title, body.summary || '', body.content, body.source || '后台发布', body.category || '资讯', body.locationType || '校内', body.status || 'published', new Date().toISOString(), req.params.id]
+      [body.title, body.summary || '', body.content, body.source || '后台发布', body.category || '其他', body.locationType || '校内', body.status || 'published', new Date().toISOString(), req.params.id]
     );
     res.json({ success: true });
   });
@@ -148,7 +150,24 @@ module.exports = function registerAdminRoutes(app, db) {
       `INSERT INTO activities
       (title, summary, content, start_time, end_time, location, location_type, organizer, images, activity_type, status, publish_time, creator_user_id, apply_count, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [body.title, body.summary || '', body.content, body.startTime, body.endTime, body.location, body.locationType || '校内', body.organizer || '后台发布', JSON.stringify(body.images || []), body.activityType || '其他', body.status || 'upcoming', now, req.user.id, body.applyCount || 0, now, now]
+      [
+        body.title,
+        body.summary || '',
+        body.content,
+        body.startTime,
+        body.endTime,
+        body.location,
+        body.locationType || '校内',
+        body.organizer || '后台发布',
+        JSON.stringify(body.images || []),
+        body.activityType || '其他',
+        body.status || 'upcoming',
+        now,
+        req.user.id,
+        body.applyCount || 0,
+        now,
+        now
+      ]
     );
     res.json({ success: true });
   });
@@ -159,13 +178,54 @@ module.exports = function registerAdminRoutes(app, db) {
       `UPDATE activities SET
       title = ?, summary = ?, content = ?, start_time = ?, end_time = ?, location = ?, location_type = ?, organizer = ?, images = ?, activity_type = ?, status = ?, apply_count = ?, updated_at = ?
       WHERE id = ?`,
-      [body.title, body.summary || '', body.content, body.startTime, body.endTime, body.location, body.locationType || '校内', body.organizer || '后台发布', JSON.stringify(body.images || []), body.activityType || '其他', body.status || 'upcoming', body.applyCount || 0, new Date().toISOString(), req.params.id]
+      [
+        body.title,
+        body.summary || '',
+        body.content,
+        body.startTime,
+        body.endTime,
+        body.location,
+        body.locationType || '校内',
+        body.organizer || '后台发布',
+        JSON.stringify(body.images || []),
+        body.activityType || '其他',
+        body.status || 'upcoming',
+        body.applyCount || 0,
+        new Date().toISOString(),
+        req.params.id
+      ]
     );
     res.json({ success: true });
   });
 
   app.delete('/api/admin/activities/:id', requireAdmin, (req, res) => {
     db.run('DELETE FROM activities WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  });
+
+  app.get('/api/admin/class-groups', requireAdmin, (_req, res) => {
+    const rows = db.all('SELECT * FROM class_groups ORDER BY class_name ASC');
+    res.json({ list: rows.map(mapClassGroup) });
+  });
+
+  app.put('/api/admin/class-groups/:id', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    db.run(
+      `UPDATE class_groups SET
+      class_name = ?, group_name = ?, announcement = ?, qr_code = ?, online_count = ?, classmates = ?, messages = ?, updated_at = ?
+      WHERE id = ?`,
+      [
+        body.className,
+        body.groupName || `${body.className}群`,
+        body.announcement || '',
+        body.qrCode || '',
+        Number(body.onlineCount || 0),
+        JSON.stringify(body.classmates || []),
+        JSON.stringify(body.messages || []),
+        new Date().toISOString(),
+        req.params.id
+      ]
+    );
     res.json({ success: true });
   });
 
