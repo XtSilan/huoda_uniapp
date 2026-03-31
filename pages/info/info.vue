@@ -1,41 +1,57 @@
 <template>
-  <view class="container">
-    <view class="search-bar">
+  <view class="page-shell info-page">
+    <view class="page-header">
+      <view class="page-eyebrow">{{ detailMode ? '资讯详情' : '信息中心' }}</view>
+      <view class="page-title">{{ detailMode ? '深度阅读' : '把校园信息按你关心的方式展开' }}</view>
+      <view class="page-subtitle">{{ detailMode ? '正文、来源和收藏操作都收进单卡片里。' : '搜索、校内外切换和分类筛选一起重排成更清爽的双栏结构。' }}</view>
+    </view>
+
+    <view class="search-box surface-card">
+      <text class="search-icon">⌕</text>
       <input class="search-input" placeholder="搜索资讯、活动" v-model="searchText" @confirm="onSearch" />
-      <button class="search-btn" @click="onSearch">搜索</button>
+      <view class="search-action" @click="onSearch">搜索</view>
     </view>
 
-    <view v-if="detailMode" class="detail-card">
-      <view class="title">{{ detail.title }}</view>
-      <view class="meta">{{ detail.source }} · {{ formatTime(detail.publishTime) }}</view>
-      <view class="content">{{ detail.content }}</view>
-      <button class="search-btn collect-btn" @click="toggleCollection">收藏 / 取消收藏</button>
-    </view>
-
-    <view v-else-if="searchMode" class="search-result">
-      <view class="result-section">
-        <view class="section-title">资讯结果</view>
-        <view v-if="searchInfos.length === 0" class="empty">暂无匹配资讯</view>
-        <view v-for="item in searchInfos" :key="`info-${item.id}`" class="card" @click="goToDetail(item.id)">
-          <view class="title">{{ item.title }}</view>
-          <view class="content">{{ item.summary || item.content }}</view>
-          <view class="meta">{{ item.source }} · {{ item.locationType }}</view>
-        </view>
+    <view v-if="detailMode" class="detail-card surface-card">
+      <view class="detail-topline">
+        <tag-badge :text="detail.source || '资讯'" tone="blue" />
+        <tag-badge :text="formatTime(detail.publishTime)" tone="yellow" />
       </view>
-
-      <view class="result-section">
-        <view class="section-title">活动结果</view>
-        <view v-if="searchActivities.length === 0" class="empty">暂无匹配活动</view>
-        <view v-for="item in searchActivities" :key="`activity-${item.id}`" class="card" @click="goToActivity(item.id)">
-          <view class="title">{{ item.title }}</view>
-          <view class="content">{{ item.summary || item.content }}</view>
-          <view class="meta">{{ item.organizer }} · {{ item.location }}</view>
-        </view>
+      <view class="detail-title">{{ detail.title }}</view>
+      <view class="detail-content">{{ detail.content }}</view>
+      <view class="detail-action">
+        <custom-button text="收藏 / 取消收藏" @click="toggleCollection" />
       </view>
     </view>
 
-    <view v-else class="info-layout">
-      <view class="location-tabs">
+    <view v-else-if="searchMode" class="result-layout">
+      <view class="surface-card result-card">
+        <view class="section-row">
+          <text class="section-heading">资讯结果</text>
+        </view>
+        <view v-if="searchInfos.length === 0" class="empty-state">暂无匹配资讯</view>
+        <view v-for="item in searchInfos" :key="`info-${item.id}`" class="content-card" @click="goToDetail(item.id)">
+          <view class="content-card__title">{{ item.title }}</view>
+          <view class="content-card__desc">{{ item.summary || item.content }}</view>
+          <view class="content-card__meta">{{ item.source }} · {{ item.locationType || '资讯' }}</view>
+        </view>
+      </view>
+
+      <view class="surface-card result-card">
+        <view class="section-row">
+          <text class="section-heading">活动结果</text>
+        </view>
+        <view v-if="searchActivities.length === 0" class="empty-state">暂无匹配活动</view>
+        <view v-for="item in searchActivities" :key="`activity-${item.id}`" class="content-card" @click="goToActivity(item.id)">
+          <view class="content-card__title">{{ item.title }}</view>
+          <view class="content-card__desc">{{ item.summary || item.content }}</view>
+          <view class="content-card__meta">{{ item.organizer }} · {{ item.location }}</view>
+        </view>
+      </view>
+    </view>
+
+    <view v-else class="browse-layout">
+      <view class="location-tabs surface-card">
         <view
           v-for="item in locationTabs"
           :key="item"
@@ -48,7 +64,7 @@
       </view>
 
       <view class="info-panel">
-        <scroll-view class="category-list" scroll-y>
+        <scroll-view class="category-list surface-card" scroll-y>
           <view
             v-for="item in categories"
             :key="item.name"
@@ -62,11 +78,15 @@
         </scroll-view>
 
         <scroll-view class="content-list" scroll-y>
-          <view v-if="filteredInfos.length === 0" class="empty large">没有更多了</view>
-          <view v-for="item in filteredInfos" :key="item.id" class="card" @click="goToDetail(item.id)">
-            <view class="title">{{ item.title }}</view>
-            <view class="content">{{ item.summary || item.content }}</view>
-            <view class="meta">{{ item.source }} · {{ formatTime(item.publishTime) }}</view>
+          <view v-if="filteredInfos.length === 0" class="surface-card empty-state">没有更多了</view>
+          <view v-for="item in filteredInfos" :key="item.id" class="content-feed-card surface-card" @click="goToDetail(item.id)">
+            <view class="content-feed-card__tags">
+              <tag-badge :text="item.category || '资讯'" tone="purple" />
+              <tag-badge :text="formatTime(item.publishTime)" tone="yellow" />
+            </view>
+            <view class="content-card__title">{{ item.title }}</view>
+            <view class="content-card__desc">{{ item.summary || item.content }}</view>
+            <view class="content-card__meta">{{ item.source || '校园发布' }}</view>
           </view>
         </scroll-view>
       </view>
@@ -180,7 +200,11 @@ export default {
       }
     },
     formatTime(value) {
-      return value ? new Date(value).toLocaleString() : '-';
+      if (!value) {
+        return '刚刚';
+      }
+      const date = new Date(value);
+      return `${date.getMonth() + 1}/${date.getDate()}`;
     }
   },
   onShow() {
@@ -199,141 +223,159 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  padding: 16rpx;
+.info-page {
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
 }
 
-.search-bar {
+.search-box {
   display: flex;
-  gap: 12rpx;
-  margin-bottom: 18rpx;
+  align-items: center;
+  gap: 14rpx;
+  padding: 0 18rpx 0 24rpx;
+  height: 88rpx;
+}
+
+.search-icon {
+  font-size: 28rpx;
+  color: var(--text-sub);
 }
 
 .search-input {
   flex: 1;
-  background: #ffffff;
-  border-radius: 12rpx;
-  padding: 18rpx 20rpx;
+  height: 100%;
+  font-size: 26rpx;
 }
 
-.search-btn {
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 12rpx;
-  padding: 0 28rpx;
+.search-action {
+  min-width: 108rpx;
+  height: 64rpx;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
-.collect-btn {
+.detail-card,
+.result-card {
+  margin-top: 28rpx;
+  padding: 28rpx 24rpx;
+}
+
+.detail-topline,
+.content-feed-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 16rpx;
+}
+
+.detail-title,
+.content-card__title {
+  font-size: 32rpx;
+  line-height: 1.45;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.detail-content,
+.content-card__desc {
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.75;
+  color: var(--text-sub);
+}
+
+.content-card__meta {
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  color: var(--text-sub);
+}
+
+.detail-action {
+  margin-top: 28rpx;
+}
+
+.result-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  margin-top: 28rpx;
+}
+
+.content-card + .content-card {
   margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #eef1f7;
 }
 
 .location-tabs {
   display: flex;
-  background: #ffffff;
-  border-radius: 14rpx;
-  overflow: hidden;
-  margin-bottom: 16rpx;
+  padding: 8rpx;
+  margin-top: 28rpx;
 }
 
 .location-tab {
   flex: 1;
-  text-align: center;
-  padding: 22rpx 0;
-  font-size: 30rpx;
+  height: 76rpx;
+  border-radius: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-sub);
+  font-size: 28rpx;
   font-weight: 700;
-  color: #222222;
 }
 
 .location-tab.active {
-  background: #1e88e5;
-  color: #ffffff;
+  background: var(--primary-light);
+  color: var(--primary-color);
 }
 
 .info-panel {
   display: flex;
-  gap: 14rpx;
-  height: calc(100vh - 280rpx);
-}
-
-.category-list,
-.content-list {
-  background: #ffffff;
-  border-radius: 14rpx;
+  gap: 18rpx;
+  margin-top: 20rpx;
+  height: calc(100vh - 420rpx);
 }
 
 .category-list {
-  width: 170rpx;
+  width: 190rpx;
+  padding: 12rpx;
 }
 
 .content-list {
   flex: 1;
-  padding: 12rpx;
 }
 
 .category-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   padding: 20rpx 16rpx;
-  font-size: 28rpx;
-  color: #333333;
+  border-radius: 20rpx;
+  color: var(--text-sub);
+  font-size: 26rpx;
 }
 
 .category-item.active {
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 12rpx;
-  margin: 8rpx;
+  background: var(--primary-light);
+  color: var(--primary-color);
+  font-weight: 700;
 }
 
 .count {
   font-size: 22rpx;
 }
 
-.card,
-.detail-card {
-  background: #ffffff;
-  border-radius: 16rpx;
-  padding: 20rpx;
-  margin-bottom: 14rpx;
+.content-feed-card {
+  padding: 24rpx;
 }
 
-.title {
-  font-size: 30rpx;
-  font-weight: 700;
-  color: #222222;
-}
-
-.content {
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #666666;
-  line-height: 1.6;
-}
-
-.meta {
-  margin-top: 10rpx;
-  color: #999999;
-  font-size: 22rpx;
-}
-
-.section-title {
-  font-size: 30rpx;
-  font-weight: 700;
-  margin-bottom: 12rpx;
-}
-
-.result-section {
-  margin-bottom: 20rpx;
-}
-
-.empty {
-  text-align: center;
-  color: #999999;
-  padding: 40rpx 0;
-}
-
-.empty.large {
-  padding-top: 100rpx;
+.content-feed-card + .content-feed-card {
+  margin-top: 18rpx;
 }
 </style>

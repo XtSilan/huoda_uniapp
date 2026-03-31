@@ -1,53 +1,66 @@
 <template>
-  <view class="container">
-    <view class="form">
-      <view class="form-item">
-        <text class="label">活动标题</text>
-        <input class="input" v-model="activity.title" placeholder="请输入活动标题" />
+  <view class="page-shell create-page">
+    <view class="page-header">
+      <view class="page-eyebrow">创建活动</view>
+      <view class="page-title">发起一场值得参与的校园活动</view>
+      <view class="page-subtitle">表单改成上下结构，让填写空间更充裕，也更接近你给的设计语言。</view>
+    </view>
+
+    <view class="form-stack">
+      <view class="surface-card form-card">
+        <text class="field-title">活动标题</text>
+        <view class="field-panel">
+          <input class="field-input" v-model="activity.title" placeholder="例如：春日草地音乐快闪" />
+        </view>
       </view>
 
-      <view class="form-item">
-        <text class="label">活动内容</text>
-        <textarea class="textarea" v-model="activity.content" placeholder="请输入活动内容"></textarea>
+      <view class="surface-card form-card">
+        <text class="field-title">活动内容</text>
+        <view class="field-panel field-panel--textarea">
+          <textarea class="field-textarea" v-model="activity.content" placeholder="介绍活动亮点、流程安排和参与方式"></textarea>
+        </view>
       </view>
 
-      <view class="form-item">
-        <text class="label">开始时间</text>
-        <input class="input" v-model="activity.startTime" placeholder="例如 2026-03-31T18:00:00.000Z" />
+      <view class="surface-card form-card">
+        <text class="field-title">活动时间</text>
+        <view class="double-grid">
+          <view class="field-panel">
+            <input class="field-input" v-model="activity.startTime" placeholder="开始时间" />
+          </view>
+          <view class="field-panel">
+            <input class="field-input" v-model="activity.endTime" placeholder="结束时间" />
+          </view>
+        </view>
       </view>
 
-      <view class="form-item">
-        <text class="label">结束时间</text>
-        <input class="input" v-model="activity.endTime" placeholder="例如 2026-03-31T20:00:00.000Z" />
+      <view class="surface-card form-card">
+        <text class="field-title">活动地点与组织方</text>
+        <view class="field-panel">
+          <input class="field-input" v-model="activity.location" placeholder="请输入活动地点" />
+        </view>
+        <view class="field-panel field-gap">
+          <input class="field-input" v-model="activity.organizer" placeholder="请输入组织方" />
+        </view>
       </view>
 
-      <view class="form-item">
-        <text class="label">活动地点</text>
-        <input class="input" v-model="activity.location" placeholder="请输入活动地点" />
-      </view>
-
-      <view class="form-item">
-        <text class="label">活动地点类型</text>
-        <view class="type-list">
+      <view class="surface-card form-card">
+        <text class="field-title">设定活动属性</text>
+        <view class="chip-group">
           <view
             v-for="item in locationTypes"
             :key="item"
-            class="type-item"
+            class="chip"
             :class="{ active: activity.locationType === item }"
             @click="activity.locationType = item"
           >
             {{ item }}
           </view>
         </view>
-      </view>
-
-      <view class="form-item">
-        <text class="label">活动类型</text>
-        <view class="type-list">
+        <view class="chip-group chip-group--bottom">
           <view
             v-for="item in activityTypes"
             :key="item"
-            class="type-item"
+            class="chip"
             :class="{ active: activity.activityType === item }"
             @click="activity.activityType = item"
           >
@@ -56,20 +69,17 @@
         </view>
       </view>
 
-      <view class="form-item">
-        <text class="label">组织方</text>
-        <input class="input" v-model="activity.organizer" placeholder="请输入组织方" />
-      </view>
-
-      <view class="form-item">
-        <text class="label">活动图片</text>
+      <view class="surface-card form-card">
+        <text class="field-title">活动图片</text>
         <view class="image-list">
           <view class="upload-box" @click="chooseImages">+</view>
           <image v-for="(item, index) in activity.images" :key="`${item}-${index}`" class="preview-image" :src="item" mode="aspectFill"></image>
         </view>
       </view>
+    </view>
 
-      <button class="submit-btn" :loading="submitting" @click="submitForm">发布活动</button>
+    <view class="submit-wrap">
+      <custom-button text="创建目标活动" :loading="submitting" @click="submitForm" />
     </view>
   </view>
 </template>
@@ -129,80 +139,113 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  padding: 16rpx;
+.create-page {
+  padding-bottom: calc(180rpx + env(safe-area-inset-bottom));
 }
 
-.form {
-  background: #ffffff;
-  border-radius: 12rpx;
-  padding: 24rpx;
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
 }
 
-.form-item {
-  margin-bottom: 24rpx;
+.form-card {
+  padding: 28rpx 24rpx;
 }
 
-.label {
+.field-title {
   display: block;
-  margin-bottom: 10rpx;
+  margin-bottom: 16rpx;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.field-panel {
+  background: #f6f7fb;
+  border-radius: 24rpx;
+  padding: 0 24rpx;
+}
+
+.field-panel--textarea {
+  padding: 20rpx 24rpx;
+}
+
+.field-gap {
+  margin-top: 18rpx;
+}
+
+.field-input {
+  width: 100%;
+  height: 88rpx;
   font-size: 28rpx;
+  color: var(--text-main);
+}
+
+.field-textarea {
+  width: 100%;
+  min-height: 220rpx;
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: var(--text-main);
+}
+
+.double-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18rpx;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+
+.chip-group--bottom {
+  margin-top: 18rpx;
+}
+
+.chip {
+  padding: 14rpx 24rpx;
+  border-radius: var(--radius-full);
+  background: #f6f7fb;
+  color: var(--text-sub);
+  font-size: 24rpx;
   font-weight: 600;
 }
 
-.input,
-.textarea {
-  width: 100%;
-  padding: 16rpx;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 10rpx;
-  font-size: 28rpx;
-  box-sizing: border-box;
+.chip.active {
+  background: var(--primary-light);
+  color: var(--primary-color);
 }
 
-.textarea {
-  min-height: 200rpx;
-}
-
-.type-list,
 .image-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.type-item {
-  padding: 10rpx 20rpx;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-}
-
-.type-item.active {
-  background: #1e88e5;
-  color: #ffffff;
-  border-color: #1e88e5;
+  gap: 16rpx;
 }
 
 .upload-box,
 .preview-image {
-  width: 140rpx;
-  height: 140rpx;
-  border-radius: 12rpx;
+  width: 148rpx;
+  height: 148rpx;
+  border-radius: 24rpx;
 }
 
 .upload-box {
-  border: 2rpx dashed #cbd5e1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1e88e5;
-  font-size: 56rpx;
+  background: #f6f7fb;
+  color: var(--primary-color);
+  font-size: 60rpx;
 }
 
-.submit-btn {
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 10rpx;
+.submit-wrap {
+  position: fixed;
+  left: 40rpx;
+  right: 40rpx;
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
 }
 </style>

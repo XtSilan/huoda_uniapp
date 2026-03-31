@@ -9,13 +9,13 @@
     {
       "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "活达"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/info/info",
       "style": {
-        "navigationBarTitleText": "信息"
+        "navigationStyle": "custom"
       }
     },
     {
@@ -39,19 +39,19 @@
     {
       "path": "pages/feature/publish/publish",
       "style": {
-        "navigationBarTitleText": "发现"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/feature/publish/detail",
       "style": {
-        "navigationBarTitleText": "活动详情"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/feature/publish/create",
       "style": {
-        "navigationBarTitleText": "创建活动"
+        "navigationStyle": "custom"
       }
     },
     {
@@ -63,62 +63,62 @@
     {
       "path": "pages/feature/ai/ai",
       "style": {
-        "navigationBarTitleText": "小达老师"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/user",
       "style": {
-        "navigationBarTitleText": "我的"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/profile",
       "style": {
-        "navigationBarTitleText": "编辑资料"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/settings",
       "style": {
-        "navigationBarTitleText": "设置"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/history",
       "style": {
-        "navigationBarTitleText": "历史记录"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/collection",
       "style": {
-        "navigationBarTitleText": "我的收藏"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/stats",
       "style": {
-        "navigationBarTitleText": "数据统计"
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/user/personalization",
       "style": {
-        "navigationBarTitleText": "个性化设置"
+        "navigationStyle": "custom"
       }
     }
   ],
   "globalStyle": {
-    "navigationBarBackgroundColor": "#1E88E5",
-    "navigationBarTextStyle": "white",
-    "backgroundColor": "#f5f5f5"
+    "navigationBarBackgroundColor": "#f4f6f9",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f4f6f9"
   },
   "tabBar": {
-    "color": "#666666",
-    "selectedColor": "#1E88E5",
+    "color": "#8b94a7",
+    "selectedColor": "#6B48FF",
     "backgroundColor": "#ffffff",
-    "borderStyle": "black",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/index/index",

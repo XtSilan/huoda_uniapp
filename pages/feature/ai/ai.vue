@@ -1,14 +1,21 @@
 <template>
-  <view class="container">
+  <view class="page-shell ai-page">
     <view class="page-header">
-      <view>
-        <view class="page-title">小达老师</view>
-        <view class="page-subtitle">{{ currentModeLabel }} / {{ currentModelLabel }}</view>
-      </view>
-      <view class="gear-btn" @click="openSettings">⚙</view>
+      <view class="page-eyebrow">AI 助手</view>
+      <view class="page-title">小达老师</view>
+      <view class="page-subtitle">{{ currentModeLabel }} / {{ currentModelLabel }}</view>
     </view>
 
-    <scroll-view class="chat-container" scroll-y :scroll-into-view="scrollIntoView">
+    <view class="surface-card ai-summary">
+      <view class="ai-summary__icon">AI</view>
+      <view class="ai-summary__body">
+        <view class="ai-summary__title">陪你查资讯、想活动、问校园问题</view>
+        <view class="ai-summary__desc">设置入口保留在这里，聊天区和推荐内容也统一改成卡片式布局。</view>
+      </view>
+      <view class="ai-summary__action" @click="openSettings">设置</view>
+    </view>
+
+    <scroll-view class="chat-panel surface-card" scroll-y :scroll-into-view="scrollIntoView">
       <view
         v-for="(message, index) in messages"
         :id="`msg-${index}`"
@@ -24,17 +31,21 @@
       <view class="chat-bottom-space"></view>
     </scroll-view>
 
-    <view class="input-bar">
-      <input class="chat-input" v-model="inputMessage" placeholder="输入问题开始对话" @confirm="sendMessage" />
-      <button class="send-btn" :loading="isLoading" @click="sendMessage">发送</button>
+    <view v-if="relatedInfos.length" class="section-block">
+      <view class="section-row">
+        <text class="section-heading">相关内容</text>
+      </view>
+      <view class="surface-card related-card">
+        <view v-for="item in relatedInfos" :key="item.id" class="related-item" @click="goToDetail(item)">
+          <view class="related-item__title">{{ item.title }}</view>
+          <view class="related-item__desc">{{ item.summary || item.content }}</view>
+        </view>
+      </view>
     </view>
 
-    <view class="recommend-section" v-if="relatedInfos.length">
-      <view class="section-title">相关内容</view>
-      <view v-for="item in relatedInfos" :key="item.id" class="recommend-item" @click="goToDetail(item)">
-        <view class="recommend-title">{{ item.title }}</view>
-        <view class="recommend-content">{{ item.summary || item.content }}</view>
-      </view>
+    <view class="input-wrap surface-card">
+      <input class="chat-input" v-model="inputMessage" placeholder="输入问题开始对话" @confirm="sendMessage" />
+      <view class="send-chip" @click="sendMessage">{{ isLoading ? '发送中' : '发送' }}</view>
     </view>
 
     <view v-if="showSettings" class="overlay" @click.self="closeSettings">
@@ -115,10 +126,10 @@
         </view>
 
         <view class="actions">
-          <button class="secondary-btn" :loading="validating" @click="validateConfig">校验当前方案</button>
-          <button class="primary-btn" :loading="saving" @click="saveSettings">保存设置</button>
+          <custom-button text="校验当前方案" ghost @click="validateConfig" />
+          <custom-button text="保存设置" :loading="saving" @click="saveSettings" />
         </view>
-        <button class="ghost-btn" @click="closeSettings">关闭</button>
+        <view class="close-chip" @click="closeSettings">关闭</view>
       </scroll-view>
     </view>
   </view>
@@ -165,7 +176,7 @@ export default {
       draftSettings: createDefaultSettings(),
       messages: [
         {
-          content: '你好，我是小达老师。默认会使用管理员配置的模型，你也可以在右上角切换到自己的 OpenAI 或 Anthropic 配置。',
+          content: '你好，我是小达老师。默认会使用管理员配置的模型，你也可以切换到自己的 OpenAI 或 Anthropic 配置。',
           isMine: false,
           time: new Date().toLocaleTimeString()
         }
@@ -377,191 +388,171 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  min-height: 100vh;
-  padding-bottom: 280rpx;
-  background: #f5f7fb;
-  box-sizing: border-box;
+.ai-page {
+  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
 }
 
-.page-header {
+.ai-summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 20rpx 24rpx 12rpx;
-  background: #ffffff;
-  border-bottom: 1rpx solid #edf0f5;
+  gap: 18rpx;
+  padding: 24rpx;
 }
 
-.page-title {
-  font-size: 34rpx;
+.ai-summary__icon {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 28rpx;
+  background: var(--primary-light);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
   font-weight: 700;
-  color: #1f2937;
 }
 
-.page-subtitle {
-  margin-top: 6rpx;
+.ai-summary__body {
+  flex: 1;
+}
+
+.ai-summary__title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.ai-summary__desc {
+  margin-top: 10rpx;
   font-size: 24rpx;
-  color: #6b7280;
+  line-height: 1.6;
+  color: var(--text-sub);
 }
 
-.gear-btn {
-  width: 64rpx;
+.ai-summary__action,
+.send-chip,
+.close-chip {
+  min-width: 120rpx;
   height: 64rpx;
-  line-height: 64rpx;
-  text-align: center;
-  border-radius: 32rpx;
-  background: #eef5ff;
-  color: #1e88e5;
-  font-size: 34rpx;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
-.chat-container {
-  height: 760rpx;
-  padding: 20rpx;
-  box-sizing: border-box;
-}
-
-.chat-bottom-space {
-  height: 40rpx;
+.chat-panel {
+  height: 780rpx;
+  margin-top: 28rpx;
+  padding: 24rpx;
 }
 
 .message {
   width: fit-content;
   max-width: 84%;
-  margin-bottom: 18rpx;
+  margin-bottom: 22rpx;
 }
 
 .message.mine {
   margin-left: auto;
 }
 
+.message-role,
+.message-time {
+  font-size: 22rpx;
+  color: var(--text-sub);
+}
+
 .message-role {
   margin-bottom: 8rpx;
-  font-size: 22rpx;
-  color: #8a94a6;
 }
 
 .message-content {
   padding: 18rpx 20rpx;
-  border-radius: 18rpx;
-  background: #ffffff;
-  color: #1f2937;
-  line-height: 1.6;
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.06);
-  word-break: break-all;
+  border-radius: 24rpx;
+  background: #f7f8fc;
+  color: var(--text-main);
+  line-height: 1.7;
 }
 
 .message.mine .message-content {
-  background: #1e88e5;
+  background: var(--primary-gradient);
   color: #ffffff;
 }
 
 .message-time {
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #8a94a6;
 }
 
-.loading {
-  padding: 16rpx 0 24rpx;
-  text-align: center;
-  color: #6b7280;
+.loading,
+.chat-bottom-space {
+  height: 40rpx;
   font-size: 24rpx;
+  color: var(--text-sub);
 }
 
-.input-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  gap: 12rpx;
-  padding: 16rpx 20rpx calc(16rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
-  border-top: 1rpx solid #edf0f5;
-  z-index: 10;
+.related-card {
+  padding: 12rpx 24rpx;
 }
 
-.chat-input {
-  flex: 1;
-  height: 84rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #dbe3ef;
-  border-radius: 16rpx;
-  background: #ffffff;
+.related-item {
+  padding: 18rpx 0;
+}
+
+.related-item + .related-item {
+  border-top: 1rpx solid #eef1f7;
+}
+
+.related-item__title {
   font-size: 28rpx;
-}
-
-.send-btn,
-.primary-btn,
-.secondary-btn,
-.ghost-btn {
-  border-radius: 16rpx;
-  font-size: 28rpx;
-}
-
-.send-btn,
-.primary-btn {
-  background: #1e88e5;
-  color: #ffffff;
-}
-
-.secondary-btn {
-  background: #eef5ff;
-  color: #1e88e5;
-}
-
-.ghost-btn {
-  margin-top: 16rpx;
-  background: #ffffff;
-  color: #4b5563;
-  border: 2rpx solid #dbe3ef;
-}
-
-.recommend-section {
-  margin: 0 20rpx 20rpx;
-  padding: 18rpx 20rpx;
-  background: #ffffff;
-  border-radius: 20rpx;
-}
-
-.section-title,
-.settings-title {
-  font-size: 30rpx;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-main);
 }
 
-.recommend-item {
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #edf0f5;
-}
-
-.recommend-item:last-child {
-  border-bottom: none;
-}
-
-.recommend-title {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.recommend-content {
+.related-item__desc {
   margin-top: 8rpx;
   font-size: 24rpx;
-  color: #6b7280;
+  line-height: 1.6;
+  color: var(--text-sub);
+}
+
+.input-wrap {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: calc(24rpx + env(safe-area-inset-bottom));
+  padding: 16rpx;
+  display: flex;
+  gap: 12rpx;
+  align-items: center;
+}
+
+.chat-input,
+.field-input,
+.textarea {
+  width: 100%;
+  background: #f6f7fb;
+  border-radius: 24rpx;
+  font-size: 28rpx;
+  color: var(--text-main);
+}
+
+.chat-input,
+.field-input {
+  height: 88rpx;
+  padding: 0 24rpx;
 }
 
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.42);
+  background: rgba(44, 50, 70, 0.35);
   display: flex;
   align-items: flex-end;
-  justify-content: center;
-  z-index: 20;
+  z-index: 30;
 }
 
 .settings-panel {
@@ -569,8 +560,17 @@ export default {
   max-height: 82vh;
   padding: 28rpx 24rpx 36rpx;
   background: #ffffff;
-  border-radius: 28rpx 28rpx 0 0;
-  box-sizing: border-box;
+  border-radius: 32rpx 32rpx 0 0;
+}
+
+.settings-title,
+.label {
+  color: var(--text-main);
+}
+
+.settings-title {
+  font-size: 32rpx;
+  font-weight: 700;
 }
 
 .form-item {
@@ -580,99 +580,75 @@ export default {
 .label {
   margin-bottom: 10rpx;
   font-size: 26rpx;
-  font-weight: 600;
-  color: #374151;
+  font-weight: 700;
 }
 
 .mode-row {
   display: flex;
-  gap: 12rpx;
   flex-wrap: wrap;
+  gap: 12rpx;
 }
 
 .mode-chip {
   padding: 12rpx 22rpx;
-  border-radius: 999rpx;
-  background: #f3f4f6;
-  color: #4b5563;
+  border-radius: var(--radius-full);
+  background: #f6f7fb;
+  color: var(--text-sub);
   font-size: 24rpx;
 }
 
 .mode-chip.active {
-  background: #1e88e5;
-  color: #ffffff;
+  background: var(--primary-light);
+  color: var(--primary-color);
 }
 
 .preset-card {
   margin-top: 12rpx;
   padding: 18rpx 20rpx;
-  border: 2rpx solid #dbe3ef;
-  border-radius: 16rpx;
+  background: #f6f7fb;
+  border-radius: 24rpx;
 }
 
 .preset-card.active {
-  border-color: #1e88e5;
-  background: #eef5ff;
+  background: var(--primary-light);
 }
 
 .preset-title {
   font-size: 28rpx;
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: 700;
+}
+
+.default-tag,
+.preset-meta,
+.hint {
+  font-size: 24rpx;
 }
 
 .default-tag {
-  margin-left: 10rpx;
-  color: #1e88e5;
-  font-size: 22rpx;
+  color: var(--primary-color);
 }
 
-.preset-meta {
+.preset-meta,
+.hint {
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #6b7280;
+  color: var(--text-sub);
+  line-height: 1.6;
   word-break: break-all;
 }
 
-.field-input {
-  width: 100%;
-  min-height: 76rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #dbe3ef;
-  border-radius: 16rpx;
-  background: #ffffff;
-  font-size: 28rpx;
-  box-sizing: border-box;
-}
-
 .textarea {
-  width: 100%;
   min-height: 180rpx;
-  padding: 18rpx 20rpx;
-  border: 2rpx solid #dbe3ef;
-  border-radius: 16rpx;
-  background: #ffffff;
-  font-size: 28rpx;
-  box-sizing: border-box;
-}
-
-.hint {
-  margin-top: 20rpx;
-  padding: 18rpx 20rpx;
-  border-radius: 16rpx;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 24rpx;
-  line-height: 1.6;
+  padding: 18rpx 24rpx;
 }
 
 .actions {
-  display: flex;
-  gap: 12rpx;
-  margin-top: 22rpx;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+  margin-top: 24rpx;
 }
 
-.actions button {
-  flex: 1;
+.close-chip {
+  margin: 20rpx auto 0;
 }
 </style>

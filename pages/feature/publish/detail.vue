@@ -1,24 +1,34 @@
 <template>
-  <view class="container">
-    <view class="info-section">
-      <view class="activity-title">{{ activity.title }}</view>
-      <view class="meta-item">组织方：{{ activity.organizer }}</view>
+  <view class="page-shell detail-page">
+    <view class="page-header">
+      <view class="page-eyebrow">活动详情</view>
+      <view class="page-title">{{ activity.title || '活动详情' }}</view>
+      <view class="page-subtitle">把时间、地点、内容和操作统一放进卡片层次里。</view>
+    </view>
+
+    <view class="surface-card meta-card">
+      <view class="meta-tags">
+        <tag-badge :text="activity.activityType || '活动'" tone="blue" />
+        <tag-badge :text="`${activity.applyCount || 0} 人报名`" tone="yellow" />
+      </view>
+      <view class="meta-item">组织方：{{ activity.organizer || '待补充' }}</view>
       <view class="meta-item">时间：{{ formatDate(activity.startTime) }} - {{ formatDate(activity.endTime) }}</view>
-      <view class="meta-item">地点：{{ activity.location }}</view>
-      <view class="meta-item">报名人数：{{ activity.applyCount }}</view>
+      <view class="meta-item">地点：{{ activity.location || '待补充' }}</view>
       <scroll-view v-if="activity.images && activity.images.length" class="image-strip" scroll-x>
         <image v-for="(item, index) in activity.images" :key="`${item}-${index}`" class="preview-image" :src="item" mode="aspectFill"></image>
       </scroll-view>
     </view>
 
-    <view class="content-section">
-      <view class="section-title">活动详情</view>
-      <view class="content">{{ activity.content }}</view>
-      <button class="apply-btn secondary" @click="toggleCollection">收藏活动</button>
+    <view class="surface-card content-card">
+      <view class="section-heading">活动详情</view>
+      <view class="content">{{ activity.content || '暂无详情说明' }}</view>
+      <view class="content-action">
+        <custom-button text="收藏活动" ghost @click="toggleCollection" />
+      </view>
     </view>
 
-    <view class="bottom-bar">
-      <button class="apply-btn" :loading="applying" @click="applyActivity">立即报名</button>
+    <view class="bottom-action">
+      <custom-button text="立即报名" :loading="applying" @click="applyActivity" />
     </view>
   </view>
 </template>
@@ -95,69 +105,61 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  min-height: 100vh;
-  background: #f5f5f5;
-  padding-bottom: 120rpx;
+.detail-page {
+  padding-bottom: calc(150rpx + env(safe-area-inset-bottom));
 }
 
-.info-section,
-.content-section {
-  background: #ffffff;
+.meta-card,
+.content-card {
   padding: 24rpx;
-  margin: 16rpx;
-  border-radius: 12rpx;
 }
 
-.activity-title {
-  font-size: 36rpx;
-  font-weight: 700;
-  margin-bottom: 20rpx;
+.content-card {
+  margin-top: 28rpx;
+}
+
+.meta-tags {
+  display: flex;
+  gap: 10rpx;
+  flex-wrap: wrap;
+  margin-bottom: 18rpx;
 }
 
 .meta-item,
 .content {
-  font-size: 28rpx;
-  line-height: 1.7;
-  margin-bottom: 12rpx;
+  font-size: 26rpx;
+  line-height: 1.75;
+  color: var(--text-sub);
 }
 
-.section-title {
-  font-size: 30rpx;
-  font-weight: 700;
-  margin-bottom: 16rpx;
+.meta-item + .meta-item {
+  margin-top: 10rpx;
 }
 
 .image-strip {
+  margin-top: 20rpx;
   white-space: nowrap;
-  margin-top: 16rpx;
 }
 
 .preview-image {
-  width: 220rpx;
-  height: 160rpx;
-  border-radius: 12rpx;
-  margin-right: 12rpx;
+  width: 240rpx;
+  height: 180rpx;
+  border-radius: 24rpx;
+  margin-right: 14rpx;
 }
 
-.bottom-bar {
+.content {
+  margin-top: 20rpx;
+}
+
+.content-action {
+  margin-top: 28rpx;
+}
+
+.bottom-action {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 16rpx;
-  background: #ffffff;
-}
-
-.apply-btn {
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 10rpx;
-}
-
-.secondary {
-  margin-top: 24rpx;
-  background: #eef5ff;
-  color: #1e88e5;
+  left: 40rpx;
+  right: 40rpx;
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
 }
 </style>

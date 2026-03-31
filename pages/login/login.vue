@@ -1,22 +1,32 @@
 <template>
-  <view class="container">
-    <view class="login-form">
-      <view class="logo">
-        <text class="logo-text">活达</text>
-        <text class="logo-subtitle">校园信息与活动聚合平台</text>
+  <view class="login-page">
+    <view class="ambient ambient--top"></view>
+    <view class="ambient ambient--bottom"></view>
+
+    <view class="login-shell">
+      <view class="intro">
+        <view class="intro__badge">HUODA CAMPUS</view>
+        <view class="intro__title">登录后，把校园生活装进一张更好看的首页。</view>
+        <view class="intro__desc">查资讯、看活动、班级协作和个人中心，都统一成一套轻盈的体验。</view>
       </view>
 
-      <view class="form-item">
-        <text class="label">学号</text>
-        <input class="input" placeholder="请输入学号" v-model="loginForm.studentId" />
-      </view>
+      <view class="login-card">
+        <view class="field-group">
+          <text class="field-title">输入你的校园账号</text>
+          <view class="field-panel">
+            <input class="field-input" placeholder="请输入学号" v-model="loginForm.studentId" />
+          </view>
+        </view>
 
-      <view class="form-item">
-        <text class="label">密码</text>
-        <input class="input" placeholder="请输入密码" v-model="loginForm.password" password />
-      </view>
+        <view class="field-group">
+          <text class="field-title">输入登录密码</text>
+          <view class="field-panel">
+            <input class="field-input" placeholder="请输入密码" v-model="loginForm.password" password />
+          </view>
+        </view>
 
-      <button class="login-btn" :loading="loading" @click="login">登录</button>
+        <custom-button text="进入活达" :loading="loading" @click="login" />
+      </view>
     </view>
   </view>
 </template>
@@ -78,67 +88,108 @@ export default {
 </script>
 
 <style scoped>
-.container {
+.login-page {
   min-height: 100vh;
-  padding: 40rpx;
+  padding: calc(32rpx + env(safe-area-inset-top)) 32rpx calc(40rpx + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, #f8f5ff 0%, #eef3ff 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.ambient {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(10rpx);
+}
+
+.ambient--top {
+  top: -120rpx;
+  right: -40rpx;
+  width: 360rpx;
+  height: 360rpx;
+  background: rgba(107, 72, 255, 0.15);
+}
+
+.ambient--bottom {
+  left: -80rpx;
+  bottom: 160rpx;
+  width: 320rpx;
+  height: 320rpx;
+  background: rgba(74, 144, 226, 0.14);
+}
+
+.login-shell {
+  position: relative;
+  z-index: 1;
+  min-height: calc(100vh - 72rpx - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
 }
 
-.login-form {
-  width: 100%;
-  max-width: 640rpx;
-  background: #ffffff;
-  border-radius: 20rpx;
-  padding: 48rpx 40rpx;
-  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
+.intro {
+  margin-bottom: 40rpx;
 }
 
-.logo {
-  text-align: center;
-  margin-bottom: 48rpx;
+.intro__badge {
+  display: inline-flex;
+  padding: 10rpx 18rpx;
+  border-radius: var(--radius-full);
+  background: rgba(107, 72, 255, 0.1);
+  color: var(--primary-color);
+  font-size: 22rpx;
+  font-weight: 700;
 }
 
-.logo-text {
-  display: block;
-  font-size: 56rpx;
-  font-weight: bold;
-  color: #1e88e5;
-  margin-bottom: 12rpx;
+.intro__title {
+  margin-top: 24rpx;
+  font-size: 54rpx;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--text-main);
 }
 
-.logo-subtitle {
+.intro__desc {
+  margin-top: 16rpx;
   font-size: 26rpx;
-  color: #666666;
+  line-height: 1.7;
+  color: var(--text-sub);
 }
 
-.form-item {
-  margin-bottom: 28rpx;
+.login-card {
+  padding: 32rpx;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 36rpx;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(12rpx);
 }
 
-.label {
+.field-group + .field-group {
+  margin-top: 28rpx;
+}
+
+.field-group:last-of-type {
+  margin-bottom: 32rpx;
+}
+
+.field-title {
   display: block;
-  margin-bottom: 12rpx;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.input {
-  width: 100%;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 12rpx;
-  padding: 20rpx;
-  font-size: 28rpx;
-  background: #fdfdfd;
-}
-
-.login-btn {
-  margin-top: 12rpx;
-  width: 100%;
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 12rpx;
+  margin-bottom: 16rpx;
   font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.field-panel {
+  background: #f5f6fb;
+  border-radius: 24rpx;
+  padding: 0 24rpx;
+}
+
+.field-input {
+  width: 100%;
+  height: 92rpx;
+  font-size: 28rpx;
+  color: var(--text-main);
 }
 </style>

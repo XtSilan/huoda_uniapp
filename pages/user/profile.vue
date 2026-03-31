@@ -1,37 +1,22 @@
 <template>
-  <view class="container">
-    <view class="form">
-      <view class="form-item">
-        <text class="label">姓名</text>
-        <input class="input" v-model="userInfo.name" placeholder="请输入姓名" />
-      </view>
+  <view class="page-shell form-page">
+    <view class="page-header">
+      <view class="page-eyebrow">编辑资料</view>
+      <view class="page-title">把你的校园身份信息补完整</view>
+      <view class="page-subtitle">延续首页的上下结构表单，不再使用原始的横排输入样式。</view>
+    </view>
 
-      <view class="form-item">
-        <text class="label">学号</text>
-        <input class="input" v-model="userInfo.studentId" disabled />
+    <view class="form-stack">
+      <view v-for="field in fields" :key="field.key" class="surface-card form-card">
+        <text class="field-title">{{ field.label }}</text>
+        <view class="field-panel" :class="{ 'field-panel--disabled': field.disabled }">
+          <input class="field-input" :value="userInfo[field.key]" :placeholder="field.placeholder" :disabled="field.disabled" @input="onFieldInput(field.key, $event)" />
+        </view>
       </view>
+    </view>
 
-      <view class="form-item">
-        <text class="label">学校</text>
-        <input class="input" v-model="userInfo.school" placeholder="请输入学校" />
-      </view>
-
-      <view class="form-item">
-        <text class="label">院系</text>
-        <input class="input" v-model="userInfo.department" placeholder="请输入院系" />
-      </view>
-
-      <view class="form-item">
-        <text class="label">班级</text>
-        <input class="input" v-model="userInfo.class" placeholder="请输入班级" />
-      </view>
-
-      <view class="form-item">
-        <text class="label">手机号</text>
-        <input class="input" v-model="userInfo.phone" placeholder="请输入手机号" />
-      </view>
-
-      <button class="submit-btn" :loading="loading" @click="submitForm">保存信息</button>
+    <view class="submit-wrap">
+      <custom-button text="保存信息" :loading="loading" @click="submitForm" />
     </view>
   </view>
 </template>
@@ -52,10 +37,25 @@ export default {
       }
     };
   },
+  computed: {
+    fields() {
+      return [
+        { key: 'name', label: '姓名', placeholder: '请输入姓名' },
+        { key: 'studentId', label: '学号', placeholder: '学号自动同步', disabled: true },
+        { key: 'school', label: '学校', placeholder: '请输入学校' },
+        { key: 'department', label: '院系', placeholder: '请输入院系' },
+        { key: 'class', label: '班级', placeholder: '请输入班级' },
+        { key: 'phone', label: '手机号', placeholder: '请输入手机号' }
+      ];
+    }
+  },
   onLoad() {
     this.loadProfile();
   },
   methods: {
+    onFieldInput(key, event) {
+      this.userInfo[key] = event.detail.value;
+    },
     async loadProfile() {
       try {
         const profile = await this.$api.user.getProfile();
@@ -73,7 +73,6 @@ export default {
         uni.showToast({ title: '请把资料填写完整', icon: 'none' });
         return;
       }
-
       this.loading = true;
       try {
         const res = await this.$api.user.updateProfile(this.userInfo);
@@ -95,41 +94,49 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  padding: 16rpx;
+.form-page {
+  padding-bottom: calc(150rpx + env(safe-area-inset-bottom));
 }
 
-.form {
-  background: #ffffff;
-  border-radius: 12rpx;
-  padding: 24rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
 }
 
-.form-item {
-  margin-bottom: 24rpx;
+.form-card {
+  padding: 28rpx 24rpx;
 }
 
-.label {
+.field-title {
   display: block;
-  margin-bottom: 10rpx;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.input {
-  width: 100%;
-  padding: 16rpx;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 10rpx;
-  font-size: 28rpx;
-}
-
-.submit-btn {
-  width: 100%;
-  background: #1e88e5;
-  color: #ffffff;
-  border-radius: 10rpx;
+  margin-bottom: 16rpx;
   font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.field-panel {
+  background: #f6f7fb;
+  border-radius: 24rpx;
+  padding: 0 24rpx;
+}
+
+.field-panel--disabled {
+  opacity: 0.72;
+}
+
+.field-input {
+  width: 100%;
+  height: 88rpx;
+  font-size: 28rpx;
+  color: var(--text-main);
+}
+
+.submit-wrap {
+  position: fixed;
+  left: 40rpx;
+  right: 40rpx;
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
 }
 </style>
