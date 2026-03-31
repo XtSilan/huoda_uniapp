@@ -40,7 +40,7 @@ function ensureColumn(db, tableName, columnName, definition) {
   }
 }
 
-async function getDb() {
+async function getDb(options = {}) {
   const db = createDb();
 
   db.exec(`
@@ -214,25 +214,42 @@ async function getDb() {
   ensureColumn(db, 'activities', 'images', `TEXT DEFAULT '[]'`);
   ensureColumn(db, 'activities', 'location_type', `TEXT DEFAULT '校内'`);
 
+  if (options.reset) {
+    resetData(db);
+  }
+
   await seed(db);
   return db;
+}
+
+function resetData(db) {
+  db.exec(`
+    DELETE FROM activity_applications;
+    DELETE FROM favorites;
+    DELETE FROM browse_history;
+    DELETE FROM runs;
+    DELETE FROM sign_records;
+    DELETE FROM class_groups;
+    DELETE FROM activities;
+    DELETE FROM infos;
+    DELETE FROM banners;
+    DELETE FROM user_settings;
+    DELETE FROM users;
+    DELETE FROM ai_model_presets;
+    DELETE FROM sqlite_sequence;
+  `);
 }
 
 async function seed(db) {
   const now = new Date().toISOString();
 
   if (!db.get('SELECT COUNT(*) AS count FROM users').count) {
-    [
-      ['20240001', '123456', '测试用户', 'user', 'active', '活达大学', '计算机学院', '计科2511', '13800138000', '', now, now],
-      ['admin001', 'admin123', '系统管理员', 'admin', 'active', '活达大学', '信息中心', '管理组', '13900139000', '', now, now]
-    ].forEach((item) => {
-      db.run(
-        `INSERT INTO users
-        (student_id, password, name, role, status, school, department, class_name, phone, avatar_url, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        item
-      );
-    });
+    db.run(
+      `INSERT INTO users
+      (student_id, password, name, role, status, school, department, class_name, phone, avatar_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['admin', 'admin', '管理员', 'admin', 'active', '', '', '', '', '', now, now]
+    );
   }
 
   const allUsers = db.all('SELECT id, role, class_name, name FROM users ORDER BY id ASC');
@@ -244,12 +261,12 @@ async function seed(db) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user.id,
-          '大一',
-          '本科',
-          JSON.stringify(user.role === 'admin' ? ['讲座', '竞赛'] : ['讲座', '就业', '公益']),
-          '就业',
-          JSON.stringify({ activity: true, lecture: true, partTime: true }),
-          JSON.stringify({ darkMode: false, autoRefresh: true }),
+          '',
+          '',
+          '[]',
+          '',
+          '{}',
+          '{}',
           JSON.stringify(DEFAULT_USER_AI_SETTINGS),
           now
         ]
@@ -263,110 +280,6 @@ async function seed(db) {
     WHERE ai_settings IS NULL OR ai_settings = ''`,
     [JSON.stringify(DEFAULT_USER_AI_SETTINGS)]
   );
-
-  if (!db.get('SELECT COUNT(*) AS count FROM ai_model_presets').count) {
-    db.run(
-      `INSERT INTO ai_model_presets
-      (name, provider, base_url, api_key, model, temperature, top_p, max_tokens, presence_penalty, frequency_penalty, system_prompt, is_default, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        '平台默认模型',
-        DEFAULT_AI_CONFIG.provider,
-        DEFAULT_AI_CONFIG.baseUrl,
-        DEFAULT_AI_CONFIG.apiKey,
-        DEFAULT_AI_CONFIG.model || 'gpt-4.1-mini',
-        DEFAULT_AI_CONFIG.temperature,
-        DEFAULT_AI_CONFIG.topP,
-        DEFAULT_AI_CONFIG.maxTokens,
-        DEFAULT_AI_CONFIG.presencePenalty,
-        DEFAULT_AI_CONFIG.frequencyPenalty,
-        DEFAULT_AI_CONFIG.systemPrompt,
-        1,
-        1,
-        now,
-        now
-      ]
-    );
-  }
-
-  if (!db.get('SELECT COUNT(*) AS count FROM banners').count) {
-    [
-      ['春季校园招聘', 'https://dummyimage.com/1200x420/1e88e5/ffffff&text=%E6%98%A5%E5%AD%A3%E6%A0%A1%E5%9B%AD%E6%8B%9B%E8%81%98', '/pages/feature/banner-placeholder/banner-placeholder?id=1', 'placeholder', 1, 1, now, now],
-      ['科技节作品征集', 'https://dummyimage.com/1200x420/43a047/ffffff&text=%E7%A7%91%E6%8A%80%E8%8A%82%E4%BD%9C%E5%93%81%E5%BE%81%E9%9B%86', '/pages/feature/banner-placeholder/banner-placeholder?id=2', 'placeholder', 2, 1, now, now]
-    ].forEach((item) => {
-      db.run(
-        `INSERT INTO banners
-        (title, image_url, link_url, link_type, sort_order, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        item
-      );
-    });
-  }
-
-  if (!db.get('SELECT COUNT(*) AS count FROM infos').count) {
-    [
-      ['校园科技节', '展示学生科技成果，激发创新精神。', '欢迎各学院团队报名参与校园科技节作品展示与现场交流。', '科技协会', '讲座', '校内', 'published', now, now, now],
-      ['体育文化节', '丰富多彩的体育活动，增强学生体质。', '本周体育文化节将开放趣味运动会、班级接力和篮球友谊赛。', '体育部', '竞赛', '校内', 'published', now, now, now],
-      ['校外兼职推荐', '周末活动执行兼职招募。', '需要周末活动协助人员，提供餐补与交通补贴。', '合作企业', '兼职', '校外', 'published', now, now, now],
-      ['公益志愿者招募', '社区敬老服务活动开始报名。', '欢迎同学报名参与校外公益志愿活动，可累计志愿时长。', '青年志愿者协会', '公益', '校外', 'published', now, now, now]
-    ].forEach((item) => {
-      db.run(
-        `INSERT INTO infos
-        (title, summary, content, source, category, location_type, status, publish_time, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        item
-      );
-    });
-  }
-
-  if (!db.get('SELECT COUNT(*) AS count FROM activities').count) {
-    const adminUser = db.get('SELECT id FROM users WHERE role = ?', ['admin']);
-    [
-      [
-        '运动会',
-        '校园春季运动会',
-        '运动会报名已开启，欢迎各班级积极参与。',
-        new Date(Date.now() + 24 * 3600000).toISOString(),
-        new Date(Date.now() + 48 * 3600000).toISOString(),
-        '学校操场',
-        '校内',
-        '学校',
-        JSON.stringify(['https://images.unsplash.com/photo-1547347298-4074fc3086f0?auto=format&fit=crop&w=1200&q=80']),
-        '运动',
-        'upcoming',
-        now,
-        adminUser.id,
-        12,
-        now,
-        now
-      ],
-      [
-        '校园科技节',
-        '成果展示与创新分享',
-        '欢迎报名校园科技节活动，展示作品并参与交流。',
-        new Date(Date.now() + 72 * 3600000).toISOString(),
-        new Date(Date.now() + 76 * 3600000).toISOString(),
-        '科技楼一层大厅',
-        '校内',
-        '科技协会',
-        JSON.stringify([]),
-        '讲座',
-        'upcoming',
-        now,
-        adminUser.id,
-        20,
-        now,
-        now
-      ]
-    ].forEach((item) => {
-      db.run(
-        `INSERT INTO activities
-        (title, summary, content, start_time, end_time, location, location_type, organizer, images, activity_type, status, publish_time, creator_user_id, apply_count, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        item
-      );
-    });
-  }
 
   allUsers.forEach((user) => {
     const className = (user.class_name || '').trim();
@@ -382,7 +295,7 @@ async function seed(db) {
           className,
           `${className}群`,
           '欢迎加入班级群，发布活动和通知前请先查看群公告。',
-          'https://dummyimage.com/480x480/1e88e5/ffffff&text=%E7%8F%AD%E7%BA%A7%E7%BE%A4%E4%BA%8C%E7%BB%B4%E7%A0%81',
+          '',
           32,
           JSON.stringify([
             { id: 1, name: '张同学', role: '班长' },
@@ -399,42 +312,6 @@ async function seed(db) {
       );
     }
   });
-
-  const user = db.get('SELECT id FROM users WHERE student_id = ?', ['20240001']);
-  const firstInfo = db.get('SELECT id, title, summary FROM infos ORDER BY id ASC LIMIT 1');
-  const firstActivity = db.get('SELECT id, title, summary FROM activities ORDER BY id ASC LIMIT 1');
-
-  if (user && firstActivity && !db.get('SELECT COUNT(*) AS count FROM activity_applications').count) {
-    db.run('INSERT INTO activity_applications (activity_id, user_id, created_at) VALUES (?, ?, ?)', [firstActivity.id, user.id, now]);
-  }
-
-  if (user && firstInfo && firstActivity && !db.get('SELECT COUNT(*) AS count FROM favorites').count) {
-    db.run('INSERT INTO favorites (user_id, target_type, target_id, created_at) VALUES (?, ?, ?, ?)', [user.id, 'info', firstInfo.id, now]);
-    db.run('INSERT INTO favorites (user_id, target_type, target_id, created_at) VALUES (?, ?, ?, ?)', [user.id, 'activity', firstActivity.id, now]);
-  }
-
-  if (user && firstInfo && firstActivity && !db.get('SELECT COUNT(*) AS count FROM browse_history').count) {
-    db.run(`INSERT INTO browse_history (user_id, target_type, target_id, title, summary, created_at) VALUES (?, ?, ?, ?, ?, ?)`, [user.id, 'info', firstInfo.id, firstInfo.title, firstInfo.summary, now]);
-    db.run(`INSERT INTO browse_history (user_id, target_type, target_id, title, summary, created_at) VALUES (?, ?, ?, ?, ?, ?)`, [user.id, 'activity', firstActivity.id, firstActivity.title, firstActivity.summary, now]);
-  }
-
-  if (user && !db.get('SELECT COUNT(*) AS count FROM runs').count) {
-    [
-      [user.id, 3.2, 1500, 210, new Date(Date.now() - 2 * 86400000).toISOString(), now],
-      [user.id, 4.5, 2100, 320, new Date(Date.now() - 86400000).toISOString(), now]
-    ].forEach((item) => {
-      db.run('INSERT INTO runs (user_id, distance, duration, calories, date, created_at) VALUES (?, ?, ?, ?, ?, ?)', item);
-    });
-  }
-
-  if (user && !db.get('SELECT COUNT(*) AS count FROM sign_records').count) {
-    [
-      [user.id, '高等数学', '张老师', 'success', new Date(Date.now() - 86400000).toISOString(), now],
-      [user.id, '数据结构', '李老师', 'success', new Date(Date.now() - 2 * 86400000).toISOString(), now]
-    ].forEach((item) => {
-      db.run('INSERT INTO sign_records (user_id, course_name, teacher, status, time, created_at) VALUES (?, ?, ?, ?, ?, ?)', item);
-    });
-  }
 }
 
 module.exports = {

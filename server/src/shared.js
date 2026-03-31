@@ -108,7 +108,7 @@ function mapClassGroup(row) {
     groupName: row.group_name,
     announcement: row.announcement || '',
     qrCode: row.qr_code || '',
-    onlineCount: Number(row.online_count || 0),
+    memberCount: Number(row.member_count || 0),
     classmates: parseJson(row.classmates, []),
     messages: parseJson(row.messages, [])
   };

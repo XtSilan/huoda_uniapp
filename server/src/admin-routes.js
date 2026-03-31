@@ -8,6 +8,10 @@ const {
   parseJson
 } = require('./shared');
 const { normalizeAiConfig, validateAiConfig } = require('./ai-client');
+const fs = require('fs');
+const path = require('path');
+
+const uploadsDir = path.resolve(__dirname, '..', 'uploads');
 
 function mapPreset(row) {
   return {
@@ -26,6 +30,59 @@ function mapPreset(row) {
     isDefault: Boolean(row.is_default),
     isActive: Boolean(row.is_active)
   };
+}
+
+function ensureClassGroup(db, className) {
+  if (!className) {
+    return null;
+  }
+  let row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
+  if (!row) {
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO class_groups (class_name, group_name, announcement, qr_code, online_count, classmates, messages, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [className, `${className}群`, '欢迎加入班级群。', '', 0, '[]', '[]', now, now]
+    );
+    row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
+  }
+  return row;
+}
+
+function getClassmatesByClass(db, className) {
+  return db.all(
+    `SELECT id, student_id, name, department, class_name
+     FROM users
+     WHERE role = 'user' AND class_name = ?
+     ORDER BY student_id ASC`,
+    [className]
+  ).map((row) => ({
+    id: row.id,
+    studentId: row.student_id,
+    name: row.name,
+    department: row.department || '',
+    className: row.class_name || ''
+  }));
+}
+
+function mapClassGroupWithMembers(db, row) {
+  const group = mapClassGroup(row);
+  const classmates = getClassmatesByClass(db, row.class_name);
+  return {
+    ...group,
+    memberCount: classmates.length,
+    classmates
+  };
+}
+
+function saveBase64Image({ name, content }) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  const safeName = String(name || 'image.png').replace(/[^\w.\-]/g, '_');
+  const ext = path.extname(safeName) || '.png';
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+  const base64 = String(content || '').replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+  fs.writeFileSync(path.join(uploadsDir, fileName), Buffer.from(base64, 'base64'));
+  return `/uploads/${fileName}`;
 }
 
 module.exports = function registerAdminRoutes(app, db) {
@@ -65,17 +122,58 @@ module.exports = function registerAdminRoutes(app, db) {
     const current = db.get('SELECT * FROM users WHERE id = ?', [req.params.id]);
     const body = req.body || {};
     db.run(
-      `UPDATE users SET role = ?, status = ?, name = ?, department = ?, class_name = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE users SET role = ?, status = ?, name = ?, school = ?, department = ?, class_name = ?, phone = ?, password = ?, updated_at = ? WHERE id = ?`,
       [
         body.role || current.role,
         body.status || current.status,
         body.name || current.name,
+        body.school !== undefined ? body.school : current.school,
         body.department || current.department,
         body.className || current.class_name,
+        body.phone !== undefined ? body.phone : current.phone,
+        body.password || current.password,
         new Date().toISOString(),
         req.params.id
       ]
     );
+    if (body.className) {
+      ensureClassGroup(db, body.className);
+    }
+    res.json({ success: true });
+  });
+
+  app.post('/api/admin/users', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO users
+      (student_id, password, name, role, status, school, department, class_name, phone, avatar_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        body.studentId,
+        body.password || '123456',
+        body.name,
+        body.role || 'user',
+        body.status || 'active',
+        body.school || '',
+        body.department || '',
+        body.className || '',
+        body.phone || '',
+        body.avatarUrl || '',
+        now,
+        now
+      ]
+    );
+    const created = db.get('SELECT id FROM users ORDER BY id DESC LIMIT 1');
+    db.run(
+      `INSERT INTO user_settings
+      (user_id, grade, education_type, interests, future_plan, notification_settings, theme_settings, ai_settings, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [created.id, body.grade || '', body.educationType || '', '[]', '', '{}', '{}', '{}', now]
+    );
+    if (body.className) {
+      ensureClassGroup(db, body.className);
+    }
     res.json({ success: true });
   });
 
@@ -205,7 +303,7 @@ module.exports = function registerAdminRoutes(app, db) {
 
   app.get('/api/admin/class-groups', requireAdmin, (_req, res) => {
     const rows = db.all('SELECT * FROM class_groups ORDER BY class_name ASC');
-    res.json({ list: rows.map(mapClassGroup) });
+    res.json({ list: rows.map((row) => mapClassGroupWithMembers(db, row)) });
   });
 
   app.put('/api/admin/class-groups/:id', requireAdmin, (req, res) => {
@@ -219,14 +317,38 @@ module.exports = function registerAdminRoutes(app, db) {
         body.groupName || `${body.className}群`,
         body.announcement || '',
         body.qrCode || '',
-        Number(body.onlineCount || 0),
+        0,
         JSON.stringify(body.classmates || []),
         JSON.stringify(body.messages || []),
         new Date().toISOString(),
         req.params.id
       ]
     );
+    ensureClassGroup(db, body.className);
     res.json({ success: true });
+  });
+
+  app.post('/api/admin/class-groups/:id/assign-user', requireAdmin, (req, res) => {
+    const group = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
+    if (!group) {
+      return res.status(404).json({ message: '班级群不存在' });
+    }
+    const user = db.get('SELECT * FROM users WHERE id = ?', [req.body.userId]);
+    if (!user) {
+      return res.status(404).json({ message: '学生不存在' });
+    }
+    db.run('UPDATE users SET class_name = ?, updated_at = ? WHERE id = ?', [group.class_name, new Date().toISOString(), req.body.userId]);
+    res.json({ success: true });
+  });
+
+  app.post('/api/admin/upload-image', requireAdmin, (req, res) => {
+    const { name, content } = req.body || {};
+    if (!content) {
+      return res.status(400).json({ message: '图片内容不能为空' });
+    }
+    const relativePath = saveBase64Image({ name, content });
+    const fullUrl = `${req.protocol}://${req.get('host')}${relativePath}`;
+    res.json({ path: relativePath, url: fullUrl });
   });
 
   app.get('/api/admin/reports', requireAdmin, (_req, res) => {

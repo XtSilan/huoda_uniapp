@@ -1,23 +1,29 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { getDb, dbPath } = require('./db');
 const { parseToken } = require('./shared');
 const registerPublicRoutes = require('./public-routes');
 const registerAdminRoutes = require('./admin-routes');
 
 const PORT = process.env.PORT || 3000;
+const uploadsDir = path.resolve(__dirname, '..', 'uploads');
 
 async function start() {
-  const db = await getDb();
+  const shouldResetDb = process.argv.includes('--init-db');
+  const db = await getDb({ reset: shouldResetDb });
 
-  if (process.argv.includes('--init-db')) {
+  if (shouldResetDb) {
     console.log(`Database ready: ${dbPath}`);
     process.exit(0);
   }
 
   const app = express();
+  fs.mkdirSync(uploadsDir, { recursive: true });
   app.use(cors());
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: '10mb' }));
+  app.use('/uploads', express.static(uploadsDir));
 
   app.use((req, _res, next) => {
     const auth = req.headers.authorization || '';

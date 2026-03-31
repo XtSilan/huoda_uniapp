@@ -99,6 +99,39 @@ function buildSearchConditions(search, columns, params) {
   return `(${condition})`;
 }
 
+function ensureClassGroup(db, className) {
+  if (!className) {
+    return null;
+  }
+  let row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
+  if (!row) {
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO class_groups (class_name, group_name, announcement, qr_code, online_count, classmates, messages, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [className, `${className}群`, '欢迎加入班级群。', '', 0, '[]', '[]', now, now]
+    );
+    row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
+  }
+  return row;
+}
+
+function getClassmatesByClass(db, className) {
+  return db.all(
+    `SELECT id, name, role, department, class_name
+     FROM users
+     WHERE role = 'user' AND class_name = ?
+     ORDER BY student_id ASC`,
+    [className]
+  ).map((row) => ({
+    id: row.id,
+    name: row.name,
+    role: row.role === 'admin' ? '管理员' : '学生',
+    department: row.department || '',
+    className: row.class_name || ''
+  }));
+}
+
 module.exports = function registerPublicRoutes(app, db) {
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
@@ -448,14 +481,13 @@ module.exports = function registerPublicRoutes(app, db) {
     if (!className) {
       return res.status(400).json({ message: '请先在个人资料中完善班级信息' });
     }
-    const row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
-    if (!row) {
-      return res.status(404).json({ message: '暂未找到对应班级群' });
-    }
+    const row = ensureClassGroup(db, className);
     const group = mapClassGroup(row);
+    const classmates = getClassmatesByClass(db, className);
     res.json({
       ...group,
-      classmates: group.classmates.length ? group.classmates : [{ id: req.user.id, name: req.user.name, role: '群成员' }]
+      memberCount: classmates.length,
+      classmates
     });
   });
 

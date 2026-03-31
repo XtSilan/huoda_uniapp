@@ -19,7 +19,7 @@ export default [
     iconCls: 'ios-settings',
     children: [
       { path: '/dashboard', component: Dashboard, name: '仪表盘' },
-      { path: '/users', component: Users, name: '用户管理' },
+      { path: '/users', component: Users, name: '学生注册' },
       { path: '/banners', component: Banners, name: '轮播图管理' },
       { path: '/ai-models', component: AiModels, name: 'AI 默认模型' },
       { path: '/infos', component: Infos, name: '信息管理' },
