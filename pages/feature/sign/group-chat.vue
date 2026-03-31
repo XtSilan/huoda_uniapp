@@ -2,9 +2,15 @@
   <view class="container">
     <view class="group-card" v-if="group">
       <view class="group-name">{{ group.groupName }}</view>
-      <view class="group-meta">{{ group.memberCount || classmates.length }} 人在群</view>
+      <view class="group-meta">{{ group.memberCount }} 人在群</view>
       <view class="group-announcement">{{ group.announcement || '暂无群公告' }}</view>
-      <image v-if="group.qrCode" class="qr-code" :src="fullQrCode(group.qrCode)" mode="aspectFit" @click="previewQrCode"></image>
+      <image
+        v-if="group.qrCode"
+        class="qr-code"
+        :src="getQrCode(group.qrCode)"
+        mode="aspectFit"
+        @click="previewQrCode"
+      ></image>
     </view>
 
     <view class="section">
@@ -91,6 +97,22 @@ export default {
     },
     formatTime(value) {
       return value ? new Date(value).toLocaleString() : '-';
+    },
+    getQrCode(value) {
+      if (!value) {
+        return '';
+      }
+      return value.startsWith('http') ? value : `http://localhost:3000${value}`;
+    },
+    previewQrCode() {
+      const url = this.getQrCode(this.group && this.group.qrCode);
+      if (!url) {
+        return;
+      }
+      uni.previewImage({
+        urls: [url],
+        current: url
+      });
     }
   }
 };

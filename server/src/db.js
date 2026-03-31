@@ -41,10 +41,6 @@ function ensureColumn(db, tableName, columnName, definition) {
 }
 
 async function getDb(options = {}) {
-  if (options.reset && fs.existsSync(dbPath)) {
-    fs.unlinkSync(dbPath);
-  }
-
   const db = createDb();
 
   db.exec(`
@@ -218,8 +214,30 @@ async function getDb(options = {}) {
   ensureColumn(db, 'activities', 'images', `TEXT DEFAULT '[]'`);
   ensureColumn(db, 'activities', 'location_type', `TEXT DEFAULT '校内'`);
 
+  if (options.reset) {
+    resetData(db);
+  }
+
   await seed(db);
   return db;
+}
+
+function resetData(db) {
+  db.exec(`
+    DELETE FROM activity_applications;
+    DELETE FROM favorites;
+    DELETE FROM browse_history;
+    DELETE FROM runs;
+    DELETE FROM sign_records;
+    DELETE FROM class_groups;
+    DELETE FROM activities;
+    DELETE FROM infos;
+    DELETE FROM banners;
+    DELETE FROM user_settings;
+    DELETE FROM users;
+    DELETE FROM ai_model_presets;
+    DELETE FROM sqlite_sequence;
+  `);
 }
 
 async function seed(db) {
@@ -230,7 +248,7 @@ async function seed(db) {
       `INSERT INTO users
       (student_id, password, name, role, status, school, department, class_name, phone, avatar_url, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['admin', 'admin', '系统管理员', 'admin', 'active', '', '', '', '', '', now, now]
+      ['admin', 'admin', '管理员', 'admin', 'active', '', '', '', '', '', now, now]
     );
   }
 
@@ -243,12 +261,12 @@ async function seed(db) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user.id,
-          '大一',
-          '本科',
-          JSON.stringify(user.role === 'admin' ? ['讲座', '竞赛'] : ['讲座', '就业', '公益']),
-          '就业',
-          JSON.stringify({ activity: true, lecture: true, partTime: true }),
-          JSON.stringify({ darkMode: false, autoRefresh: true }),
+          '',
+          '',
+          '[]',
+          '',
+          '{}',
+          '{}',
           JSON.stringify(DEFAULT_USER_AI_SETTINGS),
           now
         ]
@@ -263,31 +281,6 @@ async function seed(db) {
     [JSON.stringify(DEFAULT_USER_AI_SETTINGS)]
   );
 
-  if (!db.get('SELECT COUNT(*) AS count FROM ai_model_presets').count) {
-    db.run(
-      `INSERT INTO ai_model_presets
-      (name, provider, base_url, api_key, model, temperature, top_p, max_tokens, presence_penalty, frequency_penalty, system_prompt, is_default, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        '平台默认模型',
-        DEFAULT_AI_CONFIG.provider,
-        DEFAULT_AI_CONFIG.baseUrl,
-        DEFAULT_AI_CONFIG.apiKey,
-        DEFAULT_AI_CONFIG.model || 'gpt-4.1-mini',
-        DEFAULT_AI_CONFIG.temperature,
-        DEFAULT_AI_CONFIG.topP,
-        DEFAULT_AI_CONFIG.maxTokens,
-        DEFAULT_AI_CONFIG.presencePenalty,
-        DEFAULT_AI_CONFIG.frequencyPenalty,
-        DEFAULT_AI_CONFIG.systemPrompt,
-        1,
-        1,
-        now,
-        now
-      ]
-    );
-  }
-
   allUsers.forEach((user) => {
     const className = (user.class_name || '').trim();
     if (!className) {
@@ -298,7 +291,24 @@ async function seed(db) {
         `INSERT INTO class_groups
         (class_name, group_name, announcement, qr_code, online_count, classmates, messages, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [className, `${className}群`, '', '', 0, '[]', '[]', now, now]
+        [
+          className,
+          `${className}群`,
+          '欢迎加入班级群，发布活动和通知前请先查看群公告。',
+          '',
+          32,
+          JSON.stringify([
+            { id: 1, name: '张同学', role: '班长' },
+            { id: 2, name: '李同学', role: '学习委员' },
+            { id: 3, name: user.name, role: '群成员' }
+          ]),
+          JSON.stringify([
+            { id: 1, sender: '班长', text: '今晚七点开班会，记得准时参加。', time: now, type: 'other' },
+            { id: 2, sender: '学习委员', text: '本周活动报名链接已发到群文件。', time: now, type: 'other' }
+          ]),
+          now,
+          now
+        ]
       );
     }
   });

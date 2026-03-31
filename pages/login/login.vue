@@ -131,6 +131,7 @@ export default {
   padding: 20rpx;
   font-size: 28rpx;
   background: #fdfdfd;
+  box-sizing: border-box;
 }
 
 .login-btn {

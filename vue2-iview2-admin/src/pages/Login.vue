@@ -3,7 +3,7 @@
     <i-form ref="formLogin" :model="formLogin" :rules="formLoginRules" class="card-box">
       <Form-item class="formLogin-title"><h3>活达后台登录</h3></Form-item>
       <Form-item prop="studentId">
-        <i-input size="large" v-model="formLogin.studentId" placeholder="学号 / 管理员账号">
+        <i-input size="large" v-model="formLogin.studentId" placeholder="账号">
           <Icon type="ios-person-outline" slot="prepend"></Icon>
         </i-input>
       </Form-item>

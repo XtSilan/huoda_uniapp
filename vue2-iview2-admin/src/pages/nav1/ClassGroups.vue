@@ -8,52 +8,39 @@
       <Input v-model="form.announcement" placeholder="群公告" style="margin-bottom: 10px;" />
 
       <div style="margin-bottom: 10px;">
-        <div style="margin-bottom: 8px; color: #666;">二维码图片</div>
-        <input ref="qrInput" type="file" accept="image/*" @change="handleQrChange" />
-        <div v-if="form.qrCode" style="margin-top: 10px;">
-          <img :src="fullQrCodeUrl(form.qrCode)" alt="二维码" style="width: 140px; height: 140px; object-fit: contain; border: 1px solid #eee; border-radius: 6px;" />
-          <div style="margin-top: 6px; color: #999; word-break: break-all;">{{ form.qrCode }}</div>
-        </div>
+        <Button type="primary" @click="triggerUpload">上传二维码</Button>
+        <input ref="fileInput" type="file" accept="image/*" style="display: none;" @change="handleFileChange" />
+      </div>
+      <div v-if="form.qrCode" style="margin-bottom: 10px;">
+        <img :src="normalizeQrCode(form.qrCode)" alt="qr" style="width: 180px; height: 180px; object-fit: cover; border: 1px solid #eee;" />
       </div>
 
-      <Input v-model="searchKeyword" placeholder="搜索已注册学生：学号 / 姓名 / 院系" style="margin-bottom: 10px;" />
-      <Button size="small" @click="loadStudents" style="margin-bottom: 12px;">查询学生</Button>
+      <div style="margin: 12px 0 8px; font-weight: bold;">当前群成员：{{ selectedMembers.length }} 人</div>
+      <Table border :columns="memberColumns" :data="selectedMembers" size="small"></Table>
 
-      <div style="display: flex; gap: 16px;">
-        <div style="flex: 1;">
-          <div style="font-weight: 700; margin-bottom: 8px;">班级成员</div>
-          <Table border :columns="currentColumns" :data="currentStudents" size="small"></Table>
-        </div>
-        <div style="flex: 1;">
-          <div style="font-weight: 700; margin-bottom: 8px;">可添加学生</div>
-          <Table border :columns="candidateColumns" :data="candidates" size="small"></Table>
-        </div>
-      </div>
+      <div style="margin: 12px 0 8px; font-weight: bold;">手动添加已有学生</div>
+      <Select v-model="selectedUserId" filterable placeholder="选择学生后会自动归入当前班级">
+        <Option v-for="item in availableUsers" :key="item.id" :value="item.id">{{ item.studentId }} - {{ item.name }} - {{ item.class || '未分班' }}</Option>
+      </Select>
+      <Button style="margin-top: 10px;" @click="assignUser">添加到该班级</Button>
     </Modal>
   </div>
 </template>
 
 <script>
-import {
-  getClassGroups,
-  updateClassGroup,
-  getClassGroupStudents,
-  addClassGroupStudent,
-  removeClassGroupStudent,
-  uploadClassGroupQr
-} from '../../api';
-import { API_BASE_URL } from '../../config/runtime';
+import { getClassGroups, updateClassGroup, getUsers, assignUserToClassGroup, uploadImage } from '../../api';
+
+const API_BASE_URL = 'http://localhost:3000';
 
 export default {
   data() {
     return {
       groups: [],
+      users: [],
       visible: false,
       uploading: false,
       editingId: null,
-      searchKeyword: '',
-      currentStudents: [],
-      candidates: [],
+      selectedUserId: null,
       form: {
         className: '',
         groupName: '',
@@ -72,53 +59,35 @@ export default {
             on: { click: () => this.openEdit(params.row) }
           }, '编辑')
         }
+      ],
+      memberColumns: [
+        { title: '学号', key: 'studentId' },
+        { title: '姓名', key: 'name' },
+        { title: '院系', key: 'department' }
       ]
     };
   },
   computed: {
-    currentColumns() {
-      return [
-        { title: '学号', key: 'studentId' },
-        { title: '姓名', key: 'name' },
-        {
-          title: '操作',
-          render: (h, params) => h('Button', {
-            props: { size: 'small', type: 'error' },
-            on: { click: () => this.removeStudent(params.row) }
-          }, '移出')
-        }
-      ];
+    selectedMembers() {
+      const current = this.groups.find((item) => item.id === this.editingId);
+      return current ? current.classmates || [] : [];
     },
-    candidateColumns() {
-      return [
-        { title: '学号', key: 'studentId' },
-        { title: '姓名', key: 'name' },
-        { title: '院系', key: 'department' },
-        { title: '当前班级', key: 'className' },
-        {
-          title: '操作',
-          render: (h, params) => h('Button', {
-            props: { size: 'small', type: 'primary' },
-            on: { click: () => this.addStudent(params.row) }
-          }, '加入本班')
-        }
-      ];
+    availableUsers() {
+      return this.users.filter((item) => item.role === 'user');
     }
   },
   mounted() {
-    this.loadGroups();
+    this.loadData();
   },
   methods: {
-    fullQrCodeUrl(path) {
-      if (!path) return '';
-      return path.startsWith('http') ? path : `${API_BASE_URL.replace(/\/api$/, '')}${path}`;
-    },
-    async loadGroups() {
-      const res = await getClassGroups();
-      this.groups = res.list || [];
+    async loadData() {
+      const [groupRes, userRes] = await Promise.all([getClassGroups(), getUsers()]);
+      this.groups = groupRes.list || [];
+      this.users = userRes.list || [];
     },
     async openEdit(row) {
       this.editingId = row.id;
+      this.selectedUserId = null;
       this.form = {
         className: row.className,
         groupName: row.groupName,
@@ -126,58 +95,49 @@ export default {
         qrCode: row.qrCode,
         messages: row.messages || []
       };
-      this.searchKeyword = '';
       this.visible = true;
       await this.loadStudents();
     },
-    async loadStudents() {
-      if (!this.editingId) {
-        return;
-      }
-      const res = await getClassGroupStudents(this.editingId, this.searchKeyword);
-      this.currentStudents = res.currentStudents || [];
-      this.candidates = res.candidates || [];
+    async submit() {
+      await updateClassGroup(this.editingId, this.form);
+      this.$Message.success('班级群配置已更新');
+      this.loadData();
     },
-    async addStudent(row) {
-      await addClassGroupStudent(this.editingId, row.id);
-      this.$Message.success('已加入班级群');
-      this.loadStudents();
-      this.loadGroups();
+    triggerUpload() {
+      this.$refs.fileInput.click();
     },
-    async removeStudent(row) {
-      await removeClassGroupStudent(this.editingId, row.id);
-      this.$Message.success('已移出班级群');
-      this.loadStudents();
-      this.loadGroups();
-    },
-    handleQrChange(event) {
+    async handleFileChange(event) {
       const file = event.target.files && event.target.files[0];
       if (!file) {
         return;
       }
       const reader = new FileReader();
       reader.onload = async () => {
-        this.uploading = true;
-        try {
-          const res = await uploadClassGroupQr({
-            fileName: file.name,
-            content: reader.result
-          });
-          this.form.qrCode = res.path;
-          this.$Message.success('二维码上传成功');
-        } catch (error) {
-          this.$Message.error((error.response && error.response.data && error.response.data.message) || '上传失败');
-        } finally {
-          this.uploading = false;
-          event.target.value = '';
-        }
+        const res = await uploadImage({
+          name: file.name,
+          content: reader.result
+        });
+        this.form.qrCode = res.path;
+        this.$Message.success('二维码上传成功');
       };
       reader.readAsDataURL(file);
+      event.target.value = '';
     },
-    async submit() {
-      await updateClassGroup(this.editingId, this.form);
-      this.$Message.success('班级群已更新');
-      this.loadGroups();
+    async assignUser() {
+      if (!this.selectedUserId) {
+        this.$Message.error('请先选择学生');
+        return;
+      }
+      await assignUserToClassGroup(this.editingId, { userId: this.selectedUserId });
+      this.$Message.success('学生已加入该班级');
+      this.selectedUserId = null;
+      this.loadData();
+    },
+    normalizeQrCode(path) {
+      if (!path) {
+        return '';
+      }
+      return path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
     }
   }
 };

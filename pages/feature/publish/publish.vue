@@ -56,7 +56,7 @@ export default {
       if (!this.classGroup) {
         return '请先完善班级信息后查看同班同学与群聊';
       }
-      return `${this.classGroup.memberCount || 0}人在群，点击进入群聊`;
+      return `${this.classGroup.memberCount}人在群，点击进入群聊`;
     }
   },
   onShow() {

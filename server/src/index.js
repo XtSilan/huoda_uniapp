@@ -8,22 +8,22 @@ const registerPublicRoutes = require('./public-routes');
 const registerAdminRoutes = require('./admin-routes');
 
 const PORT = process.env.PORT || 3000;
-const uploadDir = path.resolve(__dirname, '..', 'uploads');
+const uploadsDir = path.resolve(__dirname, '..', 'uploads');
 
 async function start() {
-  const shouldInit = process.argv.includes('--init-db');
-  const db = await getDb({ reset: shouldInit });
+  const shouldResetDb = process.argv.includes('--init-db');
+  const db = await getDb({ reset: shouldResetDb });
 
-  if (shouldInit) {
+  if (shouldResetDb) {
     console.log(`Database ready: ${dbPath}`);
     process.exit(0);
   }
 
   const app = express();
+  fs.mkdirSync(uploadsDir, { recursive: true });
   app.use(cors());
-  fs.mkdirSync(uploadDir, { recursive: true });
-  app.use('/uploads', express.static(uploadDir));
   app.use(express.json({ limit: '10mb' }));
+  app.use('/uploads', express.static(uploadsDir));
 
   app.use((req, _res, next) => {
     const auth = req.headers.authorization || '';
