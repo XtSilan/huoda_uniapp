@@ -2,9 +2,9 @@
   <view class="container">
     <view class="group-card" v-if="group">
       <view class="group-name">{{ group.groupName }}</view>
-      <view class="group-meta">{{ group.onlineCount }} 人在线</view>
+      <view class="group-meta">{{ group.memberCount || classmates.length }} 人在群</view>
       <view class="group-announcement">{{ group.announcement || '暂无群公告' }}</view>
-      <image v-if="group.qrCode" class="qr-code" :src="group.qrCode" mode="aspectFit"></image>
+      <image v-if="group.qrCode" class="qr-code" :src="fullQrCode(group.qrCode)" mode="aspectFit" @click="previewQrCode"></image>
     </view>
 
     <view class="section">
@@ -36,6 +36,8 @@
 </template>
 
 <script>
+import { SERVER_ORIGIN } from '../../../config/api';
+
 export default {
   data() {
     return {
@@ -70,6 +72,22 @@ export default {
       } catch (error) {
         uni.showToast({ title: error.message || '发送失败', icon: 'none' });
       }
+    },
+    fullQrCode(path) {
+      if (!path) {
+        return '';
+      }
+      return path.startsWith('http') ? path : `${SERVER_ORIGIN}${path}`;
+    },
+    previewQrCode() {
+      if (!this.group || !this.group.qrCode) {
+        return;
+      }
+      const url = this.fullQrCode(this.group.qrCode);
+      uni.previewImage({
+        urls: [url],
+        current: url
+      });
     },
     formatTime(value) {
       return value ? new Date(value).toLocaleString() : '-';
@@ -119,6 +137,7 @@ export default {
   height: 260rpx;
   margin-top: 18rpx;
   border-radius: 12rpx;
+  background: #f6f8fa;
 }
 
 .classmate-item,

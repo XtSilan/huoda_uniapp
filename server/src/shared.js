@@ -109,8 +109,91 @@ function mapClassGroup(row) {
     announcement: row.announcement || '',
     qrCode: row.qr_code || '',
     onlineCount: Number(row.online_count || 0),
+    memberCount: Number(row.member_count || row.online_count || 0),
     classmates: parseJson(row.classmates, []),
     messages: parseJson(row.messages, [])
+  };
+}
+
+function ensureUserSettings(db, userId, overrides = {}) {
+  const exists = db.get('SELECT id FROM user_settings WHERE user_id = ?', [userId]);
+  if (exists) {
+    return;
+  }
+  const now = new Date().toISOString();
+  db.run(
+    `INSERT INTO user_settings
+    (user_id, grade, education_type, interests, future_plan, notification_settings, theme_settings, ai_settings, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      userId,
+      overrides.grade || '',
+      overrides.educationType || '',
+      JSON.stringify(overrides.interests || []),
+      overrides.futurePlan || '',
+      JSON.stringify(overrides.notification || {}),
+      JSON.stringify(overrides.theme || {}),
+      JSON.stringify(overrides.aiConfig || {}),
+      now
+    ]
+  );
+}
+
+function ensureClassGroup(db, className) {
+  const trimmed = String(className || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+  const existing = db.get('SELECT * FROM class_groups WHERE class_name = ?', [trimmed]);
+  if (existing) {
+    return existing;
+  }
+  const now = new Date().toISOString();
+  db.run(
+    `INSERT INTO class_groups
+    (class_name, group_name, announcement, qr_code, online_count, classmates, messages, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [trimmed, `${trimmed}群`, '', '', 0, '[]', '[]', now, now]
+  );
+  return db.get('SELECT * FROM class_groups WHERE class_name = ?', [trimmed]);
+}
+
+function buildClassmatesFromUsers(db, className) {
+  const trimmed = String(className || '').trim();
+  if (!trimmed) {
+    return [];
+  }
+  return db
+    .all(
+      `SELECT id, name, student_id
+      FROM users
+      WHERE role = 'user' AND TRIM(class_name) = ?
+      ORDER BY student_id ASC, id ASC`,
+      [trimmed]
+    )
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      studentId: row.student_id,
+      role: '群成员'
+    }));
+}
+
+function getClassGroupWithMembers(db, row) {
+  if (!row) {
+    return null;
+  }
+  const classmates = buildClassmatesFromUsers(db, row.class_name);
+  return {
+    ...mapClassGroup({
+      ...row,
+      member_count: classmates.length,
+      online_count: classmates.length,
+      classmates: JSON.stringify(classmates)
+    }),
+    classmates,
+    memberCount: classmates.length,
+    onlineCount: classmates.length
   };
 }
 
@@ -145,6 +228,10 @@ module.exports = {
   mapInfo,
   mapActivity,
   mapClassGroup,
+  ensureUserSettings,
+  ensureClassGroup,
+  buildClassmatesFromUsers,
+  getClassGroupWithMembers,
   parseSettings,
   recordBrowse
 };

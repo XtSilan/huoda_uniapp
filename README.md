@@ -121,20 +121,11 @@ npm run dev
 http://localhost:8081/#/login
 ```
 
-## 默认测试账号
-
-普通用户：
+## 默认管理员账号
 
 ```text
-账号：20240001
-密码：123456
-```
-
-管理员：
-
-```text
-账号：admin001
-密码：admin123
+账号：admin
+密码：admin
 ```
 
 ## 统一登录说明
@@ -217,7 +208,7 @@ server/data/huoda.sqlite
 
 ## 重要说明
 
-- 如果你之前生成过旧库，建议先删除 `server/data/huoda.sqlite` 后再执行 `npm run server:init-db`
+- 执行 `npm run server:init-db` 会重置数据库，并只保留管理员账号 `admin / admin`
 - 前台和后台都依赖 `http://localhost:3000/api`
 - 后台默认使用 `8081`，避免与前台 H5 常见的 `8080` 冲突
 - 后端当前使用的是轻量 token 方案，不是标准 JWT

@@ -17,8 +17,6 @@
       </view>
 
       <button class="login-btn" :loading="loading" @click="login">登录</button>
-      <view class="tips">用户账号：20240001 / 123456</view>
-      <view class="tips">管理员账号：admin001 / admin123</view>
     </view>
   </view>
 </template>
@@ -31,8 +29,8 @@ export default {
     return {
       loading: false,
       loginForm: {
-        studentId: '20240001',
-        password: '123456'
+        studentId: '',
+        password: ''
       }
     };
   },
@@ -142,12 +140,5 @@ export default {
   color: #ffffff;
   border-radius: 12rpx;
   font-size: 30rpx;
-}
-
-.tips {
-  margin-top: 20rpx;
-  text-align: center;
-  color: #888888;
-  font-size: 24rpx;
 }
 </style>

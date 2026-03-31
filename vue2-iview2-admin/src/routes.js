@@ -2,6 +2,7 @@ import Login from './pages/Login.vue';
 import Home from './pages/Home.vue';
 import Dashboard from './pages/Main.vue';
 import Users from './pages/nav1/user.vue';
+import StudentRegister from './pages/nav1/StudentRegister.vue';
 import Infos from './pages/nav1/Table.vue';
 import Activities from './pages/nav1/Form.vue';
 import ClassGroups from './pages/nav1/ClassGroups.vue';
@@ -20,6 +21,7 @@ export default [
     children: [
       { path: '/dashboard', component: Dashboard, name: '仪表盘' },
       { path: '/users', component: Users, name: '用户管理' },
+      { path: '/student-register', component: StudentRegister, name: '学生注册' },
       { path: '/banners', component: Banners, name: '轮播图管理' },
       { path: '/ai-models', component: AiModels, name: 'AI 默认模型' },
       { path: '/infos', component: Infos, name: '信息管理' },

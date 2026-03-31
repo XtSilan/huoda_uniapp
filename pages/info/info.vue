@@ -75,7 +75,7 @@
 </template>
 
 <script>
-const DEFAULT_CATEGORIES = ['讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他'];
+const DEFAULT_CATEGORIES = ['全部', '讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他'];
 
 export default {
   data() {
@@ -86,7 +86,7 @@ export default {
       detail: {},
       locationTabs: ['校外', '校内'],
       activeLocation: '校外',
-      activeCategory: '讲座',
+      activeCategory: '全部',
       infoList: [],
       searchInfos: [],
       searchActivities: []
@@ -96,10 +96,13 @@ export default {
     categories() {
       return DEFAULT_CATEGORIES.map((name) => ({
         name,
-        count: this.infoList.filter((item) => item.category === name).length
+        count: name === '全部' ? this.infoList.length : this.infoList.filter((item) => item.category === name).length
       }));
     },
     filteredInfos() {
+      if (this.activeCategory === '全部') {
+        return this.infoList;
+      }
       return this.infoList.filter((item) => item.category === this.activeCategory);
     }
   },
@@ -128,7 +131,7 @@ export default {
         this.infoList = res.list || [];
         if (!this.categories.find((item) => item.name === this.activeCategory && item.count > 0)) {
           const firstAvailable = this.categories.find((item) => item.count > 0);
-          this.activeCategory = firstAvailable ? firstAvailable.name : DEFAULT_CATEGORIES[0];
+          this.activeCategory = firstAvailable ? firstAvailable.name : '全部';
         }
       } catch (error) {
         uni.showToast({ title: error.message || '获取信息失败', icon: 'none' });

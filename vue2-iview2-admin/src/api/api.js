@@ -18,6 +18,7 @@ export const requestLogin = (params) => http.post('/auth/login', params).then((r
 export const getDashboard = () => http.get('/admin/dashboard').then((res) => res.data);
 export const getUsers = () => http.get('/admin/users').then((res) => res.data);
 export const updateUser = (id, payload) => http.put(`/admin/users/${id}`, payload).then((res) => res.data);
+export const createStudent = (payload) => http.post('/admin/students', payload).then((res) => res.data);
 export const getBanners = () => http.get('/admin/banners').then((res) => res.data);
 export const createBanner = (payload) => http.post('/admin/banners', payload).then((res) => res.data);
 export const updateBanner = (id, payload) => http.put(`/admin/banners/${id}`, payload).then((res) => res.data);
@@ -32,6 +33,10 @@ export const updateActivity = (id, payload) => http.put(`/admin/activities/${id}
 export const deleteActivity = (id) => http.delete(`/admin/activities/${id}`).then((res) => res.data);
 export const getClassGroups = () => http.get('/admin/class-groups').then((res) => res.data);
 export const updateClassGroup = (id, payload) => http.put(`/admin/class-groups/${id}`, payload).then((res) => res.data);
+export const getClassGroupStudents = (id, keyword = '') => http.get(`/admin/class-groups/${id}/students`, { params: { keyword } }).then((res) => res.data);
+export const addClassGroupStudent = (id, userId) => http.post(`/admin/class-groups/${id}/students`, { userId }).then((res) => res.data);
+export const removeClassGroupStudent = (id, userId) => http.delete(`/admin/class-groups/${id}/students/${userId}`).then((res) => res.data);
+export const uploadClassGroupQr = (payload) => http.post('/admin/class-groups/upload', payload).then((res) => res.data);
 export const getReports = () => http.get('/admin/reports').then((res) => res.data);
 export const getAiModels = () => http.get('/admin/ai-models').then((res) => res.data);
 export const createAiModel = (payload) => http.post('/admin/ai-models', payload).then((res) => res.data);

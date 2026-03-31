@@ -15,7 +15,6 @@
       <Form-item>
         <i-button type="primary" long :loading="loading" @click="handleSubmit('formLogin')">登录后台</i-button>
       </Form-item>
-      <div class="tips">管理员测试账号：admin001 / admin123</div>
     </i-form>
   </div>
 </template>
@@ -28,8 +27,8 @@ export default {
     return {
       loading: false,
       formLogin: {
-        studentId: 'admin001',
-        password: 'admin123'
+        studentId: '',
+        password: ''
       },
       formLoginRules: {
         studentId: [{ required: true, message: '请输入账号', trigger: 'blur' }],
@@ -97,5 +96,4 @@ export default {
 .login-wrap { min-height: 100vh; background: linear-gradient(135deg, #eef5ff, #f8fbff); overflow: hidden; }
 .card-box { padding: 24px; border-radius: 10px; background: #fff; margin: 180px auto; width: 420px; box-shadow: 0 12px 30px rgba(0,0,0,.08); }
 .formLogin-title { text-align: center; margin-bottom: 10px; }
-.tips { text-align: center; color: #777; font-size: 12px; }
 </style>

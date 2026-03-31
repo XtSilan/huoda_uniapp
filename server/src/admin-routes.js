@@ -1,13 +1,20 @@
+const fs = require('fs');
+const path = require('path');
 const {
   requireAdmin,
   mapUser,
   mapBanner,
   mapInfo,
   mapActivity,
-  mapClassGroup,
+  ensureUserSettings,
+  ensureClassGroup,
+  getClassGroupWithMembers,
+  buildClassmatesFromUsers,
   parseJson
 } = require('./shared');
 const { normalizeAiConfig, validateAiConfig } = require('./ai-client');
+
+const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-group-qrcodes');
 
 function mapPreset(row) {
   return {
@@ -29,6 +36,8 @@ function mapPreset(row) {
 }
 
 module.exports = function registerAdminRoutes(app, db) {
+  fs.mkdirSync(classGroupUploadDir, { recursive: true });
+
   app.get('/api/admin/dashboard', requireAdmin, (_req, res) => {
     res.json({
       cards: {
@@ -64,6 +73,7 @@ module.exports = function registerAdminRoutes(app, db) {
   app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
     const current = db.get('SELECT * FROM users WHERE id = ?', [req.params.id]);
     const body = req.body || {};
+    const className = String(body.className || current.class_name || '').trim();
     db.run(
       `UPDATE users SET role = ?, status = ?, name = ?, department = ?, class_name = ?, updated_at = ? WHERE id = ?`,
       [
@@ -71,12 +81,54 @@ module.exports = function registerAdminRoutes(app, db) {
         body.status || current.status,
         body.name || current.name,
         body.department || current.department,
-        body.className || current.class_name,
+        className,
         new Date().toISOString(),
         req.params.id
       ]
     );
+    ensureClassGroup(db, className);
     res.json({ success: true });
+  });
+
+  app.post('/api/admin/students', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const studentId = String(body.studentId || '').trim();
+    const password = String(body.password || '').trim();
+    const name = String(body.name || '').trim();
+    const className = String(body.className || '').trim();
+
+    if (!studentId || !password || !name) {
+      return res.status(400).json({ message: '学号、密码、姓名不能为空' });
+    }
+    if (db.get('SELECT id FROM users WHERE student_id = ?', [studentId])) {
+      return res.status(400).json({ message: '该学号已存在' });
+    }
+
+    const now = new Date().toISOString();
+    const result = db.run(
+      `INSERT INTO users
+      (student_id, password, name, role, status, school, department, class_name, phone, avatar_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        studentId,
+        password,
+        name,
+        'user',
+        'active',
+        String(body.school || '').trim(),
+        String(body.department || '').trim(),
+        className,
+        String(body.phone || '').trim(),
+        '',
+        now,
+        now
+      ]
+    );
+
+    ensureUserSettings(db, result.lastID);
+    ensureClassGroup(db, className);
+    const created = db.get('SELECT * FROM users WHERE id = ?', [result.lastID]);
+    res.json({ success: true, user: mapUser(created) });
   });
 
   app.get('/api/admin/banners', requireAdmin, (_req, res) => {
@@ -204,29 +256,133 @@ module.exports = function registerAdminRoutes(app, db) {
   });
 
   app.get('/api/admin/class-groups', requireAdmin, (_req, res) => {
+    const classNames = db.all(
+      `SELECT DISTINCT TRIM(class_name) AS class_name
+      FROM users
+      WHERE role = 'user' AND TRIM(class_name) <> ''
+      ORDER BY class_name ASC`
+    );
+    classNames.forEach((row) => ensureClassGroup(db, row.class_name));
     const rows = db.all('SELECT * FROM class_groups ORDER BY class_name ASC');
-    res.json({ list: rows.map(mapClassGroup) });
+    res.json({ list: rows.map((row) => getClassGroupWithMembers(db, row)) });
   });
 
   app.put('/api/admin/class-groups/:id', requireAdmin, (req, res) => {
     const body = req.body || {};
+    const current = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
+    if (!current) {
+      return res.status(404).json({ message: '班级群不存在' });
+    }
+    const className = String(body.className || current.class_name || '').trim();
     db.run(
       `UPDATE class_groups SET
-      class_name = ?, group_name = ?, announcement = ?, qr_code = ?, online_count = ?, classmates = ?, messages = ?, updated_at = ?
+      class_name = ?, group_name = ?, announcement = ?, qr_code = ?, online_count = ?, messages = ?, updated_at = ?
       WHERE id = ?`,
       [
-        body.className,
-        body.groupName || `${body.className}群`,
+        className,
+        body.groupName || `${className}群`,
         body.announcement || '',
         body.qrCode || '',
-        Number(body.onlineCount || 0),
-        JSON.stringify(body.classmates || []),
+        buildClassmatesFromUsers(db, className).length,
         JSON.stringify(body.messages || []),
         new Date().toISOString(),
         req.params.id
       ]
     );
+    if (className && className !== current.class_name) {
+      db.run(`UPDATE users SET class_name = ?, updated_at = ? WHERE role = 'user' AND TRIM(class_name) = ?`, [className, new Date().toISOString(), current.class_name]);
+    }
     res.json({ success: true });
+  });
+
+  app.get('/api/admin/class-groups/:id/students', requireAdmin, (req, res) => {
+    const group = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
+    if (!group) {
+      return res.status(404).json({ message: '班级群不存在' });
+    }
+    const keyword = String(req.query.keyword || '').trim();
+    const currentStudents = buildClassmatesFromUsers(db, group.class_name);
+    const conditions = [`role = 'user'`, `status = 'active'`, `(TRIM(class_name) = '' OR TRIM(class_name) <> ?)`];
+    const params = [group.class_name];
+    if (keyword) {
+      conditions.push('(name LIKE ? OR student_id LIKE ? OR department LIKE ?)');
+      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
+    const rows = db.all(
+      `SELECT id, student_id, name, department, class_name
+      FROM users
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY student_id ASC
+      LIMIT 50`,
+      params
+    );
+    res.json({
+      currentStudents,
+      candidates: rows.map((row) => ({
+        id: row.id,
+        studentId: row.student_id,
+        name: row.name,
+        department: row.department,
+        className: row.class_name || ''
+      }))
+    });
+  });
+
+  app.post('/api/admin/class-groups/:id/students', requireAdmin, (req, res) => {
+    const group = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
+    if (!group) {
+      return res.status(404).json({ message: '班级群不存在' });
+    }
+    const userId = Number((req.body || {}).userId || 0);
+    const user = db.get(`SELECT * FROM users WHERE id = ? AND role = 'user'`, [userId]);
+    if (!user) {
+      return res.status(404).json({ message: '学生不存在' });
+    }
+    db.run('UPDATE users SET class_name = ?, updated_at = ? WHERE id = ?', [group.class_name, new Date().toISOString(), userId]);
+    res.json({ success: true });
+  });
+
+  app.delete('/api/admin/class-groups/:id/students/:userId', requireAdmin, (req, res) => {
+    const group = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
+    if (!group) {
+      return res.status(404).json({ message: '班级群不存在' });
+    }
+    db.run(`UPDATE users SET class_name = '', updated_at = ? WHERE id = ? AND role = 'user' AND TRIM(class_name) = ?`, [
+      new Date().toISOString(),
+      req.params.userId,
+      group.class_name
+    ]);
+    res.json({ success: true });
+  });
+
+  app.post('/api/admin/class-groups/upload', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const fileName = String(body.fileName || '').trim();
+    const content = String(body.content || '');
+    const match = content.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+
+    if (!fileName || !match) {
+      return res.status(400).json({ message: '请上传有效图片' });
+    }
+
+    const mimeType = match[1];
+    const extMap = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/webp': '.webp',
+      'image/gif': '.gif'
+    };
+    const ext = extMap[mimeType];
+    if (!ext) {
+      return res.status(400).json({ message: '仅支持 png、jpg、webp、gif 图片' });
+    }
+
+    const safeBase = path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, '') || 'qr';
+    const storedName = `${Date.now()}-${safeBase}${ext}`;
+    const targetPath = path.join(classGroupUploadDir, storedName);
+    fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
+    res.json({ path: `/uploads/class-group-qrcodes/${storedName}` });
   });
 
   app.get('/api/admin/reports', requireAdmin, (_req, res) => {

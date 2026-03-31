@@ -5,7 +5,8 @@ const {
   mapBanner,
   mapInfo,
   mapActivity,
-  mapClassGroup,
+  ensureClassGroup,
+  getClassGroupWithMembers,
   parseSettings,
   parseJson,
   recordBrowse
@@ -162,12 +163,14 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.put('/api/user/profile', requireAuth, (req, res) => {
     const body = req.body || {};
+    const nextClassName = String(body.class !== undefined ? body.class : req.user.class_name || '').trim();
     db.run(
       `UPDATE users SET
       name = ?, school = ?, department = ?, class_name = ?, phone = ?, avatar_url = ?, updated_at = ?
       WHERE id = ?`,
-      [body.name || req.user.name, body.school || '', body.department || '', body.class || '', body.phone || '', body.avatarUrl || '', new Date().toISOString(), req.user.id]
+      [body.name || req.user.name, body.school || '', body.department || '', nextClassName, body.phone || '', body.avatarUrl || '', new Date().toISOString(), req.user.id]
     );
+    ensureClassGroup(db, nextClassName);
     const updated = db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
     res.json(mapUser(updated));
   });
@@ -448,15 +451,12 @@ module.exports = function registerPublicRoutes(app, db) {
     if (!className) {
       return res.status(400).json({ message: '请先在个人资料中完善班级信息' });
     }
+    ensureClassGroup(db, className);
     const row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
     if (!row) {
       return res.status(404).json({ message: '暂未找到对应班级群' });
     }
-    const group = mapClassGroup(row);
-    res.json({
-      ...group,
-      classmates: group.classmates.length ? group.classmates : [{ id: req.user.id, name: req.user.name, role: '群成员' }]
-    });
+    res.json(getClassGroupWithMembers(db, row));
   });
 
   app.post('/api/class-group/messages', requireAuth, (req, res) => {
@@ -464,6 +464,7 @@ module.exports = function registerPublicRoutes(app, db) {
     if (!className) {
       return res.status(400).json({ message: '请先在个人资料中完善班级信息' });
     }
+    ensureClassGroup(db, className);
     const row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
     if (!row) {
       return res.status(404).json({ message: '暂未找到对应班级群' });
@@ -482,7 +483,7 @@ module.exports = function registerPublicRoutes(app, db) {
     });
     db.run('UPDATE class_groups SET messages = ?, updated_at = ? WHERE id = ?', [JSON.stringify(messages.slice(-100)), new Date().toISOString(), row.id]);
     const updated = db.get('SELECT * FROM class_groups WHERE id = ?', [row.id]);
-    res.json(mapClassGroup(updated));
+    res.json(getClassGroupWithMembers(db, updated));
   });
 
   app.get('/api/run/history', requireAuth, (req, res) => {
