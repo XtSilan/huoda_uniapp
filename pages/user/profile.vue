@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">编辑资料</view>
       <view class="page-title">完善你的校园身份信息</view>
-      <view class="page-subtitle">让我更好地了解你</view>
+      <view class="page-subtitle">头像、昵称和院系信息统一放进一套更清爽的资料卡里。</view>
     </view>
 
     <view class="surface-card avatar-card">
@@ -12,7 +12,7 @@
         <image class="avatar-card__image" :src="avatarPreview" mode="aspectFill"></image>
         <view class="avatar-card__body">
           <view class="avatar-card__title">头像</view>
-          <view class="avatar-card__desc">支持 png、jpg、webp、gif，上传后会保存到 uploads/user。</view>
+          <view class="avatar-card__desc">上传成功后会立即同步到“我的”页面，并保存到 uploads/user。</view>
         </view>
       </view>
       <view class="avatar-card__action">
@@ -49,6 +49,7 @@ export default {
     return {
       loading: false,
       uploadingAvatar: false,
+      localAvatarPath: '',
       userInfo: {
         name: '',
         studentId: '',
@@ -62,7 +63,7 @@ export default {
   },
   computed: {
     avatarPreview() {
-      return this.buildAssetUrl(this.userInfo.avatarUrl) || '/static/avatar.png';
+      return this.localAvatarPath || this.buildAssetUrl(this.userInfo.avatarUrl) || '/static/avatar.png';
     },
     fields() {
       return [
@@ -92,13 +93,14 @@ export default {
       try {
         const profile = await this.$api.user.getProfile();
         this.userInfo = { ...this.userInfo, ...profile };
-        uni.setStorageSync('userInfo', this.userInfo);
       } catch (error) {
         const localUser = uni.getStorageSync('userInfo');
         if (localUser) {
           this.userInfo = { ...this.userInfo, ...localUser };
         }
       }
+      this.localAvatarPath = uni.getStorageSync('userAvatarLocalPath') || '';
+      uni.setStorageSync('userInfo', this.userInfo);
     },
     readLocalImage(filePath) {
       return new Promise((resolve, reject) => {
@@ -151,7 +153,7 @@ export default {
               content: `data:${mimeType};base64,${res.data}`
             });
           },
-          fail: reject
+          fail: () => reject(new Error('读取本地图片失败'))
         });
       });
     },
@@ -170,10 +172,17 @@ export default {
           }
 
           this.uploadingAvatar = true;
+          this.localAvatarPath = filePath;
+          uni.setStorageSync('userAvatarLocalPath', filePath);
+
           try {
             const payload = await this.readLocalImage(filePath);
             const uploadRes = await this.$api.user.uploadAvatar(payload);
             this.userInfo.avatarUrl = uploadRes.path || '';
+            const saved = await this.$api.user.updateProfile(this.userInfo);
+            this.userInfo = { ...this.userInfo, ...saved };
+            uni.setStorageSync('userInfo', this.userInfo);
+            uni.$emit('userInfoUpdated', this.userInfo);
             uni.showToast({ title: '头像上传成功', icon: 'success' });
           } catch (error) {
             uni.showToast({ title: error.message || '头像上传失败', icon: 'none' });

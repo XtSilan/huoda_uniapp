@@ -31,7 +31,7 @@ export default {
       }
 
       if (this.isTab) {
-        uni.switchTab({ url: this.fallback });
+        uni.reLaunch({ url: this.fallback });
         return;
       }
 

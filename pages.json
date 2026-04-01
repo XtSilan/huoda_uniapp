@@ -113,30 +113,5 @@
     "navigationBarBackgroundColor": "#f4f6f9",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f4f6f9"
-  },
-  "tabBar": {
-    "custom": true,
-    "color": "#8b94a7",
-    "selectedColor": "#6B48FF",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "white",
-    "list": [
-      {
-        "pagePath": "pages/index/index",
-        "text": "首页"
-      },
-      {
-        "pagePath": "pages/feature/publish/publish",
-        "text": "发现"
-      },
-      {
-        "pagePath": "pages/info/info",
-        "text": "信息"
-      },
-      {
-        "pagePath": "pages/user/user",
-        "text": "我的"
-      }
-    ]
   }
 }

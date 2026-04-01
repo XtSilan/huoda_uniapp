@@ -75,7 +75,7 @@ export default {
             window.location.href = this.buildAdminRedirect(res.token, res.user);
             return;
           }
-          uni.switchTab({ url: '/pages/index/index' });
+          uni.reLaunch({ url: '/pages/index/index' });
         }, 300);
       } catch (error) {
         uni.showToast({ title: error.message || '登录失败', icon: 'none' });

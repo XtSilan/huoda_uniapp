@@ -190,7 +190,7 @@ export default {
     },
     onSearch() {
       uni.setStorageSync('pendingInfoSearch', this.searchText || '');
-      uni.switchTab({ url: '/pages/info/info' });
+      uni.reLaunch({ url: '/pages/info/info' });
     },
     goTo(url) {
       uni.navigateTo({ url });
@@ -207,10 +207,10 @@ export default {
       uni.navigateTo({ url: `/pages/feature/publish/detail?id=${id}` });
     },
     switchToInfo() {
-      uni.switchTab({ url: '/pages/info/info' });
+      uni.reLaunch({ url: '/pages/info/info' });
     },
     switchToDiscover() {
-      uni.switchTab({ url: '/pages/feature/publish/publish' });
+      uni.reLaunch({ url: '/pages/feature/publish/publish' });
     },
     formatTime(value) {
       return value ? new Date(value).toLocaleDateString() : '-';
