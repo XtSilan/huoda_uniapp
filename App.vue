@@ -67,8 +67,7 @@ button::after {
   background:
     radial-gradient(circle at top right, rgba(138, 100, 255, 0.16), transparent 28%),
     linear-gradient(180deg, #f7f8fc 0%, var(--bg-color) 100%);
-  animation: page-enter 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform, opacity;
+  animation: page-fade-in 220ms ease;
 }
 
 .page-header {
@@ -145,14 +144,12 @@ button::after {
   transform: translateY(2rpx) scale(0.995);
 }
 
-@keyframes page-enter {
+@keyframes page-fade-in {
   from {
     opacity: 0;
-    transform: translateY(18rpx);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 </style>

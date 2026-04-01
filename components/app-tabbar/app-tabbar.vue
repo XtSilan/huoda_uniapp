@@ -48,7 +48,7 @@ export default {
       if (!item || item.key === this.current) {
         return;
       }
-      uni.reLaunch({ url: item.url });
+      uni.redirectTo({ url: item.url });
     }
   }
 };
