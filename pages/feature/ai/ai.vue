@@ -123,7 +123,7 @@
         </view>
 
         <view class="hint">
-          管理员可在后台维护默认模型。你也可以保留自己的 OpenAI 或 Anthropic 配置，切换后只会保存到自己的账号。
+          管理员可在后台维护默认模型。你也可以自定义 OpenAI 或 Anthropic 配置。
         </view>
 
         <view class="actions">
@@ -177,7 +177,7 @@ export default {
       draftSettings: createDefaultSettings(),
       messages: [
         {
-          content: '你好，我是小达老师。默认会使用管理员配置的模型，你也可以切换到自己的 OpenAI 或 Anthropic 配置。',
+          content: '你好，我是小达老师。',
           isMine: false,
           time: new Date().toLocaleTimeString()
         }

@@ -105,11 +105,11 @@ export default {
     menuItems() {
       return [
         { title: '编辑资料', desc: '头像、昵称和院系信息', url: '/pages/user/profile', icon: '资', tone: 'tone-purple' },
-        { title: '个性化设置', desc: '调整偏好与展示方式', url: '/pages/user/personalization', icon: '设', tone: 'tone-blue' },
+        { title: '个性化设置', desc: '调整偏好与展示方式', url: '/pages/user/personalization', icon: '个', tone: 'tone-blue' },
         { title: '我的收藏', desc: '快速回看收藏内容', url: '/pages/user/collection', icon: '藏', tone: 'tone-green' },
         { title: '浏览历史', desc: '继续上次浏览的内容', url: '/pages/user/history', icon: '历', tone: 'tone-yellow' },
         { title: '数据统计', desc: '查看个人使用概览', url: '/pages/user/stats', icon: '统', tone: 'tone-purple' },
-        { title: '设置', desc: '账号与安全项', url: '/pages/user/settings', icon: '安', tone: 'tone-blue' }
+        { title: '设置', desc: '账号与安全项', url: '/pages/user/settings', icon: '设', tone: 'tone-blue' }
       ];
     }
   },

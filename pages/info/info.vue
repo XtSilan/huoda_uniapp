@@ -7,7 +7,7 @@
     </view>
 
     <view class="search-box surface-card">
-      <text class="search-icon">搜</text>
+      <text class="search-icon">🔍</text>
       <input class="search-input" placeholder="搜索资讯、活动" v-model="searchText" @confirm="onSearch" />
       <view class="search-action" @click="onSearch">搜索</view>
     </view>

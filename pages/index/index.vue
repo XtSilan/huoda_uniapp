@@ -9,7 +9,7 @@
     <view class="hero-card surface-card">
       <view class="hero-search">
         <view class="search-box">
-          <text class="search-icon">搜</text>
+          <text class="search-icon">🔍</text>
           <input class="search-input" placeholder="搜索资讯、活动、组织方" v-model="searchText" @confirm="onSearch" />
         </view>
       </view>
@@ -91,7 +91,7 @@
       <view v-else class="surface-card empty-panel">还没有新的活动，晚点再来看看。</view>
     </view>
 
-    <view class="section-block">
+<!--     <view class="section-block">
       <view class="section-row">
         <text class="section-heading">AI 助手</text>
         <text class="section-action" @click="goTo('/pages/feature/ai/ai')">打开小达老师</text>
@@ -104,7 +104,7 @@
         </view>
         <tag-badge text="在线" tone="green" />
       </view>
-    </view>
+    </view> -->
 
     <view class="section-block">
       <view class="section-row">
