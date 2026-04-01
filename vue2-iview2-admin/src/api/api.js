@@ -27,6 +27,7 @@ export const getInfos = () => http.get('/admin/infos').then((res) => res.data);
 export const createInfo = (payload) => http.post('/admin/infos', payload).then((res) => res.data);
 export const updateInfo = (id, payload) => http.put(`/admin/infos/${id}`, payload).then((res) => res.data);
 export const deleteInfo = (id) => http.delete(`/admin/infos/${id}`).then((res) => res.data);
+export const uploadInfoAttachment = (payload) => http.post('/admin/info-attachments/upload', payload).then((res) => res.data);
 export const getActivities = () => http.get('/admin/activities').then((res) => res.data);
 export const createActivity = (payload) => http.post('/admin/activities', payload).then((res) => res.data);
 export const updateActivity = (id, payload) => http.put(`/admin/activities/${id}`, payload).then((res) => res.data);

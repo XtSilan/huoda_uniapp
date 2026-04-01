@@ -74,6 +74,8 @@ function mapInfo(row) {
     summary: row.summary,
     content: row.content,
     source: row.source,
+    sourceUrl: row.source_url || '',
+    attachments: parseJson(row.attachments, []),
     category: row.category,
     locationType: row.location_type,
     status: row.status,

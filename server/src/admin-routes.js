@@ -15,6 +15,36 @@ const {
 const { normalizeAiConfig, validateAiConfig } = require('./ai-client');
 
 const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-group-qrcodes');
+const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
+
+function buildStoredFileName(fileName, fallback = 'file') {
+  const ext = path.extname(fileName || '').slice(0, 20);
+  const safeBase = path.basename(fileName || '', path.extname(fileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || fallback;
+  return `${Date.now()}-${safeBase}${ext}`;
+}
+
+function normalizeInfoPayload(body = {}) {
+  return {
+    title: String(body.title || '').trim(),
+    summary: String(body.summary || '').trim(),
+    content: String(body.content || ''),
+    source: String(body.source || '后台发布').trim() || '后台发布',
+    sourceUrl: String(body.sourceUrl || '').trim(),
+    category: String(body.category || '其他').trim() || '其他',
+    locationType: String(body.locationType || '校内').trim() || '校内',
+    status: String(body.status || 'published').trim() || 'published',
+    attachments: Array.isArray(body.attachments)
+      ? body.attachments
+          .map((item) => ({
+            name: String(item && item.name ? item.name : '').trim(),
+            path: String(item && item.path ? item.path : '').trim(),
+            mimeType: String(item && item.mimeType ? item.mimeType : '').trim(),
+            size: Number(item && item.size ? item.size : 0) || 0
+          }))
+          .filter((item) => item.name && item.path)
+      : []
+  };
+}
 
 function mapPreset(row) {
   return {
@@ -37,6 +67,7 @@ function mapPreset(row) {
 
 module.exports = function registerAdminRoutes(app, db) {
   fs.mkdirSync(classGroupUploadDir, { recursive: true });
+  fs.mkdirSync(infoAttachmentUploadDir, { recursive: true });
 
   app.get('/api/admin/dashboard', requireAdmin, (_req, res) => {
     res.json({
@@ -166,21 +197,21 @@ module.exports = function registerAdminRoutes(app, db) {
   });
 
   app.post('/api/admin/infos', requireAdmin, (req, res) => {
-    const body = req.body || {};
+    const body = normalizeInfoPayload(req.body || {});
     const now = new Date().toISOString();
     db.run(
-      `INSERT INTO infos (title, summary, content, source, category, location_type, status, publish_time, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [body.title, body.summary || '', body.content, body.source || '后台发布', body.category || '其他', body.locationType || '校内', body.status || 'published', now, now, now]
+      `INSERT INTO infos (title, summary, content, source, source_url, attachments, category, location_type, status, publish_time, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [body.title, body.summary, body.content, body.source, body.sourceUrl, JSON.stringify(body.attachments), body.category, body.locationType, body.status, now, now, now]
     );
     res.json({ success: true });
   });
 
   app.put('/api/admin/infos/:id', requireAdmin, (req, res) => {
-    const body = req.body || {};
+    const body = normalizeInfoPayload(req.body || {});
     db.run(
-      `UPDATE infos SET title = ?, summary = ?, content = ?, source = ?, category = ?, location_type = ?, status = ?, updated_at = ? WHERE id = ?`,
-      [body.title, body.summary || '', body.content, body.source || '后台发布', body.category || '其他', body.locationType || '校内', body.status || 'published', new Date().toISOString(), req.params.id]
+      `UPDATE infos SET title = ?, summary = ?, content = ?, source = ?, source_url = ?, attachments = ?, category = ?, location_type = ?, status = ?, updated_at = ? WHERE id = ?`,
+      [body.title, body.summary, body.content, body.source, body.sourceUrl, JSON.stringify(body.attachments), body.category, body.locationType, body.status, new Date().toISOString(), req.params.id]
     );
     res.json({ success: true });
   });
@@ -188,6 +219,28 @@ module.exports = function registerAdminRoutes(app, db) {
   app.delete('/api/admin/infos/:id', requireAdmin, (req, res) => {
     db.run('DELETE FROM infos WHERE id = ?', [req.params.id]);
     res.json({ success: true });
+  });
+
+  app.post('/api/admin/info-attachments/upload', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const fileName = String(body.fileName || '').trim();
+    const content = String(body.content || '');
+    const match = content.match(/^data:([a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+
+    if (!fileName || !match) {
+      return res.status(400).json({ message: '请上传有效附件' });
+    }
+
+    const storedName = buildStoredFileName(fileName, 'attachment');
+    const targetPath = path.join(infoAttachmentUploadDir, storedName);
+    fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
+
+    res.json({
+      name: fileName,
+      path: `/uploads/info-attachments/${storedName}`,
+      mimeType: match[1],
+      size: Number(body.size || 0) || 0
+    });
   });
 
   app.get('/api/admin/activities', requireAdmin, (_req, res) => {

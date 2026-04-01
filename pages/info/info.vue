@@ -18,7 +18,22 @@
         <tag-badge :text="formatTime(detail.publishTime)" tone="yellow" />
       </view>
       <view class="detail-title">{{ detail.title }}</view>
+      <view v-if="detail.sourceUrl || isUrl(detail.source)" class="detail-source-link" @click="openSourceLink">
+        来源链接: {{ detail.source || normalizedSourceUrl }}
+      </view>
       <view class="detail-content">{{ detail.content }}</view>
+      <view v-if="detail.attachments && detail.attachments.length" class="detail-attachments">
+        <view class="detail-attachments__title">附件资料</view>
+        <view
+          v-for="(item, index) in detail.attachments"
+          :key="item.path || index"
+          class="detail-attachment"
+          @click="openAttachment(item)"
+        >
+          <text class="detail-attachment__name">{{ item.name }}</text>
+          <text class="detail-attachment__action">打开</text>
+        </view>
+      </view>
       <view class="detail-action">
         <custom-button text="收藏 / 取消收藏" @click="toggleCollection" />
       </view>
@@ -96,6 +111,8 @@
 </template>
 
 <script>
+import { SERVER_ORIGIN } from '../../config/api';
+
 const DEFAULT_CATEGORIES = ['全部', '讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他'];
 
 export default {
@@ -114,6 +131,9 @@ export default {
     };
   },
   computed: {
+    normalizedSourceUrl() {
+      return this.normalizeUrl(this.detail.sourceUrl || (this.isUrl(this.detail.source) ? this.detail.source : ''));
+    },
     categories() {
       return DEFAULT_CATEGORIES.map((name) => ({
         name,
@@ -188,6 +208,80 @@ export default {
     },
     goToActivity(id) {
       uni.navigateTo({ url: `/pages/feature/publish/detail?id=${id}` });
+    },
+    isUrl(value) {
+      return /^(https?:\/\/|www\.)/i.test(String(value || '').trim());
+    },
+    normalizeUrl(value) {
+      const text = String(value || '').trim();
+      if (!text) {
+        return '';
+      }
+      if (/^https?:\/\//i.test(text) || /^\/pages\//.test(text)) {
+        return text;
+      }
+      if (/^www\./i.test(text)) {
+        return `https://${text}`;
+      }
+      return '';
+    },
+    resolveAssetUrl(filePath) {
+      if (!filePath) {
+        return '';
+      }
+      return filePath.startsWith('http') ? filePath : `${SERVER_ORIGIN}${filePath}`;
+    },
+    openSourceLink() {
+      const url = this.normalizedSourceUrl;
+      if (!url) {
+        return;
+      }
+      if (url.startsWith('/pages/')) {
+        uni.navigateTo({ url });
+        return;
+      }
+      // #ifdef H5
+      window.open(url, '_blank');
+      // #endif
+      // #ifndef H5
+      uni.navigateTo({
+        url: `/pages/webview/webview?url=${encodeURIComponent(url)}&title=${encodeURIComponent(this.detail.source || '来源链接')}`
+      });
+      // #endif
+    },
+    openAttachment(item) {
+      const fileUrl = this.resolveAssetUrl(item && item.path);
+      if (!fileUrl) {
+        return;
+      }
+      if ((item.mimeType || '').startsWith('image/')) {
+        uni.previewImage({ urls: [fileUrl], current: fileUrl });
+        return;
+      }
+      // #ifdef H5
+      window.open(fileUrl, '_blank');
+      // #endif
+      // #ifndef H5
+      uni.downloadFile({
+        url: fileUrl,
+        success: (res) => {
+          if (res.statusCode !== 200) {
+            uni.showToast({ title: '附件打开失败', icon: 'none' });
+            return;
+          }
+          uni.openDocument({
+            filePath: res.tempFilePath,
+            showMenu: true,
+            fail: () => {
+              uni.showToast({ title: '当前附件暂不支持预览', icon: 'none' });
+            }
+          });
+        },
+        fail: () => {
+          uni.showToast({ title: '附件下载失败', icon: 'none' });
+        }
+      });
+      // #endif
     },
     async toggleCollection() {
       try {
@@ -290,10 +384,56 @@ export default {
   color: var(--text-sub);
 }
 
+.detail-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .content-card__meta {
   margin-top: 14rpx;
   font-size: 22rpx;
   color: var(--text-sub);
+}
+
+.detail-source-link {
+  margin-top: 16rpx;
+  color: var(--primary-color);
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.detail-attachments {
+  margin-top: 24rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #eef1f7;
+}
+
+.detail-attachments__title {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.detail-attachment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #f3f5f8;
+}
+
+.detail-attachment__name {
+  flex: 1;
+  color: var(--text-main);
+  font-size: 24rpx;
+  word-break: break-all;
+}
+
+.detail-attachment__action {
+  color: var(--primary-color);
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
 .detail-action {

@@ -98,6 +98,8 @@ async function getDb(options = {}) {
       summary TEXT DEFAULT '',
       content TEXT NOT NULL,
       source TEXT NOT NULL,
+      source_url TEXT DEFAULT '',
+      attachments TEXT DEFAULT '[]',
       category TEXT DEFAULT '其他',
       location_type TEXT DEFAULT '校内',
       status TEXT DEFAULT 'published',
@@ -215,6 +217,8 @@ async function getDb(options = {}) {
 
   ensureColumn(db, 'user_settings', 'ai_settings', `TEXT DEFAULT '${JSON.stringify(DEFAULT_USER_AI_SETTINGS)}'`);
   ensureColumn(db, 'infos', 'location_type', `TEXT DEFAULT '校内'`);
+  ensureColumn(db, 'infos', 'source_url', `TEXT DEFAULT ''`);
+  ensureColumn(db, 'infos', 'attachments', `TEXT DEFAULT '[]'`);
   ensureColumn(db, 'activities', 'images', `TEXT DEFAULT '[]'`);
   ensureColumn(db, 'activities', 'location_type', `TEXT DEFAULT '校内'`);
 
