@@ -2,7 +2,7 @@
   <div>
     <Button type="primary" @click="openCreate" style="margin-bottom: 12px;">新增轮播图</Button>
     <Table border :columns="columns" :data="banners"></Table>
-    <Modal v-model="visible" title="轮播图编辑" @on-ok="submit">
+    <Modal v-model="visible" title="轮播图编辑" :mask-closable="false" @on-ok="submit">
       <Input v-model="form.title" placeholder="标题" style="margin-bottom: 10px;" />
       <Input v-model="form.imageUrl" placeholder="图片地址" style="margin-bottom: 10px;" />
       <Input v-model="form.linkUrl" placeholder="跳转地址" style="margin-bottom: 10px;" />

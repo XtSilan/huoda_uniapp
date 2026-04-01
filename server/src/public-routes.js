@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 const {
   createToken,
@@ -106,6 +106,17 @@ function buildSearchConditions(search, columns, params) {
 
 module.exports = function registerPublicRoutes(app, db) {
   fs.mkdirSync(userUploadDir, { recursive: true });
+  const infoSelect = `
+    SELECT i.*,
+      (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'info' AND f.target_id = i.id) AS favorite_count,
+      (SELECT COUNT(*) FROM browse_history bh WHERE bh.target_type = 'info' AND bh.target_id = i.id) AS view_count
+    FROM infos i
+  `;
+  const activitySelect = `
+    SELECT a.*,
+      (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count
+    FROM activities a
+  `;
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
@@ -136,20 +147,20 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/home/overview', (req, res) => {
     const banners = db.all('SELECT * FROM banners WHERE is_active = 1 ORDER BY sort_order ASC, id ASC');
-    const activities = db.all('SELECT * FROM activities ORDER BY datetime(publish_time) DESC LIMIT 4');
+    const activities = db.all(`${activitySelect} ORDER BY datetime(a.publish_time) DESC LIMIT 4`);
     const settings = req.user ? db.get('SELECT * FROM user_settings WHERE user_id = ?', [req.user.id]) : null;
     const interests = settings ? parseJson(settings.interests, []) : [];
 
     let recommendations = [];
     if (interests.length) {
       const placeholders = interests.map(() => '?').join(',');
-      recommendations = db.all(`SELECT * FROM infos WHERE category IN (${placeholders}) ORDER BY datetime(publish_time) DESC LIMIT 4`, interests);
+      recommendations = db.all(`${infoSelect} WHERE i.category IN (${placeholders}) ORDER BY datetime(i.publish_time) DESC LIMIT 4`, interests);
     }
     if (!recommendations.length) {
-      recommendations = db.all('SELECT * FROM infos ORDER BY datetime(publish_time) DESC LIMIT 4');
+      recommendations = db.all(`${infoSelect} ORDER BY datetime(i.publish_time) DESC LIMIT 4`);
     }
 
-    const hotInfos = db.all('SELECT * FROM infos ORDER BY datetime(publish_time) DESC LIMIT 6');
+    const hotInfos = db.all(`${infoSelect} ORDER BY datetime(i.publish_time) DESC LIMIT 6`);
     res.json({
       banners: banners.map(mapBanner),
       recommendations: recommendations.map(mapInfo),
@@ -267,7 +278,7 @@ module.exports = function registerPublicRoutes(app, db) {
         id: String(row.id),
         targetType: row.target_type,
         targetId: String(row.target_id),
-        title: row.info_title || row.activity_title || '未知内容',
+        title: row.info_title || row.activity_title || '鏈煡鍐呭',
         summary: row.info_summary || row.activity_summary || '',
         time: row.created_at
       }))
@@ -286,7 +297,23 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/user/history', requireAuth, (req, res) => {
-    const browse = db.all('SELECT * FROM browse_history WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT 50', [req.user.id]);
+    const browse = db.all(
+      `SELECT bh.*
+      FROM browse_history bh
+      INNER JOIN (
+        SELECT target_type, target_id, MAX(datetime(created_at)) AS latest_time
+        FROM browse_history
+        WHERE user_id = ?
+        GROUP BY target_type, target_id
+      ) latest
+      ON latest.target_type = bh.target_type
+      AND latest.target_id = bh.target_id
+      AND latest.latest_time = datetime(bh.created_at)
+      WHERE bh.user_id = ?
+      ORDER BY datetime(bh.created_at) DESC
+      LIMIT 50`,
+      [req.user.id, req.user.id]
+    );
     const activities = db.all(
       `SELECT a.*, aa.created_at AS applied_at
       FROM activity_applications aa
@@ -328,8 +355,19 @@ module.exports = function registerPublicRoutes(app, db) {
       WHERE aa.user_id = ? AND a.status = 'completed'`,
       [req.user.id]
     ).count;
-    const browseTotal = db.get('SELECT COUNT(*) AS count FROM browse_history WHERE user_id = ?', [req.user.id]).count;
+    const browseTotal = db.get(
+      `SELECT COUNT(*) AS count FROM (
+        SELECT target_type, target_id
+        FROM browse_history
+        WHERE user_id = ?
+        GROUP BY target_type, target_id
+      )`,
+      [req.user.id]
+    ).count;
+    const favoriteTotal = db.get('SELECT COUNT(*) AS count FROM favorites WHERE user_id = ?', [req.user.id]).count;
     res.json({
+      totalViews: browseTotal,
+      totalCollections: favoriteTotal,
       activityStats: {
         total: activityTotal,
         completed: activityCompleted,
@@ -363,7 +401,8 @@ module.exports = function registerPublicRoutes(app, db) {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = Number(pageSize);
     const offset = (Number(page) - 1) * limit;
-    const rows = db.all(`SELECT * FROM infos ${where} ORDER BY datetime(publish_time) DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
+    const infoWhere = where ? where.replace(/\btitle\b/g, 'i.title').replace(/\bcontent\b/g, 'i.content').replace(/\bsummary\b/g, 'i.summary').replace(/\bsource\b/g, 'i.source').replace(/\bcategory\b/g, 'i.category').replace(/\blocation_type\b/g, 'i.location_type') : '';
+    const rows = db.all(`${infoSelect} ${infoWhere} ORDER BY datetime(i.publish_time) DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
     const total = db.get(`SELECT COUNT(*) AS count FROM infos ${where}`, params).count;
     res.json({ list: rows.map(mapInfo), total, page: Number(page), pageSize: limit });
   });
@@ -372,17 +411,17 @@ module.exports = function registerPublicRoutes(app, db) {
     const search = String(req.query.search || req.query.q || '').trim();
     const infoRows = search
       ? db.all(
-          `SELECT * FROM infos
-          WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? OR source LIKE ?
-          ORDER BY datetime(publish_time) DESC LIMIT 20`,
+          `${infoSelect}
+          WHERE i.title LIKE ? OR i.content LIKE ? OR i.summary LIKE ? OR i.source LIKE ?
+          ORDER BY datetime(i.publish_time) DESC LIMIT 20`,
           [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
         )
       : [];
     const activityRows = search
       ? db.all(
-          `SELECT * FROM activities
-          WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? OR organizer LIKE ? OR location LIKE ?
-          ORDER BY datetime(publish_time) DESC LIMIT 20`,
+          `${activitySelect}
+          WHERE a.title LIKE ? OR a.content LIKE ? OR a.summary LIKE ? OR a.organizer LIKE ? OR a.location LIKE ?
+          ORDER BY datetime(a.publish_time) DESC LIMIT 20`,
           [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
         )
       : [];
@@ -398,28 +437,22 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/info/detail', (req, res) => {
-    const row = db.get('SELECT * FROM infos WHERE id = ?', [req.query.id]);
+    const row = db.get(`${infoSelect} WHERE i.id = ?`, [req.query.id]);
     if (!row) {
       return res.status(404).json({ message: '信息不存在' });
-    }
-    if (req.user) {
-      recordBrowse(db, req.user.id, 'info', row.id, row.title, row.summary);
     }
     res.json(mapInfo(row));
   });
 
   app.get('/api/publish/list', (_req, res) => {
-    const rows = db.all('SELECT * FROM activities ORDER BY datetime(publish_time) DESC');
+    const rows = db.all(`${activitySelect} ORDER BY datetime(a.publish_time) DESC`);
     res.json({ list: rows.map(mapActivity) });
   });
 
   app.get('/api/publish/detail', (req, res) => {
-    const row = db.get('SELECT * FROM activities WHERE id = ?', [req.query.id]);
+    const row = db.get(`${activitySelect} WHERE a.id = ?`, [req.query.id]);
     if (!row) {
       return res.status(404).json({ message: '活动不存在' });
-    }
-    if (req.user) {
-      recordBrowse(db, req.user.id, 'activity', row.id, row.title, row.summary);
     }
     res.json(mapActivity(row));
   });
@@ -439,10 +472,10 @@ module.exports = function registerPublicRoutes(app, db) {
         body.startTime,
         body.endTime,
         body.location,
-        body.locationType || '校内',
+        body.locationType || '鏍″唴',
         body.organizer,
         JSON.stringify(body.images || []),
-        body.activityType || '其他',
+        body.activityType || '鍏朵粬',
         body.status || 'upcoming',
         now,
         req.user.id,
@@ -555,7 +588,7 @@ module.exports = function registerPublicRoutes(app, db) {
   app.post('/api/sign/do', requireAuth, (req, res) => {
     const body = req.body || {};
     const now = new Date().toISOString();
-    db.run('INSERT INTO sign_records (user_id, course_name, teacher, status, time, created_at) VALUES (?, ?, ?, ?, ?, ?)', [req.user.id, body.courseName || '高等数学', body.teacher || '张老师', 'success', now, now]);
+    db.run('INSERT INTO sign_records (user_id, course_name, teacher, status, time, created_at) VALUES (?, ?, ?, ?, ?, ?)', [req.user.id, body.courseName || '楂樼瓑鏁板', body.teacher || '寮犺€佸笀', 'success', now, now]);
     res.json({ success: true });
   });
 
@@ -592,7 +625,7 @@ module.exports = function registerPublicRoutes(app, db) {
         ? db.get('SELECT id FROM ai_model_presets WHERE id = ? AND is_active = 1', [settings.selectedPresetId])
         : db.get('SELECT id FROM ai_model_presets WHERE is_default = 1 AND is_active = 1 LIMIT 1');
       if (!preset) {
-        error = '未找到可用的默认模型配置';
+        error = '鏈壘鍒板彲鐢ㄧ殑榛樿妯″瀷閰嶇疆';
       }
     } else if (settings.mode === 'custom-openai') {
       error = validateAiConfig(settings.customOpenAI);
@@ -630,15 +663,17 @@ module.exports = function registerPublicRoutes(app, db) {
       const keyword = String(body.message || (messages[messages.length - 1] && messages[messages.length - 1].content) || '').trim();
       const relatedInfos = keyword
         ? db.all(
-            `SELECT * FROM infos WHERE title LIKE ? OR content LIKE ? OR summary LIKE ?
-             ORDER BY datetime(publish_time) DESC LIMIT 2`,
+            `${infoSelect}
+             WHERE i.title LIKE ? OR i.content LIKE ? OR i.summary LIKE ?
+             ORDER BY datetime(i.publish_time) DESC LIMIT 2`,
             [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
           )
         : [];
       const relatedActivities = keyword
         ? db.all(
-            `SELECT * FROM activities WHERE title LIKE ? OR content LIKE ? OR summary LIKE ?
-             ORDER BY datetime(publish_time) DESC LIMIT 2`,
+            `${activitySelect}
+             WHERE a.title LIKE ? OR a.content LIKE ? OR a.summary LIKE ?
+             ORDER BY datetime(a.publish_time) DESC LIMIT 2`,
             [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
           )
         : [];
@@ -662,3 +697,5 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/ai/history', (_req, res) => res.json({ list: [] }));
 };
+
+

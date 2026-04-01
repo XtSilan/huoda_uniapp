@@ -16,8 +16,9 @@ http.interceptors.request.use((config) => {
 
 export const requestLogin = (params) => http.post('/auth/login', params).then((res) => res.data);
 export const getDashboard = () => http.get('/admin/dashboard').then((res) => res.data);
-export const getUsers = () => http.get('/admin/users').then((res) => res.data);
+export const getUsers = (params = {}) => http.get('/admin/users', { params }).then((res) => res.data);
 export const updateUser = (id, payload) => http.put(`/admin/users/${id}`, payload).then((res) => res.data);
+export const deleteUser = (id) => http.delete(`/admin/users/${id}`).then((res) => res.data);
 export const createStudent = (payload) => http.post('/admin/students', payload).then((res) => res.data);
 export const getBanners = () => http.get('/admin/banners').then((res) => res.data);
 export const createBanner = (payload) => http.post('/admin/banners', payload).then((res) => res.data);

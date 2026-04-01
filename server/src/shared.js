@@ -80,7 +80,8 @@ function mapInfo(row) {
     locationType: row.location_type,
     status: row.status,
     publishTime: row.publish_time,
-    viewCount: 100 + Number(row.id || 0) * 11
+    favoriteCount: Number(row.favorite_count || 0),
+    viewCount: Number(row.view_count || 0)
   };
 }
 
@@ -99,7 +100,8 @@ function mapActivity(row) {
     activityType: row.activity_type,
     status: row.status,
     publishTime: row.publish_time,
-    applyCount: row.apply_count
+    applyCount: Number(row.apply_count || 0),
+    favoriteCount: Number(row.favorite_count || 0)
   };
 }
 
@@ -212,10 +214,25 @@ function parseSettings(row) {
 }
 
 function recordBrowse(db, userId, targetType, targetId, title, summary = '') {
+  const now = new Date().toISOString();
+  const existing = db.get(
+    `SELECT id FROM browse_history
+    WHERE user_id = ? AND target_type = ? AND target_id = ?`,
+    [userId, targetType, targetId || 0]
+  );
+  if (existing) {
+    db.run(
+      `UPDATE browse_history
+      SET title = ?, summary = ?, created_at = ?
+      WHERE id = ?`,
+      [title, summary, now, existing.id]
+    );
+    return;
+  }
   db.run(
     `INSERT INTO browse_history (user_id, target_type, target_id, title, summary, created_at)
     VALUES (?, ?, ?, ?, ?, ?)`,
-    [userId, targetType, targetId || 0, title, summary, new Date().toISOString()]
+    [userId, targetType, targetId || 0, title, summary, now]
   );
 }
 

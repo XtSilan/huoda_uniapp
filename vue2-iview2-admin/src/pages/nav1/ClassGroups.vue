@@ -2,7 +2,7 @@
   <div>
     <Table border :columns="columns" :data="groups"></Table>
 
-    <Modal v-model="visible" title="班级群配置" width="900" @on-ok="submit">
+    <Modal v-model="visible" title="班级群配置" width="900" :mask-closable="false" @on-ok="submit">
       <Input v-model="form.className" placeholder="班级名称" style="margin-bottom: 10px;" />
       <Input v-model="form.groupName" placeholder="群名称" style="margin-bottom: 10px;" />
       <Input v-model="form.announcement" placeholder="群公告" style="margin-bottom: 10px;" />

@@ -3,7 +3,7 @@
     <view class="page-header">
       <view class="page-eyebrow">{{ greetingPrefix }}</view>
       <view class="page-title">{{ greetingTitle }}</view>
-      <view class="page-subtitle">志存高远 志强笃行</view>
+      <view class="page-subtitle">看看今天校园里有哪些新鲜事</view>
     </view>
 
     <view class="hero-card surface-card">
@@ -13,6 +13,7 @@
           <input class="search-input" placeholder="搜索资讯、活动、组织方" v-model="searchText" @confirm="onSearch" />
         </view>
       </view>
+
       <view class="hero-progress">
         <view>
           <view class="hero-progress__title">今日探索进度</view>
@@ -22,6 +23,7 @@
           <view class="progress-ring__inner">{{ progressPercent }}%</view>
         </view>
       </view>
+
       <view class="hero-actions">
         <view v-for="item in quickActions" :key="item.title" class="quick-card" @click="goTo(item.url)">
           <view class="quick-card__icon" :class="item.tone">{{ item.icon }}</view>
@@ -36,7 +38,14 @@
         <text class="section-heading">焦点推荐</text>
         <text class="section-action" @click="switchToDiscover">去发现</text>
       </view>
-      <swiper class="banner-swiper surface-card" circular autoplay indicator-dots indicator-color="rgba(255,255,255,0.5)" indicator-active-color="#ffffff">
+      <swiper
+        class="banner-swiper surface-card"
+        circular
+        autoplay
+        indicator-dots
+        indicator-color="rgba(255,255,255,0.5)"
+        indicator-active-color="#ffffff"
+      >
         <swiper-item v-for="item in banners" :key="item.id" @click="goToBanner(item)">
           <view class="banner-slide">
             <image class="banner-image" :src="item.imageUrl" mode="aspectFill"></image>
@@ -55,7 +64,12 @@
         <text class="section-action" @click="switchToInfo">更多</text>
       </view>
       <view v-if="recommendList.length" class="content-stack">
-        <view v-for="item in recommendList.slice(0, 3)" :key="item.id" class="news-card surface-card" @click="goToInfoDetail(item.id)">
+        <view
+          v-for="item in recommendList.slice(0, 3)"
+          :key="item.id"
+          class="news-card surface-card"
+          @click="goToInfoDetail(item.id)"
+        >
           <view class="news-card__icon tone-purple">荐</view>
           <view class="news-card__body">
             <view class="news-card__title">{{ item.title }}</view>
@@ -75,12 +89,24 @@
         <text class="section-action" @click="switchToDiscover">全部活动</text>
       </view>
       <view v-if="activities.length" class="activity-stack">
-        <view v-for="item in activities.slice(0, 3)" :key="item.id" class="activity-card surface-card" @click="goToPublishDetail(item.id)">
+        <view
+          v-for="item in activities.slice(0, 3)"
+          :key="item.id"
+          class="activity-card surface-card"
+          @click="goToPublishDetail(item.id)"
+        >
           <image v-if="item.images && item.images.length" class="activity-image" :src="item.images[0]" mode="aspectFill"></image>
           <view class="activity-body">
             <view class="activity-topline">
               <tag-badge :text="item.activityType || '活动'" tone="blue" />
-              <tag-badge :text="formatDate(item.startTime)" tone="yellow" />
+              <view class="metric-pill">
+                <view class="metric-pill__icon">
+                  <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
+                    <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Zm0 2.445L6.615 5.5a.75.75 0 0 1-.564.41l-3.097.45 2.24 2.184a.75.75 0 0 1 .216.664l-.528 3.084 2.769-1.456a.75.75 0 0 1 .698 0l2.77 1.456-.53-3.084a.75.75 0 0 1 .216-.664l2.24-2.183-3.096-.45a.75.75 0 0 1-.564-.41L8 2.694Z"></path>
+                  </svg>
+                </view>
+                <text>{{ item.applyCount || 0 }} 参与</text>
+              </view>
             </view>
             <view class="activity-title">{{ item.title }}</view>
             <view class="activity-content">{{ item.summary || item.content }}</view>
@@ -88,23 +114,8 @@
           </view>
         </view>
       </view>
-      <view v-else class="surface-card empty-panel">还没有新的活动，晚点再来看看。</view>
+      <view v-else class="surface-card empty-panel">还没有新的活动，晚点再来看看</view>
     </view>
-
-<!--     <view class="section-block">
-      <view class="section-row">
-        <text class="section-heading">AI 助手</text>
-        <text class="section-action" @click="goTo('/pages/feature/ai/ai')">打开小达老师</text>
-      </view>
-      <view class="ai-highlight surface-card" @click="goTo('/pages/feature/ai/ai')">
-        <view class="ai-highlight__icon tone-blue">AI</view>
-        <view class="ai-highlight__body">
-          <view class="ai-highlight__title">小达老师</view>
-          <view class="ai-highlight__desc">问课程、问活动、问校园信息，把推荐和对话统一到一个入口里。</view>
-        </view>
-        <tag-badge text="在线" tone="green" />
-      </view>
-    </view> -->
 
     <view class="section-block">
       <view class="section-row">
@@ -142,9 +153,9 @@ export default {
   computed: {
     quickActions() {
       return [
-        { title: '校园乐跑', desc: '开始今天的节奏', url: '/pages/feature/run/run', icon: '跑', tone: 'tone-purple' },
-        { title: '班级签到', desc: '快速进入群聊', url: '/pages/feature/sign/sign', icon: '签', tone: 'tone-green' },
-        { title: '小达老师', desc: '随时问 AI 助手', url: '/pages/feature/ai/ai', icon: 'AI', tone: 'tone-blue' }
+        { title: '校园乐跑', desc: '开始今天的运动计划', url: '/pages/feature/run/run', icon: '跑', tone: 'tone-purple' },
+        { title: '班级签到', desc: '快速进入签到与群聊', url: '/pages/feature/sign/sign', icon: '签', tone: 'tone-green' },
+        { title: 'AI 助手', desc: '随时问问小达老师', url: '/pages/feature/ai/ai', icon: 'AI', tone: 'tone-blue' }
       ];
     },
     greetingPrefix() {
@@ -214,13 +225,6 @@ export default {
     },
     formatTime(value) {
       return value ? new Date(value).toLocaleDateString() : '-';
-    },
-    formatDate(value) {
-      if (!value) {
-        return '时间待定';
-      }
-      const date = new Date(value);
-      return `${date.getMonth() + 1}/${date.getDate()}`;
     }
   }
 };
@@ -427,6 +431,36 @@ export default {
   margin-top: 16rpx;
 }
 
+.activity-topline {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: #f5f7fb;
+  color: var(--text-sub);
+  font-size: 22rpx;
+}
+
+.metric-pill__icon {
+  width: 28rpx;
+  height: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.metric-pill__icon svg {
+  width: 28rpx;
+  height: 28rpx;
+  fill: #f5b301;
+}
+
 .activity-card {
   overflow: hidden;
 }
@@ -448,42 +482,6 @@ export default {
 
 .hot-panel {
   padding: 10rpx 24rpx;
-}
-
-.ai-highlight {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  padding: 24rpx;
-}
-
-.ai-highlight__icon {
-  width: 84rpx;
-  height: 84rpx;
-  border-radius: 28rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28rpx;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.ai-highlight__body {
-  flex: 1;
-}
-
-.ai-highlight__title {
-  font-size: 30rpx;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.ai-highlight__desc {
-  margin-top: 10rpx;
-  font-size: 24rpx;
-  line-height: 1.6;
-  color: var(--text-sub);
 }
 
 .hot-row {

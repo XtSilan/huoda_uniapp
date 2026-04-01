@@ -155,13 +155,15 @@ export default {
       try {
         const [statsRes, collectionsRes, historyRes] = await Promise.all([
           this.$api.user.getStats().catch(() => ({})),
-          this.$api.user.getCollections().catch(() => ([])),
-          this.$api.user.getHistory().catch(() => ([]))
+          this.$api.user.getCollections().catch(() => ({})),
+          this.$api.user.getHistory().catch(() => ({}))
         ]);
+        const collections = Array.isArray(collectionsRes) ? collectionsRes : collectionsRes.list || [];
+        const browseHistory = Array.isArray(historyRes) ? historyRes : historyRes.browse || [];
         this.stats = {
-          collections: Array.isArray(collectionsRes) ? collectionsRes.length : collectionsRes.total || 0,
-          history: Array.isArray(historyRes) ? historyRes.length : historyRes.total || 0,
-          views: statsRes.totalViews || statsRes.views || 0
+          collections: statsRes.totalCollections || collections.length || 0,
+          history: browseHistory.length || 0,
+          views: statsRes.totalViews || statsRes.views || browseHistory.length || 0
         };
       } catch (error) {}
     },

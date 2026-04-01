@@ -83,12 +83,46 @@ module.exports = function registerAdminRoutes(app, db) {
     });
   });
 
-  app.get('/api/admin/users', requireAdmin, (_req, res) => {
+  app.get('/api/admin/users', requireAdmin, (req, res) => {
+    const keyword = String(req.query.keyword || '').trim();
+    const role = String(req.query.role || '').trim();
+    const status = String(req.query.status || '').trim();
+    const department = String(req.query.department || '').trim();
+    const conditions = [];
+    const params = [];
+
+    if (keyword) {
+      conditions.push('(u.student_id LIKE ? OR u.name LIKE ? OR u.department LIKE ? OR u.class_name LIKE ? OR u.phone LIKE ?)');
+      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
+    if (role) {
+      conditions.push('u.role = ?');
+      params.push(role);
+    }
+    if (status) {
+      conditions.push('u.status = ?');
+      params.push(status);
+    }
+    if (department) {
+      conditions.push('u.department = ?');
+      params.push(department);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = db.all(
       `SELECT u.*, us.interests, us.future_plan
       FROM users u
       LEFT JOIN user_settings us ON us.user_id = u.id
-      ORDER BY u.id ASC`
+      ${where}
+      ORDER BY datetime(u.created_at) DESC, u.id DESC`,
+      params
+    );
+    const departmentRows = db.all(
+      `SELECT department, COUNT(*) AS count
+      FROM users
+      WHERE TRIM(department) <> ''
+      GROUP BY department
+      ORDER BY count DESC, department ASC`
     );
     res.json({
       list: rows.map((row) => ({
@@ -97,7 +131,14 @@ module.exports = function registerAdminRoutes(app, db) {
         futurePlan: row.future_plan || '',
         createdAt: row.created_at,
         lastLoginAt: row.last_login_at
-      }))
+      })),
+      filters: {
+        departments: departmentRows.map((row) => ({
+          label: row.department,
+          value: row.department,
+          count: Number(row.count || 0)
+        }))
+      }
     });
   });
 
@@ -118,6 +159,18 @@ module.exports = function registerAdminRoutes(app, db) {
       ]
     );
     ensureClassGroup(db, className);
+    res.json({ success: true });
+  });
+
+  app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+    const current = db.get('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    if (!current) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    if (Number(current.id) === Number(req.user.id)) {
+      return res.status(400).json({ message: '不能删除当前登录管理员' });
+    }
+    db.run('DELETE FROM users WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   });
 

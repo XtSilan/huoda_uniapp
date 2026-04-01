@@ -2,7 +2,7 @@
   <div>
     <Button type="primary" @click="openCreate" style="margin-bottom: 12px;">新增活动</Button>
     <Table border :columns="columns" :data="activities"></Table>
-    <Modal v-model="visible" title="活动编辑" @on-ok="submit">
+    <Modal v-model="visible" title="活动编辑" :mask-closable="false" @on-ok="submit">
       <Input v-model="form.title" placeholder="标题" style="margin-bottom: 10px;" />
       <Input v-model="form.summary" placeholder="摘要" style="margin-bottom: 10px;" />
       <Input v-model="form.organizer" placeholder="组织方" style="margin-bottom: 10px;" />

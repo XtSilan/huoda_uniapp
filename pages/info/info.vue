@@ -1,9 +1,10 @@
 <template>
   <view class="page-shell info-page">
     <view class="page-header">
+      <page-nav v-if="detailMode || searchMode" fallback="/pages/index/index" :is-tab="true" />
       <view class="page-eyebrow">{{ detailMode ? '资讯详情' : '信息中心' }}</view>
-      <view class="page-title">{{ detailMode ? '深度阅读' : '展现更多精彩' }}</view>
-      <view class="page-subtitle">{{ detailMode ? '在这里发现更多精彩内容' : '在这里发现更多精彩内容' }}</view>
+      <view class="page-title">{{ detailMode ? '深度阅读' : '发现更多校园内容' }}</view>
+      <view class="page-subtitle">{{ detailMode ? '查看完整内容与附件资料' : '搜索资讯、活动与校园动态' }}</view>
     </view>
 
     <view class="search-box surface-card">
@@ -15,11 +16,18 @@
     <view v-if="detailMode" class="detail-card surface-card">
       <view class="detail-topline">
         <tag-badge :text="detail.source || '资讯'" tone="blue" />
-        <tag-badge :text="formatTime(detail.publishTime)" tone="yellow" />
+        <view class="metric-pill">
+          <view class="metric-pill__icon">
+            <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
+              <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Zm0 2.445L6.615 5.5a.75.75 0 0 1-.564.41l-3.097.45 2.24 2.184a.75.75 0 0 1 .216.664l-.528 3.084 2.769-1.456a.75.75 0 0 1 .698 0l2.77 1.456-.53-3.084a.75.75 0 0 1 .216-.664l2.24-2.183-3.096-.45a.75.75 0 0 1-.564-.41L8 2.694Z"></path>
+            </svg>
+          </view>
+          <text>{{ detail.favoriteCount || 0 }} 收藏</text>
+        </view>
       </view>
       <view class="detail-title">{{ detail.title }}</view>
       <view v-if="detail.sourceUrl || isUrl(detail.source)" class="detail-source-link" @click="openSourceLink">
-        来源链接: {{ detail.source || normalizedSourceUrl }}
+        来源链接：{{ detail.source || normalizedSourceUrl }}
       </view>
       <view class="detail-content">{{ detail.content }}</view>
       <view v-if="detail.attachments && detail.attachments.length" class="detail-attachments">
@@ -46,9 +54,19 @@
         </view>
         <view v-if="searchInfos.length === 0" class="empty-state">暂无匹配资讯</view>
         <view v-for="item in searchInfos" :key="item.id" class="content-card" @click="goToDetail(item.id)">
-          <view class="content-card__title">{{ item.title }}</view>
+          <view class="content-card__top">
+            <view class="content-card__title">{{ item.title }}</view>
+            <view class="metric-pill">
+              <view class="metric-pill__icon">
+                <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
+                  <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Zm0 2.445L6.615 5.5a.75.75 0 0 1-.564.41l-3.097.45 2.24 2.184a.75.75 0 0 1 .216.664l-.528 3.084 2.769-1.456a.75.75 0 0 1 .698 0l2.77 1.456-.53-3.084a.75.75 0 0 1 .216-.664l2.24-2.183-3.096-.45a.75.75 0 0 1-.564-.41L8 2.694Z"></path>
+                </svg>
+              </view>
+              <text>{{ item.favoriteCount || 0 }} 收藏</text>
+            </view>
+          </view>
           <view class="content-card__desc">{{ item.summary || item.content }}</view>
-          <view class="content-card__meta">{{ item.source }} · {{ item.locationType || '资讯' }}</view>
+          <view class="content-card__meta">{{ item.source || '校园发布' }} · {{ item.locationType || '资讯' }}</view>
         </view>
       </view>
 
@@ -58,9 +76,19 @@
         </view>
         <view v-if="searchActivities.length === 0" class="empty-state">暂无匹配活动</view>
         <view v-for="item in searchActivities" :key="item.id" class="content-card" @click="goToActivity(item.id)">
-          <view class="content-card__title">{{ item.title }}</view>
+          <view class="content-card__top">
+            <view class="content-card__title">{{ item.title }}</view>
+            <view class="metric-pill">
+              <view class="metric-pill__icon">
+                <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
+                  <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Zm0 2.445L6.615 5.5a.75.75 0 0 1-.564.41l-3.097.45 2.24 2.184a.75.75 0 0 1 .216.664l-.528 3.084 2.769-1.456a.75.75 0 0 1 .698 0l2.77 1.456-.53-3.084a.75.75 0 0 1 .216-.664l2.24-2.183-3.096-.45a.75.75 0 0 1-.564-.41L8 2.694Z"></path>
+                </svg>
+              </view>
+              <text>{{ item.applyCount || 0 }} 参与</text>
+            </view>
+          </view>
           <view class="content-card__desc">{{ item.summary || item.content }}</view>
-          <view class="content-card__meta">{{ item.organizer }} · {{ item.location }}</view>
+          <view class="content-card__meta">{{ item.organizer || '校园组织' }} · {{ item.location || '地点待定' }}</view>
         </view>
       </view>
     </view>
@@ -97,7 +125,14 @@
           <view v-for="item in filteredInfos" :key="item.id" class="content-feed-card surface-card" @click="goToDetail(item.id)">
             <view class="content-feed-card__tags">
               <tag-badge :text="item.category || '资讯'" tone="purple" />
-              <tag-badge :text="formatTime(item.publishTime)" tone="yellow" />
+              <view class="metric-pill">
+                <view class="metric-pill__icon">
+                  <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
+                    <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Zm0 2.445L6.615 5.5a.75.75 0 0 1-.564.41l-3.097.45 2.24 2.184a.75.75 0 0 1 .216.664l-.528 3.084 2.769-1.456a.75.75 0 0 1 .698 0l2.77 1.456-.53-3.084a.75.75 0 0 1 .216-.664l2.24-2.183-3.096-.45a.75.75 0 0 1-.564-.41L8 2.694Z"></path>
+                  </svg>
+                </view>
+                <text>{{ item.favoriteCount || 0 }} 收藏</text>
+              </view>
             </view>
             <view class="content-card__title">{{ item.title }}</view>
             <view class="content-card__desc">{{ item.summary || item.content }}</view>
@@ -159,6 +194,18 @@ export default {
     }
     this.loadInfos();
   },
+  onShow() {
+    if (this.detailMode) {
+      return;
+    }
+    const pendingSearch = uni.getStorageSync('pendingInfoSearch');
+    if (pendingSearch !== '' && pendingSearch !== undefined) {
+      this.searchText = pendingSearch;
+      this.searchMode = Boolean(pendingSearch);
+      uni.removeStorageSync('pendingInfoSearch');
+    }
+    this.loadInfos();
+  },
   methods: {
     async loadInfos() {
       try {
@@ -181,14 +228,12 @@ export default {
     async loadDetail(id) {
       try {
         this.detail = await this.$api.info.getInfoDetail(id);
-        try {
-          await this.$api.user.recordHistory({
-            targetType: 'info',
-            targetId: id,
-            title: this.detail.title,
-            summary: this.detail.summary || this.detail.content
-          });
-        } catch (e) {}
+        await this.$api.user.recordHistory({
+          targetType: 'info',
+          targetId: id,
+          title: this.detail.title,
+          summary: this.detail.summary || this.detail.content
+        });
       } catch (error) {
         uni.showToast({ title: error.message || '获取详情失败', icon: 'none' });
       }
@@ -289,30 +334,12 @@ export default {
           targetType: 'info',
           targetId: Number(this.detail.id)
         });
+        await this.loadDetail(this.detail.id);
         uni.showToast({ title: '收藏状态已更新', icon: 'success' });
       } catch (error) {
         uni.showToast({ title: error.message || '操作失败', icon: 'none' });
       }
-    },
-    formatTime(value) {
-      if (!value) {
-        return '刚刚';
-      }
-      const date = new Date(value);
-      return `${date.getMonth() + 1}/${date.getDate()}`;
     }
-  },
-  onShow() {
-    if (this.detailMode) {
-      return;
-    }
-    const pendingSearch = uni.getStorageSync('pendingInfoSearch');
-    if (pendingSearch !== '' && pendingSearch !== undefined) {
-      this.searchText = pendingSearch;
-      this.searchMode = Boolean(pendingSearch);
-      uni.removeStorageSync('pendingInfoSearch');
-    }
-    this.loadInfos();
   }
 };
 </script>
@@ -361,10 +388,13 @@ export default {
 }
 
 .detail-topline,
-.content-feed-card__tags {
+.content-feed-card__tags,
+.content-card__top {
   display: flex;
   flex-wrap: wrap;
-  gap: 10rpx;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
   margin-bottom: 16rpx;
 }
 
@@ -518,5 +548,30 @@ export default {
 
 .content-feed-card + .content-feed-card {
   margin-top: 18rpx;
+}
+
+.metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: #f5f7fb;
+  color: var(--text-sub);
+  font-size: 22rpx;
+}
+
+.metric-pill__icon {
+  width: 28rpx;
+  height: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.metric-pill__icon svg {
+  width: 28rpx;
+  height: 28rpx;
+  fill: #f5b301;
 }
 </style>

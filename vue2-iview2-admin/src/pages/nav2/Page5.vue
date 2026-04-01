@@ -2,7 +2,7 @@
   <div>
     <Button type="primary" @click="openCreate" style="margin-bottom: 12px;">新增默认模型</Button>
     <Table border :columns="columns" :data="models"></Table>
-    <Modal v-model="visible" title="AI 默认模型配置" width="760" @on-ok="submit">
+    <Modal v-model="visible" title="AI 默认模型配置" width="760" :mask-closable="false" @on-ok="submit">
       <Input v-model="form.name" placeholder="配置名称" style="margin-bottom: 10px;" />
       <Input v-model="form.provider" placeholder="供应商：openai / anthropic" style="margin-bottom: 10px;" />
       <Input v-model="form.baseUrl" placeholder="Base URL" style="margin-bottom: 10px;" />
