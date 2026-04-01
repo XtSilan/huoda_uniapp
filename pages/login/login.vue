@@ -124,8 +124,8 @@ export default {
   min-height: calc(100vh - 72rpx - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  transform: translateY(-60rpx);
+  justify-content: flex-start;
+  padding-top: 120rpx;
 }
 
 .intro {
