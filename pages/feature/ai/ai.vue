@@ -11,7 +11,7 @@
       <view class="ai-summary__icon">AI</view>
       <view class="ai-summary__body">
         <view class="ai-summary__title">陪你查资讯、想活动、问校园问题</view>
-        <view class="ai-summary__desc">设置入口保留在这里，聊天区和推荐内容也统一改成卡片式布局。</view>
+        <view class="ai-summary__desc">定制你的专属AI助手</view>
       </view>
       <view class="ai-summary__action" @click="openSettings">设置</view>
     </view>

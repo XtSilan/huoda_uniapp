@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/feature/publish/publish" :is-tab="true" />
       <view class="page-eyebrow">活动详情</view>
       <view class="page-title">{{ activity.title || '活动详情' }}</view>
-      <view class="page-subtitle">把时间、地点、内容和操作统一放进卡片层次里。</view>
+      <view class="page-subtitle">详细信息</view>
     </view>
 
     <view class="surface-card meta-card">

@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/feature/publish/publish" :is-tab="true" />
       <view class="page-eyebrow">创建活动</view>
       <view class="page-title">发起一场值得参与的校园活动</view>
-      <view class="page-subtitle">表单改成上下结构，让填写空间更充裕，也更接近你给的设计语言。</view>
+      <view class="page-subtitle">与大家共同创造精彩</view>
     </view>
 
     <view class="form-stack">

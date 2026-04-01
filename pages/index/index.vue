@@ -124,6 +124,7 @@
     </view>
 
     <view class="fab" @click="goTo('/pages/feature/publish/create')">+</view>
+    <app-tabbar current="home" />
   </view>
 </template>
 

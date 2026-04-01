@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">编辑资料</view>
       <view class="page-title">完善你的校园身份信息</view>
-      <view class="page-subtitle">头像、昵称和院系信息统一放进一套更清爽的资料卡里。</view>
+      <view class="page-subtitle">让我更好地了解你</view>
     </view>
 
     <view class="surface-card avatar-card">
@@ -102,6 +102,25 @@ export default {
     },
     readLocalImage(filePath) {
       return new Promise((resolve, reject) => {
+        if (typeof window !== 'undefined' && typeof FileReader !== 'undefined') {
+          fetch(filePath)
+            .then((res) => res.blob())
+            .then((blob) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const fileName = filePath.split('/').pop().split('\\').pop() || `avatar-${Date.now()}.png`;
+                resolve({
+                  fileName,
+                  content: reader.result
+                });
+              };
+              reader.onerror = () => reject(new Error('读取本地图片失败'));
+              reader.readAsDataURL(blob);
+            })
+            .catch(() => reject(new Error('读取本地图片失败')));
+          return;
+        }
+
         let fsManager = null;
         if (typeof uni.getFileSystemManager === 'function') {
           fsManager = uni.getFileSystemManager();

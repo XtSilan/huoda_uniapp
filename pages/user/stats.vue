@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">数据统计</view>
       <view class="page-title">看看你的校园使用节奏</view>
-      <view class="page-subtitle">先用卡片化统计承接，后面再接环形图表也很顺手。</view>
+      <view class="page-subtitle">在这里记录你的校园生活</view>
     </view>
 
     <view class="stats-grid">

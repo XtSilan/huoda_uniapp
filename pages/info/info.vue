@@ -91,6 +91,7 @@
         </scroll-view>
       </view>
     </view>
+    <app-tabbar v-if="!detailMode" current="info" />
   </view>
 </template>
 

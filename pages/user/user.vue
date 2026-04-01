@@ -3,7 +3,7 @@
     <view class="page-header">
       <view class="page-eyebrow">个人空间</view>
       <view class="page-title">我的校园卡片</view>
-      <view class="page-subtitle">资料、偏好、历史和账号入口都整理到这一页里，查看更顺手。</view>
+      <view class="page-subtitle">在这里记录你的校园生活</view>
     </view>
 
     <view class="profile-card">
@@ -65,6 +65,8 @@
         <custom-button text="退出登录" ghost @click="logout" />
       </view>
     </view>
+
+    <app-tabbar current="user" />
   </view>
 </template>
 

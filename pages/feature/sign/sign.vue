@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/index/index" :is-tab="true" />
       <view class="page-eyebrow">班级签到</view>
       <view class="page-title">{{ className || '还没有绑定班级' }}</view>
-      <view class="page-subtitle">把签到、课程提醒、历史记录和请假申请收成同一套卡片体验。</view>
+      <view class="page-subtitle">在这里记录你的签到情况</view>
     </view>
 
     <view class="status-card">

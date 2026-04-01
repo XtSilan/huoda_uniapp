@@ -3,7 +3,7 @@
     <view class="page-header">
       <view class="page-eyebrow">活动广场</view>
       <view class="page-title">发现校园里正在发生的事</view>
-      <view class="page-subtitle">班级群、活动列表和我的参与记录，统一收进更有层次感的卡片布局。</view>
+      <view class="page-subtitle">在这里与大家共同创造精彩</view>
     </view>
 
     <view class="group-card" @click="goToGroupChat">
@@ -57,9 +57,11 @@
 
     <view class="inline-action surface-card">
       <view class="inline-action__title">想发起一场新活动？</view>
-      <view class="inline-action__desc">创建入口放回内容流里，避免和底部 tabBar 打架。</view>
+      <view class="inline-action__desc">创建入口放回内容流里，避免和底部导航互相打架。</view>
       <custom-button text="创建新活动" @click="goToCreate" />
     </view>
+
+    <app-tabbar current="discover" />
   </view>
 </template>
 

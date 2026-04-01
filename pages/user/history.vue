@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">历史记录</view>
       <view class="page-title">继续上次浏览过的内容</view>
-      <view class="page-subtitle">浏览历史和活动参与拆成卡片切换，不再是原始列表。</view>
+      <view class="page-subtitle">回首过往，记录精彩</view>
     </view>
 
     <view class="surface-card tabs-card">
