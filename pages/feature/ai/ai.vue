@@ -1,6 +1,7 @@
 <template>
   <view class="page-shell ai-page">
     <view class="page-header">
+      <page-nav fallback="/pages/index/index" :is-tab="true" />
       <view class="page-eyebrow">AI 助手</view>
       <view class="page-title">小达老师</view>
       <view class="page-subtitle">{{ currentModeLabel }} / {{ currentModelLabel }}</view>

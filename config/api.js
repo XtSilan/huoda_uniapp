@@ -9,7 +9,8 @@ const API = {
     refresh: `${BASE_URL}/auth/refresh`
   },
   user: {
-    profile: `${BASE_URL}/user/profile`
+    profile: `${BASE_URL}/user/profile`,
+    avatarUpload: `${BASE_URL}/user/avatar/upload`
   },
   classGroup: {
     current: `${BASE_URL}/class-group/current`,

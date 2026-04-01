@@ -1,9 +1,10 @@
 <template>
   <view class="page-shell collection-page">
     <view class="page-header">
+      <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">我的收藏</view>
-      <view class="page-title">把想回看的内容统一收纳</view>
-      <view class="page-subtitle">收藏页也改成白卡片列表和清晰的主次信息。</view>
+      <view class="page-title">我的收藏</view>
+      <view class="page-subtitle">在这里发现更多精彩内容</view>
     </view>
 
     <view class="surface-card collection-card">

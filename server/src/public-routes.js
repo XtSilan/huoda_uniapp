@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const {
   createToken,
   requireAuth,
@@ -20,6 +22,8 @@ const {
   chatWithAi,
   validateAiConnection
 } = require('./ai-client');
+
+const userUploadDir = path.resolve(__dirname, '..', 'uploads', 'user');
 
 function mapPreset(row) {
   return {
@@ -101,6 +105,8 @@ function buildSearchConditions(search, columns, params) {
 }
 
 module.exports = function registerPublicRoutes(app, db) {
+  fs.mkdirSync(userUploadDir, { recursive: true });
+
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
   });
@@ -173,6 +179,37 @@ module.exports = function registerPublicRoutes(app, db) {
     ensureClassGroup(db, nextClassName);
     const updated = db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
     res.json(mapUser(updated));
+  });
+
+  app.post('/api/user/avatar/upload', requireAuth, (req, res) => {
+    const body = req.body || {};
+    const fileName = String(body.fileName || '').trim();
+    const content = String(body.content || '');
+    const match = content.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+
+    if (!fileName || !match) {
+      return res.status(400).json({ message: '请上传有效图片' });
+    }
+
+    const mimeType = match[1];
+    const extMap = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/webp': '.webp',
+      'image/gif': '.gif'
+    };
+    const ext = extMap[mimeType];
+    if (!ext) {
+      return res.status(400).json({ message: '仅支持 png、jpg、webp、gif 图片' });
+    }
+
+    const safeBase = path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, '') || 'avatar';
+    const storedName = `${Date.now()}-${req.user.id}-${safeBase}${ext}`;
+    const targetPath = path.join(userUploadDir, storedName);
+    fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
+
+    res.json({ path: `/uploads/user/${storedName}` });
   });
 
   app.get('/api/user/settings', requireAuth, (req, res) => {

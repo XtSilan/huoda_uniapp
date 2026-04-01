@@ -1,6 +1,7 @@
 <template>
   <view class="page-shell sign-page">
     <view class="page-header">
+      <page-nav fallback="/pages/index/index" :is-tab="true" />
       <view class="page-eyebrow">班级签到</view>
       <view class="page-title">{{ className || '还没有绑定班级' }}</view>
       <view class="page-subtitle">把签到、课程提醒、历史记录和请假申请收成同一套卡片体验。</view>

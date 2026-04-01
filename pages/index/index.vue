@@ -3,13 +3,13 @@
     <view class="page-header">
       <view class="page-eyebrow">{{ greetingPrefix }}</view>
       <view class="page-title">{{ greetingTitle }}</view>
-      <view class="page-subtitle">把资讯、活动和校园服务整理成更轻盈的一天。</view>
+      <view class="page-subtitle">志存高远 志强笃行</view>
     </view>
 
     <view class="hero-card surface-card">
       <view class="hero-search">
         <view class="search-box">
-          <text class="search-icon">⌕</text>
+          <text class="search-icon">搜</text>
           <input class="search-input" placeholder="搜索资讯、活动、组织方" v-model="searchText" @confirm="onSearch" />
         </view>
       </view>

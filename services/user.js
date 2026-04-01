@@ -9,6 +9,12 @@ const updateProfile = (payload) =>
     data: payload
   });
 
+const uploadAvatar = (payload) =>
+  request(API.user.avatarUpload, {
+    method: 'POST',
+    data: payload
+  });
+
 const getSettings = () => request(`${API.user.profile.replace('/profile', '/settings')}`);
 
 const updateSettings = (payload) =>
@@ -44,6 +50,7 @@ const changePassword = (payload) =>
 export default {
   getProfile,
   updateProfile,
+  uploadAvatar,
   getSettings,
   updateSettings,
   getCollections,

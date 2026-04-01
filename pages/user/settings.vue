@@ -1,6 +1,7 @@
 <template>
   <view class="page-shell settings-page">
     <view class="page-header">
+      <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">设置中心</view>
       <view class="page-title">账号、安全与通知偏好</view>
       <view class="page-subtitle">把原来零散的设置页统一成分区卡片和圆角表单。</view>

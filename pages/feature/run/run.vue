@@ -1,6 +1,7 @@
 <template>
   <view class="page-shell run-page">
     <view class="page-header">
+      <page-nav fallback="/pages/index/index" :is-tab="true" />
       <view class="page-eyebrow">校园乐跑</view>
       <view class="page-title">{{ isRunning ? '正在跑步' : '把今天的步伐记录下来' }}</view>
       <view class="page-subtitle">跑步状态、历史和排行榜都统一成更清爽的卡片式布局。</view>

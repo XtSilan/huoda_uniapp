@@ -6,8 +6,8 @@
     <view class="login-shell">
       <view class="intro">
         <view class="intro__badge">HUODA CAMPUS</view>
-        <view class="intro__title">登录后，把校园生活装进一张更好看的首页。</view>
-        <view class="intro__desc">查资讯、看活动、班级协作和个人中心，都统一成一套轻盈的体验。</view>
+        <view class="intro__title">活达</view>
+        <view class="intro__desc">在这里发现更多校园精彩</view>
       </view>
 
       <view class="login-card">

@@ -67,19 +67,22 @@ button::after {
   background:
     radial-gradient(circle at top right, rgba(138, 100, 255, 0.16), transparent 28%),
     linear-gradient(180deg, #f7f8fc 0%, var(--bg-color) 100%);
+  animation: page-enter 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform, opacity;
 }
 
 .page-header {
+  position: relative;
+  padding-top: 4rpx;
   margin-bottom: 28rpx;
 }
 
 .page-eyebrow {
-  font-size: 24rpx;
-  color: var(--text-sub);
+  display: none;
 }
 
 .page-title {
-  margin-top: 10rpx;
+  margin-top: 22rpx;
   font-size: 52rpx;
   line-height: 1.2;
   font-weight: 700;
@@ -126,5 +129,30 @@ button::after {
   text-align: center;
   color: var(--text-sub);
   font-size: 26rpx;
+}
+
+.surface-card,
+.profile-card,
+.group-card,
+.hero-card {
+  transition: transform 220ms ease, box-shadow 220ms ease, opacity 220ms ease;
+}
+
+.surface-card:active,
+.profile-card:active,
+.group-card:active,
+.hero-card:active {
+  transform: translateY(2rpx) scale(0.995);
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

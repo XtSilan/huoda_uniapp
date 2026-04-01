@@ -1,6 +1,7 @@
 <template>
   <view class="page-shell personalized-page">
     <view class="page-header">
+      <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">个性化设置</view>
       <view class="page-title">让推荐更贴近你的校园阶段</view>
       <view class="page-subtitle">兴趣、年级和未来规划都改成统一的上下表单结构。</view>

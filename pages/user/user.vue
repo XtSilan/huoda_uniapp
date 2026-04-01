@@ -3,18 +3,18 @@
     <view class="page-header">
       <view class="page-eyebrow">个人空间</view>
       <view class="page-title">我的校园卡片</view>
-      <view class="page-subtitle">把资料、偏好、浏览记录和管理入口收进一套更清晰的布局。</view>
+      <view class="page-subtitle">资料、偏好、历史和账号入口都整理到这一页里，查看更顺手。</view>
     </view>
 
     <view class="profile-card">
       <view class="profile-main">
         <view class="avatar">
-          <image :src="userInfo.avatarUrl || '/static/avatar.png'" mode="aspectFill"></image>
+          <image :src="avatarSrc" mode="aspectFill"></image>
         </view>
         <view class="profile-info">
           <view class="profile-name">{{ userInfo.name || '未登录用户' }}</view>
           <view class="profile-id">{{ userInfo.studentId || '学号待补充' }}</view>
-          <view class="profile-dept">{{ userInfo.department || '请先完善学院与班级信息' }}</view>
+          <view class="profile-dept">{{ userInfo.department || '请先完善院系与班级信息' }}</view>
         </view>
       </view>
       <view class="profile-tags">
@@ -25,17 +25,17 @@
 
     <view class="stats-grid">
       <view class="stat-card surface-card">
-        <view class="stat-icon tone-purple">收</view>
+        <view class="stat-icon tone-purple">藏</view>
         <view class="stat-value">{{ stats.collections }}</view>
         <view class="stat-label">我的收藏</view>
       </view>
       <view class="stat-card surface-card">
-        <view class="stat-icon tone-blue">览</view>
+        <view class="stat-icon tone-blue">历</view>
         <view class="stat-value">{{ stats.history }}</view>
         <view class="stat-label">浏览记录</view>
       </view>
       <view class="stat-card surface-card">
-        <view class="stat-icon tone-green">看</view>
+        <view class="stat-icon tone-green">访</view>
         <view class="stat-value">{{ stats.views }}</view>
         <view class="stat-label">累计访问</view>
       </view>
@@ -54,7 +54,7 @@
               <view class="menu-item__desc">{{ item.desc }}</view>
             </view>
           </view>
-          <text class="menu-item__arrow">›</text>
+          <text class="menu-item__arrow">&#8250;</text>
         </view>
       </view>
     </view>
@@ -69,7 +69,7 @@
 </template>
 
 <script>
-import { ADMIN_LOGIN_URL } from '../../config/api';
+import { ADMIN_LOGIN_URL, SERVER_ORIGIN } from '../../config/api';
 
 export default {
   data() {
@@ -88,6 +88,12 @@ export default {
     };
   },
   computed: {
+    avatarSrc() {
+      if (!this.userInfo.avatarUrl) {
+        return '/static/avatar.png';
+      }
+      return this.userInfo.avatarUrl.startsWith('http') ? this.userInfo.avatarUrl : `${SERVER_ORIGIN}${this.userInfo.avatarUrl}`;
+    },
     roleText() {
       return this.userInfo.role === 'admin' ? '管理员' : '普通用户';
     },
@@ -99,7 +105,7 @@ export default {
         { title: '编辑资料', desc: '头像、昵称和院系信息', url: '/pages/user/profile', icon: '资', tone: 'tone-purple' },
         { title: '个性化设置', desc: '调整偏好与展示方式', url: '/pages/user/personalization', icon: '设', tone: 'tone-blue' },
         { title: '我的收藏', desc: '快速回看收藏内容', url: '/pages/user/collection', icon: '藏', tone: 'tone-green' },
-        { title: '浏览历史', desc: '继续上次浏览的内容', url: '/pages/user/history', icon: '史', tone: 'tone-yellow' },
+        { title: '浏览历史', desc: '继续上次浏览的内容', url: '/pages/user/history', icon: '历', tone: 'tone-yellow' },
         { title: '数据统计', desc: '查看个人使用概览', url: '/pages/user/stats', icon: '统', tone: 'tone-purple' },
         { title: '设置', desc: '账号与安全项', url: '/pages/user/settings', icon: '安', tone: 'tone-blue' }
       ];
@@ -248,7 +254,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-weight: 700;
 }
 

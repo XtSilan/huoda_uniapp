@@ -2,12 +2,12 @@
   <view class="page-shell info-page">
     <view class="page-header">
       <view class="page-eyebrow">{{ detailMode ? '资讯详情' : '信息中心' }}</view>
-      <view class="page-title">{{ detailMode ? '深度阅读' : '把校园信息按你关心的方式展开' }}</view>
-      <view class="page-subtitle">{{ detailMode ? '正文、来源和收藏操作都收进单卡片里。' : '搜索、校内外切换和分类筛选一起重排成更清爽的双栏结构。' }}</view>
+      <view class="page-title">{{ detailMode ? '深度阅读' : '展现更多精彩' }}</view>
+      <view class="page-subtitle">{{ detailMode ? '在这里发现更多精彩内容' : '在这里发现更多精彩内容' }}</view>
     </view>
 
     <view class="search-box surface-card">
-      <text class="search-icon">⌕</text>
+      <text class="search-icon">搜</text>
       <input class="search-input" placeholder="搜索资讯、活动" v-model="searchText" @confirm="onSearch" />
       <view class="search-action" @click="onSearch">搜索</view>
     </view>
@@ -78,7 +78,7 @@
         </scroll-view>
 
         <scroll-view class="content-list" scroll-y>
-          <view v-if="filteredInfos.length === 0" class="surface-card empty-state">没有更多了</view>
+          <view v-if="filteredInfos.length === 0" class="surface-card empty-state">没有更多内容</view>
           <view v-for="item in filteredInfos" :key="item.id" class="content-feed-card surface-card" @click="goToDetail(item.id)">
             <view class="content-feed-card__tags">
               <tag-badge :text="item.category || '资讯'" tone="purple" />

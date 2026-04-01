@@ -1,6 +1,7 @@
 <template>
   <view class="page-shell chat-page">
     <view class="page-header">
+      <page-nav fallback="/pages/feature/publish/publish" :is-tab="true" />
       <view class="page-eyebrow">班级群聊</view>
       <view class="page-title">{{ group ? group.groupName : '班级群' }}</view>
       <view class="page-subtitle">{{ group ? `${group.memberCount || classmates.length} 人在群` : '群信息加载中' }}</view>
