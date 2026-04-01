@@ -125,6 +125,7 @@ export default {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  transform: translateY(-60rpx);
 }
 
 .intro {
