@@ -18,6 +18,8 @@ function createDefaultConfig(platform) {
     packageName: '',
     packageSize: 0,
     releaseId: '',
+    extractedDir: '',
+    manifestPath: '',
     marketUrl: '',
     publishedAt: ''
   };
@@ -39,6 +41,8 @@ function normalizePlatformConfig(platform, value = {}) {
     packageName: String(value.packageName || '').trim(),
     packageSize: Number(value.packageSize || 0) || 0,
     releaseId: String(value.releaseId || '').trim(),
+    extractedDir: String(value.extractedDir || '').trim(),
+    manifestPath: String(value.manifestPath || '').trim(),
     marketUrl: String(value.marketUrl || '').trim(),
     publishedAt: String(value.publishedAt || '').trim()
   };

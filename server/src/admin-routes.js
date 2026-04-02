@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const AdmZip = require('adm-zip');
 const multer = require('multer');
 const {
   requireAdmin,
@@ -19,6 +20,7 @@ const { platforms, readAppUpdateConfig, writeAppUpdateConfig, normalizePlatformC
 const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-group-qrcodes');
 const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
 const appUpdateUploadDir = path.resolve(__dirname, '..', 'uploads', 'app-updates');
+const wgtExtractRootDir = path.resolve(__dirname, '..', '..', 'unpackage', 'release', 'apk');
 
 function buildStoredFileName(fileName, fallback = 'file') {
   const ext = path.extname(fileName || '').slice(0, 20);
@@ -65,6 +67,49 @@ function mapPreset(row) {
     systemPrompt: row.system_prompt,
     isDefault: Boolean(row.is_default),
     isActive: Boolean(row.is_active)
+  };
+}
+
+function buildWgtExtractDir(fileName) {
+  const baseName = path.basename(fileName || '', path.extname(fileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || 'wgt-package';
+  return path.join(wgtExtractRootDir, baseName);
+}
+
+function readWgtManifestVersionInfo(manifestPath) {
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`未找到 WGT 解压后的 manifest 文件：${manifestPath}`);
+  }
+
+  const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const latestVersion = String(raw && raw.version && raw.version.name ? raw.version.name : '').trim();
+  const versionCode = Number(raw && raw.version && raw.version.code ? raw.version.code : 0) || 0;
+
+  if (!latestVersion || !versionCode) {
+    throw new Error('WGT manifest 缺少有效的 version.name 或 version.code');
+  }
+
+  return {
+    manifestPath,
+    latestVersion,
+    versionCode
+  };
+}
+
+function extractWgtPackage(file) {
+  const extractDir = buildWgtExtractDir(file.originalname || file.filename || '');
+  const manifestPath = path.join(extractDir, 'manifest.json');
+
+  fs.mkdirSync(wgtExtractRootDir, { recursive: true });
+  fs.rmSync(extractDir, { recursive: true, force: true });
+  fs.mkdirSync(extractDir, { recursive: true });
+
+  const zip = new AdmZip(file.path);
+  zip.extractAllTo(extractDir, true);
+
+  const manifestInfo = readWgtManifestVersionInfo(manifestPath);
+  return {
+    ...manifestInfo,
+    extractedDir: extractDir
   };
 }
 
@@ -613,13 +658,29 @@ module.exports = function registerAdminRoutes(app, db) {
       return res.status(400).json({ message: `当前更新方式与上传文件不匹配，应上传 ${updateType.toUpperCase()} 文件` });
     }
 
-    res.json({
+    const response = {
       updateType: ext.slice(1),
       packageName: file.originalname,
       packageSize: Number(file.size || 0) || 0,
       packagePath: `/uploads/app-updates/${path.basename(file.path)}`,
       releaseId: path.basename(file.path)
-    });
+    };
+
+    if (ext === '.wgt') {
+      try {
+        const manifestInfo = extractWgtPackage(file);
+        response.latestVersion = manifestInfo.latestVersion;
+        response.versionCode = manifestInfo.versionCode;
+        response.extractedDir = manifestInfo.extractedDir;
+        response.manifestPath = manifestInfo.manifestPath;
+      } catch (error) {
+        fs.unlinkSync(file.path);
+        fs.rmSync(buildWgtExtractDir(file.originalname || file.filename || ''), { recursive: true, force: true });
+        return res.status(400).json({ message: error.message || 'WGT 解压失败' });
+      }
+    }
+
+    res.json(response);
   });
 
   app.put('/api/admin/app-updates/:platform', requireAdmin, (req, res) => {
@@ -650,6 +711,8 @@ module.exports = function registerAdminRoutes(app, db) {
       payload.packageName = '';
       payload.packageSize = 0;
       payload.releaseId = '';
+      payload.extractedDir = '';
+      payload.manifestPath = '';
     }
 
     if (payload.updateType === 'wgt' && !payload.packagePath && !payload.wgtUrl) {

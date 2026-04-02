@@ -10,10 +10,10 @@
     <Card title="Android 更新发布">
       <Form :label-width="120">
         <FormItem label="最新版本号">
-          <Input :value="form.latestVersion" readonly />
+          <Input v-model="form.latestVersion" :readonly="form.updateType === 'wgt'" :disabled="form.updateType === 'wgt'" placeholder="APK 请手动填写版本号" />
         </FormItem>
         <FormItem label="版本号 Code">
-          <InputNumber :min="1" :value="form.versionCode" readonly></InputNumber>
+          <InputNumber v-model="form.versionCode" :min="1" :readonly="form.updateType === 'wgt'" :disabled="form.updateType === 'wgt'" placeholder="APK 手动填写"></InputNumber>
         </FormItem>
         <FormItem label="更新方式">
           <RadioGroup v-model="form.updateType" @on-change="handleUpdateTypeChange">
@@ -76,7 +76,10 @@
         <Tag color="blue">当前平台：Android</Tag>
         <Tag color="green">当前方式：{{ updateTypeText }}</Tag>
         <Tag v-if="form.publishedAt" color="gold">发布时间：{{ form.publishedAt }}</Tag>
+        <Tag v-if="form.updateType === 'wgt' && form.extractedDir" color="cyan">解压目录：{{ form.extractedDir }}</Tag>
+        <Tag v-if="form.updateType === 'wgt' && form.manifestPath" color="cyan">manifest：{{ form.manifestPath }}</Tag>
         <p class="hint-text">WGT 只适合前端资源热更新；只要涉及原生插件、SDK、权限、启动图、打包配置变化，就要发 APK 整包。</p>
+        <p class="hint-text">WGT 上传后，后台会自动解压到 `unpackage/release/apk/文件名/`，再读取其中的 manifest 版本信息，不需要手填；APK 版本号和 code 继续由你手动提交。</p>
         <p class="hint-text">如果你重新发了 WGT 但版本号没变，旧逻辑通常会直接判定“没有新版本”。这次改完后，客户端会额外识别每次发布的包标识，不会再只盯着版本号。</p>
       </div>
     </Card>
@@ -86,12 +89,11 @@
 <script>
 import { API_BASE_URL } from '../../config/runtime';
 import { getAppUpdates, updateAppUpdate, uploadAppUpdatePackage } from '../../api';
-import { versionName as manifestVersionName, versionCode as manifestVersionCode } from '../../../../manifest.json';
 
 function createEmptyConfig() {
   return {
-    latestVersion: manifestVersionName || '1.0.0',
-    versionCode: Number(manifestVersionCode || 1) || 1,
+    latestVersion: '',
+    versionCode: 1,
     updateType: 'wgt',
     force: false,
     title: '活达 Android 更新',
@@ -102,6 +104,8 @@ function createEmptyConfig() {
     packageName: '',
     packageSize: 0,
     releaseId: '',
+    extractedDir: '',
+    manifestPath: '',
     marketUrl: '',
     publishedAt: ''
   };
@@ -157,9 +161,7 @@ export default {
       const res = await getAppUpdates();
       this.form = {
         ...createEmptyConfig(),
-        ...(res.android || {}),
-        latestVersion: manifestVersionName || '1.0.0',
-        versionCode: Number(manifestVersionCode || 1) || 1
+        ...(res.android || {})
       };
     },
     handleUpdateTypeChange(nextType) {
@@ -168,11 +170,21 @@ export default {
         this.form.packageName = '';
         this.form.packageSize = 0;
         this.form.releaseId = '';
+        this.form.extractedDir = '';
+        this.form.manifestPath = '';
+        this.form.latestVersion = '';
+        this.form.versionCode = 1;
       } else if ((nextType === 'wgt' && this.form.packagePath && !/\.wgt$/i.test(this.form.packageName || '')) || (nextType === 'apk' && this.form.packagePath && !/\.apk$/i.test(this.form.packageName || ''))) {
         this.form.packagePath = '';
         this.form.packageName = '';
         this.form.packageSize = 0;
         this.form.releaseId = '';
+        this.form.extractedDir = '';
+        this.form.manifestPath = '';
+      }
+      if (nextType === 'wgt') {
+        this.form.latestVersion = '';
+        this.form.versionCode = 1;
       }
     },
     triggerPackageSelect() {
@@ -204,7 +216,7 @@ export default {
           ...this.form,
           ...uploaded
         };
-        this.$Message.success('更新包上传成功');
+        this.$Message.success(this.form.updateType === 'wgt' ? 'WGT 上传并解压成功，版本已自动提取' : '更新包上传成功');
       } catch (error) {
         this.$Message.error((error.response && error.response.data && error.response.data.message) || '更新包上传失败');
       } finally {
@@ -237,9 +249,14 @@ export default {
       try {
         const payload = {
           ...this.form,
-          latestVersion: manifestVersionName || this.form.latestVersion,
-          versionCode: Number(manifestVersionCode || this.form.versionCode) || this.form.versionCode
+          latestVersion: this.form.latestVersion,
+          versionCode: Number(this.form.versionCode || 0) || 0
         };
+        if (!payload.latestVersion || !payload.versionCode) {
+          this.$Message.warning(this.form.updateType === 'wgt' ? '未读取到有效的 WGT 版本信息' : '请先填写 APK 版本号和 Code');
+          this.saving = false;
+          return;
+        }
         const saved = await updateAppUpdate('android', payload);
         this.form = {
           ...this.form,
