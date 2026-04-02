@@ -35,6 +35,7 @@ export const updateActivity = (id, payload) => http.put(`/admin/activities/${id}
 export const deleteActivity = (id) => http.delete(`/admin/activities/${id}`).then((res) => res.data);
 export const getClassGroups = () => http.get('/admin/class-groups').then((res) => res.data);
 export const updateClassGroup = (id, payload) => http.put(`/admin/class-groups/${id}`, payload).then((res) => res.data);
+export const deleteClassGroup = (id) => http.delete(`/admin/class-groups/${id}`).then((res) => res.data);
 export const getClassGroupStudents = (id, keyword = '') => http.get(`/admin/class-groups/${id}/students`, { params: { keyword } }).then((res) => res.data);
 export const addClassGroupStudent = (id, userId) => http.post(`/admin/class-groups/${id}/students`, { userId }).then((res) => res.data);
 export const removeClassGroupStudent = (id, userId) => http.delete(`/admin/class-groups/${id}/students/${userId}`).then((res) => res.data);

@@ -23,6 +23,51 @@
 
     <Table border :columns="columns" :data="users"></Table>
 
+    <Modal v-model="detailVisible" title="学生信息查看" footer-hide width="720">
+      <div class="detail-grid">
+        <div class="detail-item">
+          <div class="detail-label">学号</div>
+          <div class="detail-value">{{ detailForm.studentId || '-' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">姓名</div>
+          <div class="detail-value">{{ detailForm.name || '-' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">角色</div>
+          <div class="detail-value">{{ formatRole(detailForm.role) }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">状态</div>
+          <div class="detail-value">{{ formatStatus(detailForm.status) }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">院系</div>
+          <div class="detail-value">{{ detailForm.department || '-' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">班级</div>
+          <div class="detail-value">{{ detailForm.className || '-' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">手机号</div>
+          <div class="detail-value">{{ detailForm.phone || '-' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">最近登录</div>
+          <div class="detail-value">{{ detailForm.lastLoginAt || '-' }}</div>
+        </div>
+        <div class="detail-item detail-item--full">
+          <div class="detail-label">兴趣方向</div>
+          <div class="detail-value">{{ detailInterests }}</div>
+        </div>
+        <div class="detail-item detail-item--full">
+          <div class="detail-label">未来规划</div>
+          <div class="detail-value detail-value--multiline">{{ detailForm.futurePlan || '-' }}</div>
+        </div>
+      </div>
+    </Modal>
+
     <Modal v-model="visible" title="编辑用户" :mask-closable="false" @on-ok="submitEdit">
       <Form :label-width="80">
         <Form-item label="学号">
@@ -70,8 +115,21 @@ export default {
       users: [],
       departmentOptions: [],
       visible: false,
+      detailVisible: false,
       editingId: null,
       filters: createFilters(),
+      detailForm: {
+        studentId: '',
+        name: '',
+        role: 'user',
+        status: 'active',
+        department: '',
+        className: '',
+        phone: '',
+        interests: [],
+        futurePlan: '',
+        lastLoginAt: ''
+      },
       form: {
         studentId: '',
         name: '',
@@ -90,10 +148,15 @@ export default {
         { title: '最近登录', key: 'lastLoginAt', minWidth: 180 },
         {
           title: '操作',
-          minWidth: 320,
+          minWidth: 390,
           render: (h, params) => h('div', [
             h('Button', {
+              props: { size: 'small', type: 'info' },
+              on: { click: () => this.openDetail(params.row) }
+            }, '查看'),
+            h('Button', {
               props: { size: 'small' },
+              style: { marginLeft: '8px' },
               on: { click: () => this.openEdit(params.row) }
             }, '编辑'),
             h('Button', {
@@ -116,10 +179,22 @@ export default {
       ]
     };
   },
+  computed: {
+    detailInterests() {
+      const interests = this.detailForm.interests || [];
+      return interests.length ? interests.join('、') : '-';
+    }
+  },
   mounted() {
     this.loadUsers();
   },
   methods: {
+    formatRole(role) {
+      return role === 'admin' ? '管理员' : '普通用户';
+    },
+    formatStatus(status) {
+      return status === 'disabled' ? '禁用' : '启用';
+    },
     async loadUsers() {
       const res = await getUsers(this.filters);
       this.users = res.list || [];
@@ -128,6 +203,21 @@ export default {
     resetFilters() {
       this.filters = createFilters();
       this.loadUsers();
+    },
+    openDetail(row) {
+      this.detailForm = {
+        studentId: row.studentId,
+        name: row.name,
+        role: row.role,
+        status: row.status,
+        department: row.department,
+        className: row.class || '',
+        phone: row.phone || '',
+        interests: row.interests || [],
+        futurePlan: row.futurePlan || '',
+        lastLoginAt: row.lastLoginAt || ''
+      };
+      this.detailVisible = true;
     },
     openEdit(row) {
       this.editingId = row.id;
@@ -182,3 +272,40 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+.detail-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -8px;
+}
+
+.detail-item {
+  width: 50%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.detail-item--full {
+  width: 100%;
+}
+
+.detail-label {
+  margin-bottom: 6px;
+  color: #999;
+}
+
+.detail-value {
+  min-height: 36px;
+  padding: 10px 12px;
+  line-height: 1.7;
+  color: #333;
+  background: #f7f8fa;
+  border-radius: 6px;
+}
+
+.detail-value--multiline {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+</style>

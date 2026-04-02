@@ -4,7 +4,7 @@
     <Table border :columns="columns" :data="activities"></Table>
     <Modal v-model="visible" title="活动编辑" :mask-closable="false" @on-ok="submit">
       <Input v-model="form.title" placeholder="标题" style="margin-bottom: 10px;" />
-      <Input v-model="form.summary" placeholder="摘要" style="margin-bottom: 10px;" />
+      <Input v-model="form.summary" type="textarea" :rows="3" placeholder="摘要" style="margin-bottom: 10px;" />
       <Input v-model="form.organizer" placeholder="组织方" style="margin-bottom: 10px;" />
       <Input v-model="form.location" placeholder="地点" style="margin-bottom: 10px;" />
       <Select v-model="form.locationType" style="margin-bottom: 10px;">
@@ -17,7 +17,7 @@
       <Input v-model="form.startTime" placeholder="开始时间 ISO" style="margin-bottom: 10px;" />
       <Input v-model="form.endTime" placeholder="结束时间 ISO" style="margin-bottom: 10px;" />
       <Input v-model="imagesText" type="textarea" :rows="3" placeholder="图片地址，一行一个" style="margin-bottom: 10px;" />
-      <Input v-model="form.content" type="textarea" :rows="6" placeholder="内容" />
+      <Input v-model="form.content" type="textarea" :rows="8" placeholder="内容（支持换行）" />
     </Modal>
   </div>
 </template>

@@ -10,7 +10,12 @@
     },
     "app-plus" : {
         "usingComponents" : true,
-        "nvueStyleCompiler" : "uni-app"
+        "nvueStyleCompiler" : "uni-app",
+        "distribute" : {
+            "ios" : {
+                "dSYMs" : false
+            }
+        }
     },
     "mp-weixin" : {
         "appid" : "wxe9853bbd1e113af3",

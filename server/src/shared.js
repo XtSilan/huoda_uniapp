@@ -19,12 +19,18 @@ function requireAuth(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ message: '请先登录' });
   }
+  if (req.user.status === 'disabled') {
+    return res.status(403).json({ message: '该账户已停用' });
+  }
   next();
 }
 
 function requireAdmin(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ message: '请先登录' });
+  }
+  if (req.user.status === 'disabled') {
+    return res.status(403).json({ message: '该账户已停用' });
   }
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: '暂无后台权限' });

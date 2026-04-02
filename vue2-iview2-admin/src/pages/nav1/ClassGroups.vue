@@ -5,7 +5,7 @@
     <Modal v-model="visible" title="班级群配置" width="900" :mask-closable="false" @on-ok="submit">
       <Input v-model="form.className" placeholder="班级名称" style="margin-bottom: 10px;" />
       <Input v-model="form.groupName" placeholder="群名称" style="margin-bottom: 10px;" />
-      <Input v-model="form.announcement" placeholder="群公告" style="margin-bottom: 10px;" />
+      <Input v-model="form.announcement" type="textarea" :rows="4" placeholder="群公告" style="margin-bottom: 10px;" />
 
       <div style="margin-bottom: 10px;">
         <div style="margin-bottom: 8px; color: #666;">二维码图片</div>
@@ -37,6 +37,7 @@
 import {
   getClassGroups,
   updateClassGroup,
+  deleteClassGroup,
   getClassGroupStudents,
   addClassGroupStudent,
   removeClassGroupStudent,
@@ -67,10 +68,18 @@ export default {
         { title: '群人数', key: 'memberCount' },
         {
           title: '操作',
-          render: (h, params) => h('Button', {
-            props: { size: 'small' },
-            on: { click: () => this.openEdit(params.row) }
-          }, '编辑')
+          minWidth: 180,
+          render: (h, params) => h('div', [
+            h('Button', {
+              props: { size: 'small' },
+              on: { click: () => this.openEdit(params.row) }
+            }, '编辑'),
+            h('Button', {
+              props: { size: 'small', type: 'error' },
+              style: { marginLeft: '8px' },
+              on: { click: () => this.removeGroup(params.row) }
+            }, '删除班级')
+          ])
         }
       ]
     };
@@ -178,6 +187,17 @@ export default {
       await updateClassGroup(this.editingId, this.form);
       this.$Message.success('班级群已更新');
       this.loadGroups();
+    },
+    removeGroup(row) {
+      this.$Modal.confirm({
+        title: '确认删除班级',
+        content: `确定删除班级“${row.className}”吗？删除后该班学生的班级信息将被清空。`,
+        onOk: async () => {
+          await deleteClassGroup(row.id);
+          this.$Message.success('班级已删除');
+          this.loadGroups();
+        }
+      });
     }
   }
 };

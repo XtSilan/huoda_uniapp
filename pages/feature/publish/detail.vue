@@ -23,7 +23,7 @@
       <view class="meta-item">时间：{{ formatDate(activity.startTime) }} - {{ formatDate(activity.endTime) }}</view>
       <view class="meta-item">地点：{{ activity.location || '待补充' }}</view>
       <scroll-view v-if="activity.images && activity.images.length" class="image-strip" scroll-x>
-        <image v-for="(item, index) in activity.images" :key="index" class="preview-image" :src="item" mode="aspectFill"></image>
+        <image v-for="(item, index) in activity.images" :key="index" class="preview-image" :src="item" mode="aspectFill" @click="previewImages(index)"></image>
       </scroll-view>
     </view>
 
@@ -104,6 +104,16 @@ export default {
         uni.showToast({ title: error.message || '操作失败', icon: 'none' });
       }
     },
+    previewImages(index = 0) {
+      const urls = this.activity.images || [];
+      if (!urls.length) {
+        return;
+      }
+      uni.previewImage({
+        current: urls[index] || urls[0],
+        urls
+      });
+    },
     formatDate(dateString) {
       return dateString ? new Date(dateString).toLocaleString() : '-';
     }
@@ -182,6 +192,8 @@ export default {
 
 .content {
   margin-top: 20rpx;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .content-action {

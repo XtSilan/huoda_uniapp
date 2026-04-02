@@ -128,6 +128,9 @@ module.exports = function registerPublicRoutes(app, db) {
     if (!user) {
       return res.status(400).json({ message: '账号或密码错误' });
     }
+    if (user.status === 'disabled') {
+      return res.status(403).json({ message: '该账户已停用' });
+    }
     db.run('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?', [new Date().toISOString(), new Date().toISOString(), user.id]);
     res.json({ token: createToken(user.id), user: mapUser(user) });
   });
@@ -697,5 +700,6 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/ai/history', (_req, res) => res.json({ list: [] }));
 };
+
 
 

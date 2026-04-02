@@ -401,6 +401,17 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json({ success: true });
   });
 
+  app.delete('/api/admin/class-groups/:id', requireAdmin, (req, res) => {
+    const current = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
+    if (!current) {
+      return res.status(404).json({ message: '班级群不存在' });
+    }
+    const now = new Date().toISOString();
+    db.run(`UPDATE users SET class_name = '', updated_at = ? WHERE role = 'user' AND TRIM(class_name) = ?`, [now, current.class_name]);
+    db.run('DELETE FROM class_groups WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  });
+
   app.get('/api/admin/class-groups/:id/students', requireAdmin, (req, res) => {
     const group = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
     if (!group) {
