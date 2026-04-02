@@ -66,6 +66,8 @@
 </template>
 
 <script>
+import { clearSession } from '../../utils/session';
+
 export default {
   data() {
     return {
@@ -192,13 +194,11 @@ export default {
       uni.showModal({
         title: '清除缓存',
         content: '将清除本地登录态和用户缓存，是否继续？',
-        success: (res) => {
+        success: async (res) => {
           if (!res.confirm) {
             return;
           }
-          uni.removeStorageSync('token');
-          uni.removeStorageSync('isLoggedIn');
-          uni.removeStorageSync('userInfo');
+          await clearSession();
           uni.showToast({ title: '缓存已清除', icon: 'success' });
           setTimeout(() => {
             uni.navigateTo({ url: '/pages/login/login' });

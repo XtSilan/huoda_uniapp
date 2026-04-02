@@ -41,7 +41,7 @@
       <view
         v-for="(message, index) in messages"
         :id="'msg-' + index"
-        :key="message.id || index"
+        :key="message.id"
         class="message"
         :class="{ mine: message.isMine }"
       >
@@ -281,7 +281,17 @@ export default {
     },
     loadConversations() {
       const saved = uni.getStorageSync(this.getStorageKey());
-      this.conversations = Array.isArray(saved) ? saved : [];
+      this.conversations = Array.isArray(saved)
+        ? saved.map((conversation, conversationIndex) => ({
+            ...conversation,
+            messages: Array.isArray(conversation.messages)
+              ? conversation.messages.map((message, messageIndex) => ({
+                  ...message,
+                  id: message.id || `history-${conversation.id || conversationIndex}-${messageIndex}`
+                }))
+              : []
+          }))
+        : [];
       if (!this.conversations.length) {
         this.ensureConversation();
         return;

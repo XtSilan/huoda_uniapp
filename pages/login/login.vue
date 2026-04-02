@@ -25,6 +25,13 @@
           </view>
         </view>
 
+        <view class="remember-row" @click="toggleRememberPassword">
+          <view class="remember-check" :class="{ 'remember-check--active': rememberPassword }">
+            <text v-if="rememberPassword">✓</text>
+          </view>
+          <text class="remember-text">记住密码</text>
+        </view>
+
         <custom-button text="进入活达" :loading="loading" @click="login" />
       </view>
     </view>
@@ -33,16 +40,33 @@
 
 <script>
 import { ADMIN_LOGIN_URL } from '../../config/api';
+import {
+  getRememberPassword,
+  getSavedCredentials,
+  redirectToLogin,
+  saveRememberPassword,
+  saveSession
+} from '../../utils/session';
 
 export default {
   data() {
     return {
       loading: false,
+      rememberPassword: false,
       loginForm: {
         studentId: '',
         password: ''
       }
     };
+  },
+  onLoad() {
+    this.rememberPassword = getRememberPassword();
+    if (this.rememberPassword) {
+      this.loginForm = {
+        ...this.loginForm,
+        ...getSavedCredentials()
+      };
+    }
   },
   methods: {
     buildAdminRedirect(token, user) {
@@ -57,6 +81,10 @@ export default {
       ].join('&');
       return `${ADMIN_LOGIN_URL}?${query}`;
     },
+    toggleRememberPassword() {
+      this.rememberPassword = !this.rememberPassword;
+      saveRememberPassword(this.rememberPassword, this.loginForm);
+    },
     async login() {
       if (!this.loginForm.studentId || !this.loginForm.password) {
         uni.showToast({ title: '请输入学号和密码', icon: 'none' });
@@ -66,9 +94,8 @@ export default {
       this.loading = true;
       try {
         const res = await this.$api.auth.login(this.loginForm);
-        uni.setStorageSync('token', res.token);
-        uni.setStorageSync('isLoggedIn', true);
-        uni.setStorageSync('userInfo', res.user);
+        await saveSession(res.token, res.user);
+        saveRememberPassword(this.rememberPassword, this.loginForm);
         uni.showToast({ title: '登录成功', icon: 'success' });
         setTimeout(() => {
           if (res.user && res.user.role === 'admin' && typeof window !== 'undefined') {
@@ -79,6 +106,9 @@ export default {
         }, 300);
       } catch (error) {
         uni.showToast({ title: error.message || '登录失败', icon: 'none' });
+        if (error.message === '请先登录') {
+          redirectToLogin();
+        }
       } finally {
         this.loading = false;
       }
@@ -171,6 +201,35 @@ export default {
 
 .field-group:last-of-type {
   margin-bottom: 32rpx;
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-bottom: 32rpx;
+}
+
+.remember-check {
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 10rpx;
+  border: 2rpx solid #cfd6e6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 22rpx;
+}
+
+.remember-check--active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.remember-text {
+  font-size: 24rpx;
+  color: var(--text-sub);
 }
 
 .field-title {

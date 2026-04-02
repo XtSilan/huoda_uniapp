@@ -1,7 +1,27 @@
 <script>
+import authService from './services/auth';
+import { clearSession, redirectToLogin, restoreSessionFromBackup, saveSession } from './utils/session';
+
 export default {
-  onLaunch() {
+  async onLaunch() {
     console.log('Huoda app launched');
+    await this.restoreLoginSession();
+  },
+  methods: {
+    async restoreLoginSession() {
+      try {
+        const { token } = await restoreSessionFromBackup();
+        if (!token) {
+          redirectToLogin();
+          return;
+        }
+        const res = await authService.refresh();
+        await saveSession(res.token, res.user);
+      } catch (error) {
+        await clearSession();
+        redirectToLogin();
+      }
+    }
   }
 };
 </script>

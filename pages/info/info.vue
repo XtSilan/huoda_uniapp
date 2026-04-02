@@ -34,7 +34,7 @@
         <view class="detail-attachments__title">附件资料</view>
         <view
           v-for="(item, index) in detail.attachments"
-          :key="item.path || index"
+          :key="index"
           class="detail-attachment"
           @click="openAttachment(item)"
         >

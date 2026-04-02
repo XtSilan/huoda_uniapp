@@ -72,6 +72,7 @@
 
 <script>
 import { ADMIN_LOGIN_URL, SERVER_ORIGIN } from '../../config/api';
+import { clearSession } from '../../utils/session';
 
 export default {
   data() {
@@ -177,10 +178,8 @@ export default {
         uni.showToast({ title: '请在 H5 管理端打开', icon: 'none' });
       }
     },
-    logout() {
-      uni.removeStorageSync('token');
-      uni.removeStorageSync('isLoggedIn');
-      uni.removeStorageSync('userInfo');
+    async logout() {
+      await clearSession();
       uni.navigateTo({ url: '/pages/login/login' });
     }
   }

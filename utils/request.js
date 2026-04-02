@@ -1,5 +1,22 @@
+import { clearSession, getToken, redirectToLogin } from './session';
+
+let redirecting = false;
+
+const handleUnauthorized = async (message) => {
+  if (redirecting) {
+    return;
+  }
+  redirecting = true;
+  await clearSession();
+  uni.showToast({ title: message || '登录已失效，请重新登录', icon: 'none' });
+  setTimeout(() => {
+    redirectToLogin();
+    redirecting = false;
+  }, 200);
+};
+
 const request = (url, options = {}) => {
-  const token = uni.getStorageSync('token');
+  const token = getToken();
 
   return new Promise((resolve, reject) => {
     uni.request({
@@ -16,6 +33,10 @@ const request = (url, options = {}) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data);
           return;
+        }
+
+        if (res.statusCode === 401 || res.statusCode === 403) {
+          handleUnauthorized((res.data && res.data.message) || '登录已失效，请重新登录');
         }
 
         const message = (res.data && res.data.message) || '请求失败';
