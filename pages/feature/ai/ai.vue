@@ -37,7 +37,14 @@
       </view>
     </view>
 
-    <scroll-view class="chat-panel surface-card" scroll-y :scroll-into-view="scrollIntoView">
+    <scroll-view
+      class="chat-panel surface-card"
+      scroll-y
+      :scroll-into-view="scrollIntoView"
+      :scroll-with-animation="true"
+      @scroll="handleChatScroll"
+      @scrolltolower="handleReachBottom"
+    >
       <view
         v-for="(message, index) in messages"
         :id="'msg-' + index"
@@ -57,8 +64,10 @@
         <view class="empty-chat__desc">试试问我“最近有什么活动”“帮我总结校内资讯”或者“推荐适合大一的讲座”。</view>
       </view>
 
-      <view class="chat-bottom-space"></view>
+      <view :id="bottomAnchorId" class="chat-bottom-space"></view>
     </scroll-view>
+
+    <view v-if="showNewMessageTip" class="new-message-tip" @click="jumpToLatestMessage">有一条新消息</view>
 
     <view v-if="relatedInfos.length" class="section-block">
       <view class="section-row">
@@ -214,12 +223,15 @@ export default {
       inputMessage: '',
       relatedInfos: [],
       scrollIntoView: '',
+      bottomAnchorId: 'chat-bottom-anchor',
       presets: [],
       aiSettings: createDefaultSettings(),
       draftSettings: createDefaultSettings(),
       conversations: [],
       currentConversationId: '',
-      messages: []
+      messages: [],
+      showNewMessageTip: false,
+      isAtChatBottom: true
     };
   },
   computed: {
@@ -300,6 +312,8 @@ export default {
       this.currentConversationId = current.id;
       this.messages = current.messages || [];
       this.relatedInfos = current.relatedInfos || [];
+      this.showNewMessageTip = false;
+      this.isAtChatBottom = true;
       this.scrollToBottom();
     },
     persistConversations() {
@@ -329,7 +343,10 @@ export default {
       this.messages = [];
       this.relatedInfos = [];
       this.showHistoryPanel = false;
+      this.showNewMessageTip = false;
+      this.isAtChatBottom = true;
       this.persistConversations();
+      this.scrollToBottom();
     },
     switchConversation(id) {
       const current = this.conversations.find((item) => item.id === id);
@@ -340,6 +357,8 @@ export default {
       this.messages = current.messages || [];
       this.relatedInfos = current.relatedInfos || [];
       this.showHistoryPanel = false;
+      this.showNewMessageTip = false;
+      this.isAtChatBottom = true;
       this.scrollToBottom();
     },
     toggleHistoryPanel() {
@@ -491,7 +510,8 @@ export default {
       });
       this.inputMessage = '';
       this.isLoading = true;
-      this.scrollToBottom();
+      this.showNewMessageTip = false;
+      this.scrollToBottom(true);
 
       try {
         const res = await this.$api.ai.chat({
@@ -508,6 +528,7 @@ export default {
           time: new Date().toLocaleTimeString()
         });
         this.relatedInfos = res.relatedInfos || [];
+        this.handleIncomingMessage(this.isAtChatBottom);
       } catch (error) {
         this.messages.push({
           id: `msg-${Date.now()}-error`,
@@ -515,15 +536,48 @@ export default {
           isMine: false,
           time: new Date().toLocaleTimeString()
         });
+        this.handleIncomingMessage(this.isAtChatBottom);
       } finally {
         this.isLoading = false;
         this.updateCurrentConversation();
-        this.scrollToBottom();
       }
     },
-    scrollToBottom() {
-      const index = this.messages.length - 1;
-      this.scrollIntoView = index >= 0 ? 'msg-' + index : '';
+    handleIncomingMessage(shouldKeepAtBottom) {
+      if (shouldKeepAtBottom) {
+        this.showNewMessageTip = false;
+        this.scrollToBottom(true);
+        return;
+      }
+      this.showNewMessageTip = true;
+    },
+    handleChatScroll(event) {
+      const detail = (event && event.detail) || {};
+      const panelHeight = uni.upx2px(700);
+      const threshold = uni.upx2px(80);
+      const scrollTop = Number(detail.scrollTop || 0);
+      const scrollHeight = Number(detail.scrollHeight || 0);
+      const nearBottom = scrollTop + panelHeight >= scrollHeight - threshold;
+      this.isAtChatBottom = nearBottom;
+      if (nearBottom) {
+        this.showNewMessageTip = false;
+      }
+    },
+    handleReachBottom() {
+      this.isAtChatBottom = true;
+      this.showNewMessageTip = false;
+    },
+    jumpToLatestMessage() {
+      this.showNewMessageTip = false;
+      this.scrollToBottom(true);
+    },
+    scrollToBottom(force = false) {
+      if (force) {
+        this.isAtChatBottom = true;
+      }
+      this.scrollIntoView = '';
+      this.$nextTick(() => {
+        this.scrollIntoView = this.bottomAnchorId;
+      });
     },
     goToDetail(item) {
       uni.navigateTo({
@@ -733,6 +787,20 @@ export default {
   color: var(--text-sub);
 }
 
+.new-message-tip {
+  position: fixed;
+  right: 40rpx;
+  bottom: calc(152rpx + env(safe-area-inset-bottom));
+  z-index: 25;
+  padding: 16rpx 24rpx;
+  border-radius: 999rpx;
+  background: var(--primary-gradient);
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 700;
+  box-shadow: 0 14rpx 28rpx rgba(104, 76, 214, 0.2);
+}
+
 .input-wrap {
   position: fixed;
   left: 24rpx;
@@ -742,6 +810,7 @@ export default {
   display: flex;
   gap: 12rpx;
   align-items: center;
+  z-index: 20;
 }
 
 .chat-input,
