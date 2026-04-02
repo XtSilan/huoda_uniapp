@@ -85,6 +85,12 @@
       }
     },
     {
+      "path": "pages/user/notifications",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/user/history",
       "style": {
         "navigationStyle": "custom"

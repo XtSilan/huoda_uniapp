@@ -213,6 +213,20 @@ async function getDb(options = {}) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'system',
+      title TEXT NOT NULL,
+      content TEXT DEFAULT '',
+      payload TEXT DEFAULT '{}',
+      release_id TEXT DEFAULT '',
+      is_read INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      read_at TEXT DEFAULT '',
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   ensureColumn(db, 'user_settings', 'ai_settings', `TEXT DEFAULT '${JSON.stringify(DEFAULT_USER_AI_SETTINGS)}'`);
@@ -221,6 +235,9 @@ async function getDb(options = {}) {
   ensureColumn(db, 'infos', 'attachments', `TEXT DEFAULT '[]'`);
   ensureColumn(db, 'activities', 'images', `TEXT DEFAULT '[]'`);
   ensureColumn(db, 'activities', 'location_type', `TEXT DEFAULT '校内'`);
+  ensureColumn(db, 'notifications', 'payload', `TEXT DEFAULT '{}'`);
+  ensureColumn(db, 'notifications', 'release_id', `TEXT DEFAULT ''`);
+  ensureColumn(db, 'notifications', 'read_at', `TEXT DEFAULT ''`);
 
   await seed(db);
   return db;

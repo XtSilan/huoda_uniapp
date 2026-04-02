@@ -7,6 +7,7 @@ const {
   mapBanner,
   mapInfo,
   mapActivity,
+  mapNotification,
   ensureClassGroup,
   getClassGroupWithMembers,
   parseSettings,
@@ -284,6 +285,44 @@ module.exports = function registerPublicRoutes(app, db) {
   app.get('/api/user/settings', requireAuth, (req, res) => {
     const row = db.get('SELECT * FROM user_settings WHERE user_id = ?', [req.user.id]);
     res.json(parseSettings(row));
+  });
+
+  app.get('/api/user/notifications', requireAuth, (req, res) => {
+    const rows = db.all(
+      `SELECT *
+      FROM notifications
+      WHERE user_id = ?
+      ORDER BY is_read ASC, datetime(created_at) DESC, id DESC
+      LIMIT 50`,
+      [req.user.id]
+    );
+    const list = rows.map(mapNotification);
+    res.json({
+      list,
+      unreadCount: list.filter((item) => !item.isRead).length
+    });
+  });
+
+  app.post('/api/user/notifications/:id/read', requireAuth, (req, res) => {
+    const current = db.get('SELECT * FROM notifications WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!current) {
+      return res.status(404).json({ message: '通知不存在' });
+    }
+    if (!Number(current.is_read || 0)) {
+      db.run('UPDATE notifications SET is_read = 1, read_at = ? WHERE id = ?', [new Date().toISOString(), req.params.id]);
+    }
+    const updated = db.get('SELECT * FROM notifications WHERE id = ?', [req.params.id]);
+    res.json(mapNotification(updated));
+  });
+
+  app.post('/api/user/notifications/read-all', requireAuth, (req, res) => {
+    db.run(
+      `UPDATE notifications
+      SET is_read = 1, read_at = ?
+      WHERE user_id = ? AND is_read = 0`,
+      [new Date().toISOString(), req.user.id]
+    );
+    res.json({ success: true });
   });
 
   app.put('/api/user/settings', requireAuth, (req, res) => {

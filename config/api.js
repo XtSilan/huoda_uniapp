@@ -10,7 +10,8 @@ const API = {
   },
   user: {
     profile: `${BASE_URL}/user/profile`,
-    avatarUpload: `${BASE_URL}/user/avatar/upload`
+    avatarUpload: `${BASE_URL}/user/avatar/upload`,
+    notifications: `${BASE_URL}/user/notifications`
   },
   app: {
     version: `${BASE_URL}/app/version`

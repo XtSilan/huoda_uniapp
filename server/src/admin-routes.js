@@ -68,6 +68,50 @@ function mapPreset(row) {
   };
 }
 
+function publishAppUpdateNotifications(db, payload) {
+  if (!payload || payload.updateType === 'none') {
+    return;
+  }
+
+  const users = db.all(`SELECT id FROM users WHERE status = 'active' ORDER BY id ASC`);
+  const now = new Date().toISOString();
+  const releaseId = String(payload.releaseId || payload.publishedAt || '').trim();
+  const notificationTitle = payload.title || '发现新版本';
+  const notificationContent = payload.description || `检测到新的${payload.updateType === 'wgt' ? '热更新' : '安装包'}，点击后即可更新。`;
+  const serializedPayload = JSON.stringify({
+    updateType: payload.updateType,
+    latestVersion: payload.latestVersion,
+    versionCode: payload.versionCode,
+    packageName: payload.packageName || '',
+    packagePath: payload.packagePath || '',
+    publishedAt: payload.publishedAt || '',
+    releaseId
+  });
+
+  users.forEach((user) => {
+    const existing = releaseId
+      ? db.get(`SELECT id FROM notifications WHERE user_id = ? AND type = 'app_update' AND release_id = ?`, [user.id, releaseId])
+      : null;
+
+    if (existing) {
+      db.run(
+        `UPDATE notifications
+        SET title = ?, content = ?, payload = ?, is_read = 0, read_at = '', created_at = ?
+        WHERE id = ?`,
+        [notificationTitle, notificationContent, serializedPayload, now, existing.id]
+      );
+      return;
+    }
+
+    db.run(
+      `INSERT INTO notifications
+      (user_id, type, title, content, payload, release_id, is_read, created_at, read_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user.id, 'app_update', notificationTitle, notificationContent, serializedPayload, releaseId, 0, now, '']
+    );
+  });
+}
+
 module.exports = function registerAdminRoutes(app, db) {
   fs.mkdirSync(classGroupUploadDir, { recursive: true });
   fs.mkdirSync(infoAttachmentUploadDir, { recursive: true });
@@ -628,6 +672,9 @@ module.exports = function registerAdminRoutes(app, db) {
         publishedAt: payload.updateType === 'none' ? '' : submittedAt
       }
     });
+    if (platform === 'android' && saved[platform].updateType !== 'none') {
+      publishAppUpdateNotifications(db, saved[platform]);
+    }
     res.json(saved[platform]);
   });
 

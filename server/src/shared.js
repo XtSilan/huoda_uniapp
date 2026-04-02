@@ -125,6 +125,20 @@ function mapClassGroup(row) {
   };
 }
 
+function mapNotification(row) {
+  return {
+    id: String(row.id),
+    type: row.type || 'system',
+    title: row.title || '',
+    content: row.content || '',
+    payload: parseJson(row.payload, {}),
+    releaseId: row.release_id || '',
+    isRead: Boolean(row.is_read),
+    createdAt: row.created_at || '',
+    readAt: row.read_at || ''
+  };
+}
+
 function ensureUserSettings(db, userId, overrides = {}) {
   const exists = db.get('SELECT id FROM user_settings WHERE user_id = ?', [userId]);
   if (exists) {
@@ -253,6 +267,7 @@ module.exports = {
   mapInfo,
   mapActivity,
   mapClassGroup,
+  mapNotification,
   ensureUserSettings,
   ensureClassGroup,
   buildClassmatesFromUsers,

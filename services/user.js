@@ -17,6 +17,18 @@ const uploadAvatar = (payload) =>
 
 const getSettings = () => request(`${API.user.profile.replace('/profile', '/settings')}`);
 
+const getNotifications = () => request(API.user.notifications);
+
+const readNotification = (id) =>
+  request(`${API.user.notifications}/${id}/read`, {
+    method: 'POST'
+  });
+
+const readAllNotifications = () =>
+  request(`${API.user.notifications}/read-all`, {
+    method: 'POST'
+  });
+
 const updateSettings = (payload) =>
   request(`${API.user.profile.replace('/profile', '/settings')}`, {
     method: 'PUT',
@@ -57,6 +69,9 @@ export default {
   updateProfile,
   uploadAvatar,
   getSettings,
+  getNotifications,
+  readNotification,
+  readAllNotifications,
   updateSettings,
   getCollections,
   toggleCollection,

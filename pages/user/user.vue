@@ -50,7 +50,10 @@
           <view class="menu-item__lead">
             <view class="menu-item__icon" :class="item.tone">{{ item.icon }}</view>
             <view>
-              <view class="menu-item__title">{{ item.title }}</view>
+              <view class="menu-item__title">
+                {{ item.title }}
+                <text v-if="item.badge" class="menu-item__badge">{{ item.badge }}</text>
+              </view>
               <view class="menu-item__desc">{{ item.desc }}</view>
             </view>
           </view>
@@ -87,7 +90,8 @@ export default {
         collections: 0,
         history: 0,
         views: 0
-      }
+      },
+      unreadNotifications: 0
     };
   },
   computed: {
@@ -107,6 +111,14 @@ export default {
       return [
         { title: '编辑资料', desc: '头像、昵称和院系信息', url: '/pages/user/profile', icon: '资', tone: 'tone-purple' },
         { title: '个性化设置', desc: '调整偏好与展示方式', url: '/pages/user/personalization', icon: '个', tone: 'tone-blue' },
+        {
+          title: '系统通知',
+          desc: this.unreadNotifications ? `有 ${this.unreadNotifications} 条未读更新消息` : '查看版本更新和系统通知',
+          url: '/pages/user/notifications',
+          icon: '新',
+          tone: 'tone-yellow',
+          badge: this.unreadNotifications > 99 ? '99+' : (this.unreadNotifications || '')
+        },
         { title: '我的收藏', desc: '快速回看收藏内容', url: '/pages/user/collection', icon: '藏', tone: 'tone-green' },
         { title: '浏览历史', desc: '继续上次浏览的内容', url: '/pages/user/history', icon: '历', tone: 'tone-yellow' },
         { title: '数据统计', desc: '查看个人使用概览', url: '/pages/user/stats', icon: '统', tone: 'tone-purple' },
@@ -118,6 +130,7 @@ export default {
     this.checkLoginStatus();
     this.loadUserInfo();
     this.loadStats();
+    this.loadNotifications();
   },
   methods: {
     buildAdminRedirect() {
@@ -166,6 +179,12 @@ export default {
           history: browseHistory.length || 0,
           views: statsRes.totalViews || statsRes.views || browseHistory.length || 0
         };
+      } catch (error) {}
+    },
+    async loadNotifications() {
+      try {
+        const res = await this.$api.user.getNotifications();
+        this.unreadNotifications = Number(res.unreadCount || 0) || 0;
       } catch (error) {}
     },
     handleMenuClick(item) {
@@ -322,6 +341,22 @@ export default {
   font-size: 30rpx;
   font-weight: 700;
   color: var(--text-main);
+}
+
+.menu-item__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36rpx;
+  margin-left: 10rpx;
+  padding: 0 10rpx;
+  height: 36rpx;
+  border-radius: 999rpx;
+  background: #ff5b5b;
+  color: #fff;
+  font-size: 20rpx;
+  font-weight: 700;
+  vertical-align: middle;
 }
 
 .menu-item__desc {
