@@ -35,7 +35,7 @@ const request = (url, options = {}) => {
           return;
         }
 
-        if (res.statusCode === 401 || res.statusCode === 403) {
+        if ((res.statusCode === 401 || res.statusCode === 403) && token) {
           handleUnauthorized((res.data && res.data.message) || '登录已失效，请重新登录');
         }
 

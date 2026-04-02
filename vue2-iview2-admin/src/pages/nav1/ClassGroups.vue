@@ -1,8 +1,9 @@
 <template>
   <div>
+    <Button type="primary" @click="openCreate" style="margin-bottom: 12px;">新增班级</Button>
     <Table border :columns="columns" :data="groups"></Table>
 
-    <Modal v-model="visible" title="班级群配置" width="900" :mask-closable="false" @on-ok="submit">
+    <Modal v-model="visible" :title="editingId ? '班级群配置' : '新增班级'" width="900" :mask-closable="false" @on-ok="submit">
       <Input v-model="form.className" placeholder="班级名称" style="margin-bottom: 10px;" />
       <Input v-model="form.groupName" placeholder="群名称" style="margin-bottom: 10px;" />
       <Input v-model="form.announcement" type="textarea" :rows="4" placeholder="群公告" style="margin-bottom: 10px;" />
@@ -36,6 +37,7 @@
 <script>
 import {
   getClassGroups,
+  createClassGroup,
   updateClassGroup,
   deleteClassGroup,
   getClassGroupStudents,
@@ -118,6 +120,15 @@ export default {
     this.loadGroups();
   },
   methods: {
+    createEmptyForm() {
+      return {
+        className: '',
+        groupName: '',
+        announcement: '',
+        qrCode: '',
+        messages: []
+      };
+    },
     fullQrCodeUrl(path) {
       if (!path) return '';
       return path.startsWith('http') ? path : `${API_BASE_URL.replace(/\/api$/, '')}${path}`;
@@ -126,9 +137,18 @@ export default {
       const res = await getClassGroups();
       this.groups = res.list || [];
     },
+    openCreate() {
+      this.editingId = null;
+      this.searchKeyword = '';
+      this.currentStudents = [];
+      this.candidates = [];
+      this.form = this.createEmptyForm();
+      this.visible = true;
+    },
     async openEdit(row) {
       this.editingId = row.id;
       this.form = {
+        ...this.createEmptyForm(),
         className: row.className,
         groupName: row.groupName,
         announcement: row.announcement,
@@ -184,9 +204,22 @@ export default {
       reader.readAsDataURL(file);
     },
     async submit() {
-      await updateClassGroup(this.editingId, this.form);
-      this.$Message.success('班级群已更新');
-      this.loadGroups();
+      if (!this.form.className) {
+        this.$Message.warning('请输入班级名称');
+        return;
+      }
+      if (this.editingId) {
+        await updateClassGroup(this.editingId, this.form);
+        this.$Message.success('班级群已更新');
+      } else {
+        const res = await createClassGroup(this.form);
+        this.$Message.success('班级已创建');
+        this.editingId = res && res.data ? res.data.id : null;
+      }
+      await this.loadGroups();
+      if (this.editingId) {
+        await this.loadStudents();
+      }
     },
     removeGroup(row) {
       this.$Modal.confirm({

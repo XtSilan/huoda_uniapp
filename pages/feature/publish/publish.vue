@@ -22,7 +22,13 @@
       </view>
       <view v-if="activityList.length" class="activity-stack">
         <view v-for="item in activityList" :key="item.id" class="activity-card surface-card" @click="goToDetail(item)">
-          <image v-if="item.images && item.images.length" class="activity-thumb" :src="item.images[0]" mode="aspectFill"></image>
+          <image
+            v-if="item.images && item.images.length"
+            class="activity-thumb"
+            :src="item.images[0]"
+            mode="aspectFill"
+            @click.stop="previewActivityImages(item, 0)"
+          ></image>
           <view class="activity-main">
             <view class="activity-topline">
               <tag-badge :text="item.activityType || '活动'" tone="blue" />
@@ -123,6 +129,16 @@ export default {
     },
     goToDetail(item) {
       uni.navigateTo({ url: `/pages/feature/publish/detail?id=${item.id}` });
+    },
+    previewActivityImages(item, index = 0) {
+      const urls = (item && item.images) || [];
+      if (!urls.length) {
+        return;
+      }
+      uni.previewImage({
+        current: urls[index] || urls[0],
+        urls
+      });
     },
     goToCreate() {
       uni.navigateTo({ url: '/pages/feature/publish/create' });

@@ -40,6 +40,13 @@
 
     <view class="surface-card section-card">
       <view class="section-heading">其他</view>
+      <view v-if="isAppPlatform" class="setting-item clickable" @click="checkAppUpdate">
+        <view class="setting-main">
+          <view class="setting-text">检查更新</view>
+          <view class="setting-desc">当前版本 {{ appVersionText }} · {{ lastUpdateDesc }}</view>
+        </view>
+        <view class="arrow">›</view>
+      </view>
       <view class="setting-item clickable" @click="aboutUs">
         <view class="setting-main">
           <view class="setting-text">关于我们</view>
@@ -66,6 +73,8 @@
 </template>
 
 <script>
+import { versionName as manifestVersionName } from '../../manifest.json';
+import { applyUpdate, checkForUpdates, getRuntimeInfo, restartAfterWgt } from '../../utils/app-update';
 import { clearSession } from '../../utils/session';
 
 export default {
@@ -84,6 +93,10 @@ export default {
           autoRefresh: true
         }
       },
+      isAppPlatform: false,
+      appVersionText: manifestVersionName || '1.0.0',
+      checkingUpdate: false,
+      lastUpdateDesc: '仅 App 可用，支持热更新与整包更新。',
       passwordForm: {
         oldPassword: '',
         newPassword: ''
@@ -133,8 +146,22 @@ export default {
   },
   onShow() {
     this.loadSettings();
+    this.initUpdateInfo();
   },
   methods: {
+    async initUpdateInfo() {
+      // #ifdef APP-PLUS
+      this.isAppPlatform = true;
+      try {
+        const runtimeInfo = await getRuntimeInfo();
+        this.appVersionText = runtimeInfo.versionName || this.appVersionText;
+      } catch (error) {}
+      // #endif
+
+      // #ifndef APP-PLUS
+      this.isAppPlatform = false;
+      // #endif
+    },
     async loadSettings() {
       try {
         const res = await this.$api.user.getSettings();
@@ -205,6 +232,64 @@ export default {
           }, 300);
         }
       });
+    },
+    async checkAppUpdate() {
+      // #ifdef APP-PLUS
+      if (this.checkingUpdate) {
+        return;
+      }
+      this.checkingUpdate = true;
+      try {
+        const { runtimeInfo, updateInfo } = await checkForUpdates();
+        this.appVersionText = runtimeInfo.versionName || this.appVersionText;
+        this.lastUpdateDesc = updateInfo.hasUpdate
+          ? `发现 ${updateInfo.latestVersion} 版本，可${updateInfo.updateType === 'wgt' ? '热更新' : '安装整包'}。`
+          : '当前已是最新版本';
+
+        if (!updateInfo.hasUpdate || updateInfo.updateType === 'none') {
+          uni.showToast({ title: '当前已是最新版本', icon: 'none' });
+          return;
+        }
+
+        uni.showModal({
+          title: updateInfo.title || '发现新版本',
+          content: `${updateInfo.description || '检测到可用更新'}\n\n当前版本：${runtimeInfo.versionName}\n最新版本：${updateInfo.latestVersion}`,
+          showCancel: !updateInfo.force,
+          confirmText: updateInfo.updateType === 'wgt' ? '立即热更新' : '立即更新',
+          cancelText: '稍后再说',
+          success: async (res) => {
+            if (!res.confirm) {
+              return;
+            }
+            try {
+              const result = await applyUpdate(updateInfo);
+              if (result.type === 'wgt') {
+                uni.showModal({
+                  title: '更新完成',
+                  content: '热更新包已安装完成，重启应用后生效。',
+                  showCancel: false,
+                  success: () => {
+                    restartAfterWgt();
+                  }
+                });
+                return;
+              }
+              uni.showToast({ title: '安装包已开始处理', icon: 'none' });
+            } catch (error) {
+              uni.showToast({ title: error.message || '更新失败', icon: 'none' });
+            }
+          }
+        });
+      } catch (error) {
+        uni.showToast({ title: error.message || '检查更新失败', icon: 'none' });
+      } finally {
+        this.checkingUpdate = false;
+      }
+      // #endif
+
+      // #ifndef APP-PLUS
+      uni.showToast({ title: '仅 App 支持检查更新', icon: 'none' });
+      // #endif
     },
     aboutUs() {
       uni.showModal({

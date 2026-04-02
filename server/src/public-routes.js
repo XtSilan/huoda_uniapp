@@ -22,8 +22,22 @@ const {
   chatWithAi,
   validateAiConnection
 } = require('./ai-client');
+const { readAppUpdateConfig } = require('./app-update-store');
 
 const userUploadDir = path.resolve(__dirname, '..', 'uploads', 'user');
+
+function compareVersion(a = '0.0.0', b = '0.0.0') {
+  const aParts = String(a).split('.').map((item) => Number(item) || 0);
+  const bParts = String(b).split('.').map((item) => Number(item) || 0);
+  const maxLength = Math.max(aParts.length, bParts.length);
+  for (let i = 0; i < maxLength; i += 1) {
+    const left = aParts[i] || 0;
+    const right = bParts[i] || 0;
+    if (left > right) return 1;
+    if (left < right) return -1;
+  }
+  return 0;
+}
 
 function mapPreset(row) {
   return {
@@ -120,6 +134,32 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
+  });
+
+  app.get('/api/app/version', requireAuth, (req, res) => {
+    const platform = String(req.query.platform || 'android').toLowerCase();
+    const currentVersionName = String(req.query.versionName || '0.0.0');
+    const currentVersionCode = Number(req.query.versionCode || 0) || 0;
+    const config = readAppUpdateConfig();
+    const current = config[platform] || {};
+    const latestVersion = String(current.latestVersion || currentVersionName || '0.0.0');
+    const latestVersionCode = Number(current.versionCode || 0) || 0;
+    const hasUpdate = compareVersion(latestVersion, currentVersionName) > 0 || latestVersionCode > currentVersionCode;
+
+    res.json({
+      platform,
+      hasUpdate,
+      latestVersion,
+      versionCode: latestVersionCode,
+      updateType: String(current.updateType || 'none'),
+      force: Boolean(current.force),
+      title: current.title || '发现新版本',
+      description: current.description || '',
+      wgtUrl: current.wgtUrl || '',
+      apkUrl: current.apkUrl || '',
+      marketUrl: current.marketUrl || '',
+      publishedAt: current.publishedAt || ''
+    });
   });
 
   app.post('/api/auth/login', (req, res) => {
@@ -700,6 +740,7 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/ai/history', (_req, res) => res.json({ list: [] }));
 };
+
 
 
 

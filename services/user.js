@@ -1,4 +1,4 @@
-import request from '../utils/request';
+import request, { toQueryString } from '../utils/request';
 import API from '../config/api';
 
 const getProfile = () => request(API.user.profile);
@@ -47,6 +47,11 @@ const changePassword = (payload) =>
     data: payload
   });
 
+const getAppVersion = (query = {}) => {
+  const queryString = toQueryString(query);
+  return request(`${API.app.version}${queryString ? `?${queryString}` : ''}`);
+};
+
 export default {
   getProfile,
   updateProfile,
@@ -58,5 +63,6 @@ export default {
   getHistory,
   recordHistory,
   getStats,
-  changePassword
+  changePassword,
+  getAppVersion
 };

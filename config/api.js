@@ -12,6 +12,9 @@ const API = {
     profile: `${BASE_URL}/user/profile`,
     avatarUpload: `${BASE_URL}/user/avatar/upload`
   },
+  app: {
+    version: `${BASE_URL}/app/version`
+  },
   classGroup: {
     current: `${BASE_URL}/class-group/current`,
     messages: `${BASE_URL}/class-group/messages`

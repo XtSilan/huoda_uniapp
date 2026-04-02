@@ -13,6 +13,7 @@ const {
   parseJson
 } = require('./shared');
 const { normalizeAiConfig, validateAiConfig } = require('./ai-client');
+const { platforms, readAppUpdateConfig, writeAppUpdateConfig, normalizePlatformConfig } = require('./app-update-store');
 
 const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-group-qrcodes');
 const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
@@ -373,6 +374,36 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json({ list: rows.map((row) => getClassGroupWithMembers(db, row)) });
   });
 
+  app.post('/api/admin/class-groups', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const className = String(body.className || '').trim();
+    if (!className) {
+      return res.status(400).json({ message: '班级名称不能为空' });
+    }
+    if (db.get('SELECT id FROM class_groups WHERE class_name = ?', [className])) {
+      return res.status(400).json({ message: '该班级已存在' });
+    }
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO class_groups
+      (class_name, group_name, announcement, qr_code, online_count, classmates, messages, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        className,
+        String(body.groupName || `${className}群`).trim() || `${className}群`,
+        String(body.announcement || '').trim(),
+        String(body.qrCode || '').trim(),
+        0,
+        '[]',
+        JSON.stringify(body.messages || []),
+        now,
+        now
+      ]
+    );
+    const created = db.get('SELECT * FROM class_groups WHERE class_name = ?', [className]);
+    res.json({ success: true, data: getClassGroupWithMembers(db, created) });
+  });
+
   app.put('/api/admin/class-groups/:id', requireAdmin, (req, res) => {
     const body = req.body || {};
     const current = db.get('SELECT * FROM class_groups WHERE id = ?', [req.params.id]);
@@ -500,6 +531,46 @@ module.exports = function registerAdminRoutes(app, db) {
     const targetPath = path.join(classGroupUploadDir, storedName);
     fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
     res.json({ path: `/uploads/class-group-qrcodes/${storedName}` });
+  });
+
+  app.get('/api/admin/app-updates', requireAdmin, (_req, res) => {
+    res.json(readAppUpdateConfig());
+  });
+
+  app.put('/api/admin/app-updates/:platform', requireAdmin, (req, res) => {
+    const platform = String(req.params.platform || '').toLowerCase();
+    if (!platforms.includes(platform)) {
+      return res.status(400).json({ message: '不支持的平台类型' });
+    }
+
+    const current = readAppUpdateConfig();
+    const payload = normalizePlatformConfig(platform, {
+      ...(current[platform] || {}),
+      ...(req.body || {})
+    });
+    const submittedAt = new Date().toISOString();
+
+    if (payload.updateType === 'wgt' && !payload.wgtUrl) {
+      return res.status(400).json({ message: 'WGT 热更新必须填写 wgtUrl' });
+    }
+    if (payload.updateType === 'apk' && platform === 'android' && !payload.apkUrl) {
+      return res.status(400).json({ message: 'Android 整包更新必须填写 apkUrl' });
+    }
+    if (payload.updateType === 'store' && !payload.marketUrl) {
+      return res.status(400).json({ message: '应用商店更新必须填写 marketUrl' });
+    }
+    if (platform === 'ios' && payload.updateType === 'apk') {
+      return res.status(400).json({ message: 'iOS 不支持 APK 整包安装，请改用 WGT 或商店链接' });
+    }
+
+    const saved = writeAppUpdateConfig({
+      ...current,
+      [platform]: {
+        ...payload,
+        publishedAt: payload.updateType === 'none' ? '' : submittedAt
+      }
+    });
+    res.json(saved[platform]);
   });
 
   app.get('/api/admin/reports', requireAdmin, (_req, res) => {
