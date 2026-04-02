@@ -14,6 +14,10 @@ function createDefaultConfig(platform) {
     description: '当前已是最新版本。',
     wgtUrl: '',
     apkUrl: '',
+    packagePath: '',
+    packageName: '',
+    packageSize: 0,
+    releaseId: '',
     marketUrl: '',
     publishedAt: ''
   };
@@ -31,6 +35,10 @@ function normalizePlatformConfig(platform, value = {}) {
     description: String(value.description || fallback.description),
     wgtUrl: String(value.wgtUrl || '').trim(),
     apkUrl: String(value.apkUrl || '').trim(),
+    packagePath: String(value.packagePath || '').trim(),
+    packageName: String(value.packageName || '').trim(),
+    packageSize: Number(value.packageSize || 0) || 0,
+    releaseId: String(value.releaseId || '').trim(),
     marketUrl: String(value.marketUrl || '').trim(),
     publishedAt: String(value.publishedAt || '').trim()
   };

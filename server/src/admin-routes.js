@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const {
   requireAdmin,
   mapUser,
@@ -17,6 +18,7 @@ const { platforms, readAppUpdateConfig, writeAppUpdateConfig, normalizePlatformC
 
 const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-group-qrcodes');
 const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
+const appUpdateUploadDir = path.resolve(__dirname, '..', 'uploads', 'app-updates');
 
 function buildStoredFileName(fileName, fallback = 'file') {
   const ext = path.extname(fileName || '').slice(0, 20);
@@ -69,6 +71,17 @@ function mapPreset(row) {
 module.exports = function registerAdminRoutes(app, db) {
   fs.mkdirSync(classGroupUploadDir, { recursive: true });
   fs.mkdirSync(infoAttachmentUploadDir, { recursive: true });
+  fs.mkdirSync(appUpdateUploadDir, { recursive: true });
+
+  const appUpdateUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, appUpdateUploadDir),
+      filename: (_req, file, cb) => cb(null, buildStoredFileName(file.originalname, 'app-update'))
+    }),
+    limits: {
+      fileSize: 300 * 1024 * 1024
+    }
+  });
 
   app.get('/api/admin/dashboard', requireAdmin, (_req, res) => {
     res.json({
@@ -537,6 +550,34 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json(readAppUpdateConfig());
   });
 
+  app.post('/api/admin/app-updates/upload', requireAdmin, appUpdateUpload.single('file'), (req, res) => {
+    const file = req.file;
+    const updateType = String((req.body && req.body.updateType) || '').trim().toLowerCase();
+
+    if (!file) {
+      return res.status(400).json({ message: '请先选择更新包文件' });
+    }
+
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!['.wgt', '.apk'].includes(ext)) {
+      fs.unlinkSync(file.path);
+      return res.status(400).json({ message: '仅支持上传 .wgt 或 .apk 文件' });
+    }
+
+    if (updateType && updateType !== ext.slice(1)) {
+      fs.unlinkSync(file.path);
+      return res.status(400).json({ message: `当前更新方式与上传文件不匹配，应上传 ${updateType.toUpperCase()} 文件` });
+    }
+
+    res.json({
+      updateType: ext.slice(1),
+      packageName: file.originalname,
+      packageSize: Number(file.size || 0) || 0,
+      packagePath: `/uploads/app-updates/${path.basename(file.path)}`,
+      releaseId: path.basename(file.path)
+    });
+  });
+
   app.put('/api/admin/app-updates/:platform', requireAdmin, (req, res) => {
     const platform = String(req.params.platform || '').toLowerCase();
     if (!platforms.includes(platform)) {
@@ -550,10 +591,27 @@ module.exports = function registerAdminRoutes(app, db) {
     });
     const submittedAt = new Date().toISOString();
 
-    if (payload.updateType === 'wgt' && !payload.wgtUrl) {
+    if (payload.updateType === 'wgt') {
+      payload.wgtUrl = payload.packagePath || payload.wgtUrl;
+      payload.apkUrl = '';
+    }
+    if (payload.updateType === 'apk') {
+      payload.apkUrl = payload.packagePath || payload.apkUrl;
+      payload.wgtUrl = '';
+    }
+    if (payload.updateType === 'store' || payload.updateType === 'none') {
+      payload.wgtUrl = '';
+      payload.apkUrl = '';
+      payload.packagePath = '';
+      payload.packageName = '';
+      payload.packageSize = 0;
+      payload.releaseId = '';
+    }
+
+    if (payload.updateType === 'wgt' && !payload.packagePath && !payload.wgtUrl) {
       return res.status(400).json({ message: 'WGT 热更新必须填写 wgtUrl' });
     }
-    if (payload.updateType === 'apk' && platform === 'android' && !payload.apkUrl) {
+    if (payload.updateType === 'apk' && platform === 'android' && !payload.packagePath && !payload.apkUrl) {
       return res.status(400).json({ message: 'Android 整包更新必须填写 apkUrl' });
     }
     if (payload.updateType === 'store' && !payload.marketUrl) {

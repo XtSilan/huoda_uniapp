@@ -39,6 +39,17 @@ function compareVersion(a = '0.0.0', b = '0.0.0') {
   return 0;
 }
 
+function resolvePublicAssetUrl(req, filePath) {
+  const normalized = String(filePath || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+  return `${req.protocol}://${req.get('host')}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
+}
+
 function mapPreset(row) {
   return {
     id: String(row.id),
@@ -155,8 +166,12 @@ module.exports = function registerPublicRoutes(app, db) {
       force: Boolean(current.force),
       title: current.title || '发现新版本',
       description: current.description || '',
-      wgtUrl: current.wgtUrl || '',
-      apkUrl: current.apkUrl || '',
+      wgtUrl: resolvePublicAssetUrl(req, current.wgtUrl || current.packagePath || ''),
+      apkUrl: resolvePublicAssetUrl(req, current.apkUrl || current.packagePath || ''),
+      packagePath: current.packagePath || '',
+      packageName: current.packageName || '',
+      packageSize: Number(current.packageSize || 0) || 0,
+      releaseId: current.releaseId || '',
       marketUrl: current.marketUrl || '',
       publishedAt: current.publishedAt || ''
     });

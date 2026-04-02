@@ -1,6 +1,8 @@
 import request, { toQueryString } from './request';
 import API from '../config/api';
 
+const RELEASE_STORAGE_PREFIX = 'huoda_app_update_release_';
+
 function compareVersion(a = '0.0.0', b = '0.0.0') {
   const aParts = String(a).split('.').map((item) => Number(item) || 0);
   const bParts = String(b).split('.').map((item) => Number(item) || 0);
@@ -12,6 +14,42 @@ function compareVersion(a = '0.0.0', b = '0.0.0') {
     if (left < right) return -1;
   }
   return 0;
+}
+
+function getReleaseStorageKey(platform) {
+  return `${RELEASE_STORAGE_PREFIX}${platform || 'unknown'}`;
+}
+
+function getLastAppliedReleaseId(platform) {
+  try {
+    return String(uni.getStorageSync(getReleaseStorageKey(platform)) || '');
+  } catch (error) {
+    return '';
+  }
+}
+
+function markReleaseApplied(platform, releaseId) {
+  if (!platform || !releaseId) {
+    return;
+  }
+  try {
+    uni.setStorageSync(getReleaseStorageKey(platform), releaseId);
+  } catch (error) {}
+}
+
+function resolveUpdateUrl(url) {
+  const normalized = String(url || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+  const match = String(API.app.version || '').match(/^(https?:\/\/[^/]+)/i);
+  if (!match) {
+    return normalized;
+  }
+  return `${match[1]}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 }
 
 export function getPlatformType() {
@@ -62,15 +100,22 @@ export async function checkForUpdates() {
   const runtimeInfo = await getRuntimeInfo();
   const updateInfo = await fetchUpdateInfo(runtimeInfo);
   const latestVersion = updateInfo.latestVersion || runtimeInfo.versionName;
+  const latestVersionCode = Number(updateInfo.versionCode || 0) || 0;
+  const releaseId = String(updateInfo.releaseId || updateInfo.publishedAt || '').trim();
+  const hasReleaseUpdate = Boolean(releaseId && releaseId !== getLastAppliedReleaseId(runtimeInfo.platform));
   const hasUpdate = Boolean(
     updateInfo.hasUpdate ||
       compareVersion(latestVersion, runtimeInfo.versionName) > 0 ||
-      Number(updateInfo.versionCode || 0) > Number(runtimeInfo.versionCode || 0)
+      latestVersionCode > Number(runtimeInfo.versionCode || 0) ||
+      hasReleaseUpdate
   );
+
   return {
     runtimeInfo,
     updateInfo: {
       ...updateInfo,
+      releaseId,
+      hasReleaseUpdate,
       hasUpdate
     }
   };
@@ -83,7 +128,7 @@ function installDownloadedPackage(filePath, options = {}) {
       filePath,
       options,
       () => resolve(),
-      (error) => reject(new Error((error && error.message) || '安装失败'))
+      (error) => reject(new Error((error && error.message) || '安装更新失败'))
     );
     // #endif
 
@@ -116,20 +161,25 @@ function downloadPackage(url) {
 
 export async function applyUpdate(updateInfo) {
   // #ifdef APP-PLUS
+  const runtimeInfo = await getRuntimeInfo();
+
   if (updateInfo.updateType === 'wgt') {
-    if (!updateInfo.wgtUrl) {
-      throw new Error('未配置 WGT 更新地址');
+    const wgtUrl = resolveUpdateUrl(updateInfo.wgtUrl || updateInfo.packagePath || '');
+    if (!wgtUrl) {
+      throw new Error('未配置 WGT 更新包');
     }
-    const filePath = await downloadPackage(updateInfo.wgtUrl);
-    await installDownloadedPackage(filePath, { force: false });
+    const filePath = await downloadPackage(wgtUrl);
+    await installDownloadedPackage(filePath, { force: true });
+    markReleaseApplied(runtimeInfo.platform, updateInfo.releaseId || updateInfo.publishedAt || '');
     return { type: 'wgt' };
   }
 
   if (updateInfo.updateType === 'apk') {
-    if (!updateInfo.apkUrl) {
+    const apkUrl = resolveUpdateUrl(updateInfo.apkUrl || updateInfo.packagePath || '');
+    if (!apkUrl) {
       throw new Error('未配置 APK 下载地址');
     }
-    const filePath = await downloadPackage(updateInfo.apkUrl);
+    const filePath = await downloadPackage(apkUrl);
     await installDownloadedPackage(filePath, { force: false });
     return { type: 'apk' };
   }
