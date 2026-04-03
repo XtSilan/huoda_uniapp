@@ -22,9 +22,26 @@ const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-a
 const appUpdateUploadDir = path.resolve(__dirname, '..', 'uploads', 'app-updates');
 const wgtExtractRootDir = path.resolve(__dirname, '..', '..', 'unpackage', 'release', 'apk');
 
+function decodeUploadFileName(fileName) {
+  const rawName = String(fileName || '').trim();
+  if (!rawName) {
+    return '';
+  }
+  if (/[^\u0000-\u00ff]/.test(rawName)) {
+    return rawName;
+  }
+
+  try {
+    return Buffer.from(rawName, 'latin1').toString('utf8');
+  } catch (_error) {
+    return rawName;
+  }
+}
+
 function buildStoredFileName(fileName, fallback = 'file') {
-  const ext = path.extname(fileName || '').slice(0, 20);
-  const safeBase = path.basename(fileName || '', path.extname(fileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || fallback;
+  const normalizedFileName = decodeUploadFileName(fileName);
+  const ext = path.extname(normalizedFileName || '').slice(0, 20);
+  const safeBase = path.basename(normalizedFileName || '', path.extname(normalizedFileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || fallback;
   return `${Date.now()}-${safeBase}${ext}`;
 }
 
@@ -71,7 +88,8 @@ function mapPreset(row) {
 }
 
 function buildWgtExtractDir(fileName) {
-  const baseName = path.basename(fileName || '', path.extname(fileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || 'wgt-package';
+  const normalizedFileName = decodeUploadFileName(fileName);
+  const baseName = path.basename(normalizedFileName || '', path.extname(normalizedFileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || 'wgt-package';
   return path.join(wgtExtractRootDir, baseName);
 }
 
@@ -395,7 +413,7 @@ module.exports = function registerAdminRoutes(app, db) {
     }
 
     res.json({
-      name: file.originalname,
+      name: decodeUploadFileName(file.originalname),
       path: `/uploads/info-attachments/${path.basename(file.path)}`,
       mimeType: String(file.mimetype || '').trim(),
       size: Number(file.size || 0) || 0
@@ -650,7 +668,8 @@ module.exports = function registerAdminRoutes(app, db) {
       return res.status(400).json({ message: '请先选择更新包文件' });
     }
 
-    const ext = path.extname(file.originalname || '').toLowerCase();
+    const originalName = decodeUploadFileName(file.originalname);
+    const ext = path.extname(originalName || '').toLowerCase();
     if (!['.wgt', '.apk'].includes(ext)) {
       fs.unlinkSync(file.path);
       return res.status(400).json({ message: '仅支持上传 .wgt 或 .apk 文件' });
@@ -663,7 +682,7 @@ module.exports = function registerAdminRoutes(app, db) {
 
     const response = {
       updateType: ext.slice(1),
-      packageName: file.originalname,
+      packageName: originalName,
       packageSize: Number(file.size || 0) || 0,
       packagePath: `/uploads/app-updates/${path.basename(file.path)}`,
       releaseId: path.basename(file.path)
