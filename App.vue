@@ -1,7 +1,13 @@
 <script>
 import authService from './services/auth';
 import { promptForAppUpdate } from './utils/app-update';
-import { clearSession, redirectToLogin, restoreSessionFromBackup, saveSession } from './utils/session';
+import {
+  clearSession,
+  getAutoLoginCredentials,
+  redirectToLogin,
+  restoreSessionFromBackup,
+  saveSession
+} from './utils/session';
 
 export default {
   async onLaunch() {
@@ -12,11 +18,20 @@ export default {
     async restoreLoginSession() {
       try {
         const { token } = await restoreSessionFromBackup();
-        if (!token) {
+        if (token) {
+          const res = await authService.refresh();
+          await saveSession(res.token, res.user);
+          await promptForAppUpdate({ manual: false });
+          return;
+        }
+
+        const savedCredentials = getAutoLoginCredentials();
+        if (!savedCredentials) {
           redirectToLogin();
           return;
         }
-        const res = await authService.refresh();
+
+        const res = await authService.login(savedCredentials);
         await saveSession(res.token, res.user);
         await promptForAppUpdate({ manual: false });
       } catch (error) {

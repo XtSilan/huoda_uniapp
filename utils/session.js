@@ -154,6 +154,17 @@ export function getSavedCredentials() {
   return uni.getStorageSync(CREDENTIALS_KEY) || { studentId: '', password: '' };
 }
 
+export function getAutoLoginCredentials() {
+  if (!getRememberPassword()) {
+    return null;
+  }
+  const credentials = getSavedCredentials();
+  if (!credentials.studentId || !credentials.password) {
+    return null;
+  }
+  return credentials;
+}
+
 export function saveRememberPassword(enabled, credentials = {}) {
   uni.setStorageSync(REMEMBER_PASSWORD_KEY, Boolean(enabled));
   if (enabled) {
