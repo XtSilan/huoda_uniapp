@@ -6,8 +6,8 @@ const platforms = ['android', 'ios'];
 
 function createDefaultConfig(platform) {
   return {
-    latestVersion: '1.0.0',
-    versionCode: 1,
+    latestVersion: '',
+    versionCode: 0,
     updateType: 'none',
     force: false,
     title: `活达 ${platform === 'ios' ? 'iOS' : 'Android'} 更新`,
@@ -27,14 +27,14 @@ function createDefaultConfig(platform) {
 
 function normalizePlatformConfig(platform, value = {}) {
   const fallback = createDefaultConfig(platform);
-  const updateType = String(value.updateType || fallback.updateType).toLowerCase();
-  return {
-    latestVersion: String(value.latestVersion || fallback.latestVersion).trim() || fallback.latestVersion,
-    versionCode: Number(value.versionCode || fallback.versionCode) || fallback.versionCode,
+  const updateType = String(value.updateType || fallback.updateType).trim().toLowerCase();
+  const normalized = {
+    latestVersion: String(value.latestVersion || '').trim(),
+    versionCode: Number(value.versionCode || 0) || 0,
     updateType: ['none', 'wgt', 'apk', 'store'].includes(updateType) ? updateType : fallback.updateType,
     force: Boolean(value.force),
     title: String(value.title || fallback.title).trim() || fallback.title,
-    description: String(value.description || fallback.description),
+    description: String(value.description || fallback.description).trim() || fallback.description,
     wgtUrl: String(value.wgtUrl || '').trim(),
     apkUrl: String(value.apkUrl || '').trim(),
     packagePath: String(value.packagePath || '').trim(),
@@ -46,6 +46,13 @@ function normalizePlatformConfig(platform, value = {}) {
     marketUrl: String(value.marketUrl || '').trim(),
     publishedAt: String(value.publishedAt || '').trim()
   };
+
+  if (normalized.updateType === 'none' && !normalized.publishedAt && !normalized.packagePath && !normalized.releaseId) {
+    normalized.latestVersion = '';
+    normalized.versionCode = 0;
+  }
+
+  return normalized;
 }
 
 function normalizeAppUpdateConfig(raw = {}) {
@@ -67,7 +74,7 @@ function readAppUpdateConfig() {
   try {
     ensureAppUpdateConfigFile();
     return normalizeAppUpdateConfig(JSON.parse(fs.readFileSync(appUpdateConfigPath, 'utf8')));
-  } catch (error) {
+  } catch (_error) {
     return normalizeAppUpdateConfig();
   }
 }

@@ -41,6 +41,30 @@
           <text class="detail-attachment__name">{{ item.name }}</text>
           <text class="detail-attachment__action">打开</text>
         </view>
+        <view v-if="attachmentDownload.visible" class="attachment-download-panel">
+          <view class="attachment-download-panel__header">
+            <text class="attachment-download-panel__title">{{ attachmentDownload.name }}</text>
+            <text class="attachment-download-panel__meta">{{ attachmentDownloadStatusText }}</text>
+          </view>
+          <view class="attachment-download-panel__progress">
+            <view class="attachment-download-panel__bar">
+              <view class="attachment-download-panel__bar-value" :style="{ width: `${attachmentDownload.progress || 0}%` }"></view>
+            </view>
+            <text class="attachment-download-panel__percent">{{ attachmentDownload.progress || 0 }}%</text>
+          </view>
+          <view class="attachment-download-panel__info">
+            {{ formatDownloadProgress(attachmentDownload.receivedSize, attachmentDownload.totalSize) }}
+          </view>
+          <view class="attachment-download-panel__actions">
+            <view v-if="attachmentDownload.status === 'downloading'" class="attachment-download-panel__btn" @click.stop="pauseAttachmentDownload">暂停</view>
+            <view v-if="attachmentDownload.status === 'paused'" class="attachment-download-panel__btn" @click.stop="resumeAttachmentDownload">继续</view>
+            <view v-if="attachmentDownload.status === 'completed'" class="attachment-download-panel__btn attachment-download-panel__btn--primary" @click.stop="openDownloadedAttachment">打开附件</view>
+            <view v-if="attachmentDownload.status === 'failed'" class="attachment-download-panel__btn attachment-download-panel__btn--primary" @click.stop="retryAttachmentDownload">重新下载</view>
+            <view class="attachment-download-panel__btn attachment-download-panel__btn--ghost" @click.stop="cancelAttachmentDownload">
+              {{ attachmentDownload.status === 'completed' ? '关闭' : '取消' }}
+            </view>
+          </view>
+        </view>
       </view>
       <view class="detail-action">
         <custom-button text="收藏 / 取消收藏" @click="toggleCollection" />
@@ -148,6 +172,23 @@
 <script>
 import { SERVER_ORIGIN } from '../../config/api';
 
+const ATTACHMENT_DOWNLOAD_DIR = '_doc/attachments/';
+
+function createEmptyAttachmentDownloadState() {
+  return {
+    visible: false,
+    key: '',
+    name: '',
+    url: '',
+    progress: 0,
+    status: 'idle',
+    receivedSize: 0,
+    totalSize: 0,
+    filePath: '',
+    item: null
+  };
+}
+
 const DEFAULT_CATEGORIES = ['全部', '讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他'];
 
 export default {
@@ -162,7 +203,8 @@ export default {
       activeCategory: '全部',
       infoList: [],
       searchInfos: [],
-      searchActivities: []
+      searchActivities: [],
+      attachmentDownload: createEmptyAttachmentDownloadState()
     };
   },
   computed: {
@@ -180,6 +222,14 @@ export default {
         return this.infoList;
       }
       return this.infoList.filter((item) => item.category === this.activeCategory);
+    },
+    attachmentDownloadStatusText() {
+      const status = this.attachmentDownload.status;
+      if (status === 'downloading') return '下载中';
+      if (status === 'paused') return '已暂停';
+      if (status === 'completed') return '下载完成';
+      if (status === 'failed') return '下载失败';
+      return '准备下载';
     }
   },
   onLoad(options) {
@@ -276,6 +326,281 @@ export default {
       }
       return filePath.startsWith('http') ? filePath : `${SERVER_ORIGIN}${filePath}`;
     },
+    getAttachmentKey(item) {
+      return String((item && (item.path || item.name)) || '').trim();
+    },
+    getAttachmentExtension(item) {
+      const source = String((item && (item.name || item.path)) || '').trim();
+      const match = source.match(/(\.[a-zA-Z0-9]{1,12})(?:$|[?#])/);
+      return match ? match[1].toLowerCase() : '';
+    },
+    getAttachmentDownloadPath(item) {
+      const key = this.getAttachmentKey(item);
+      const ext = this.getAttachmentExtension(item);
+      const safeKey = encodeURIComponent(key).replace(/%/g, '');
+      return `${ATTACHMENT_DOWNLOAD_DIR}${safeKey || 'attachment'}${ext}`;
+    },
+    formatFileSize(size) {
+      const value = Number(size || 0);
+      if (!value) {
+        return '0B';
+      }
+      if (value < 1024) {
+        return `${value}B`;
+      }
+      if (value < 1024 * 1024) {
+        return `${(value / 1024).toFixed(1)}KB`;
+      }
+      if (value < 1024 * 1024 * 1024) {
+        return `${(value / (1024 * 1024)).toFixed(1)}MB`;
+      }
+      return `${(value / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+    },
+    formatDownloadProgress(receivedSize, totalSize) {
+      const received = this.formatFileSize(receivedSize);
+      if (!Number(totalSize || 0)) {
+        return `${received} / 计算中`;
+      }
+      return `${received} / ${this.formatFileSize(totalSize)}`;
+    },
+    updateAttachmentDownloadState(patch = {}) {
+      this.attachmentDownload = {
+        ...this.attachmentDownload,
+        ...patch
+      };
+    },
+    disposeAttachmentTask(clearVisible = false) {
+      // #ifdef APP-PLUS
+      if (this.attachmentDownloadTask) {
+        this.attachmentDownloadTask.abort();
+      }
+      this.attachmentDownloadTask = null;
+      // #endif
+      if (clearVisible) {
+        this.attachmentDownload = createEmptyAttachmentDownloadState();
+      }
+    },
+    checkLocalAttachmentExists(filePath) {
+      // #ifdef APP-PLUS
+      return new Promise((resolve) => {
+        plus.io.resolveLocalFileSystemURL(
+          filePath,
+          () => resolve(true),
+          () => resolve(false)
+        );
+      });
+      // #endif
+
+      // #ifndef APP-PLUS
+      return Promise.resolve(false);
+      // #endif
+    },
+    async openDownloadedAttachment() {
+      const { filePath, name } = this.attachmentDownload;
+      if (!filePath) {
+        uni.showToast({ title: '附件尚未下载完成', icon: 'none' });
+        return;
+      }
+
+      // #ifdef APP-PLUS
+      const exists = await this.checkLocalAttachmentExists(filePath);
+      if (!exists) {
+        this.updateAttachmentDownloadState({
+          status: 'failed',
+          filePath: ''
+        });
+        uni.showToast({ title: '本地附件不存在，请重新下载', icon: 'none' });
+        return;
+      }
+      // #endif
+
+      uni.openDocument({
+        filePath,
+        showMenu: true,
+        fail: () => {
+          uni.showToast({ title: `当前附件暂不支持直接打开：${name || '附件'}`, icon: 'none' });
+        }
+      });
+    },
+    async handleAppAttachmentDownload(item, fileUrl) {
+      const key = this.getAttachmentKey(item);
+      const filePath = this.getAttachmentDownloadPath(item);
+
+      if (this.attachmentDownload.key === key) {
+        if (this.attachmentDownload.status === 'downloading') {
+          uni.showToast({ title: '该附件正在下载', icon: 'none' });
+          return;
+        }
+        if (this.attachmentDownload.status === 'paused') {
+          this.resumeAttachmentDownload();
+          return;
+        }
+        if (this.attachmentDownload.status === 'completed') {
+          this.openDownloadedAttachment();
+          return;
+        }
+      }
+
+      const exists = await this.checkLocalAttachmentExists(filePath);
+      if (exists) {
+        this.updateAttachmentDownloadState({
+          visible: true,
+          key,
+          name: item.name || '附件',
+          url: fileUrl,
+          progress: 100,
+          status: 'completed',
+          receivedSize: item.size || 0,
+          totalSize: item.size || 0,
+          filePath,
+          item
+        });
+        this.openDownloadedAttachment();
+        return;
+      }
+
+      uni.showModal({
+        title: '下载附件',
+        content: `确认下载“${item.name || '附件'}”吗？`,
+        confirmText: '立即下载',
+        cancelText: '取消',
+        success: ({ confirm }) => {
+          if (!confirm) {
+            return;
+          }
+          this.startAttachmentDownload(item, fileUrl, filePath);
+        }
+      });
+    },
+    startAttachmentDownload(item, fileUrl, filePath) {
+      // #ifdef APP-PLUS
+      if (!fileUrl) {
+        uni.showToast({ title: '附件地址无效', icon: 'none' });
+        return;
+      }
+
+      if (this.attachmentDownload.status === 'downloading' && this.attachmentDownload.key === this.getAttachmentKey(item)) {
+        uni.showToast({ title: '该附件正在下载', icon: 'none' });
+        return;
+      }
+
+      this.disposeAttachmentTask(false);
+
+      const key = this.getAttachmentKey(item);
+      this.updateAttachmentDownloadState({
+        visible: true,
+        key,
+        name: item.name || '附件',
+        url: fileUrl,
+        progress: 0,
+        status: 'downloading',
+        receivedSize: 0,
+        totalSize: Number(item.size || 0) || 0,
+        filePath,
+        item
+      });
+
+      const task = plus.downloader.createDownload(
+        encodeURI(fileUrl),
+        {
+          filename: filePath,
+          retry: 1,
+          timeout: 0
+        },
+        (download, status) => {
+          if (status === 200) {
+            this.updateAttachmentDownloadState({
+              visible: true,
+              progress: 100,
+              status: 'completed',
+              receivedSize: download.downloadedSize || this.attachmentDownload.receivedSize,
+              totalSize: download.totalSize || this.attachmentDownload.totalSize || download.downloadedSize || 0,
+              filePath: download.filename || filePath
+            });
+            this.attachmentDownloadTask = null;
+            this.openDownloadedAttachment();
+            return;
+          }
+
+          this.updateAttachmentDownloadState({
+            visible: true,
+            status: 'failed'
+          });
+          this.attachmentDownloadTask = null;
+          uni.showToast({ title: '附件下载失败', icon: 'none' });
+        }
+      );
+
+      task.addEventListener('statechanged', (download) => {
+        const totalSize = download.totalSize || this.attachmentDownload.totalSize || 0;
+        const receivedSize = download.downloadedSize || 0;
+        const progress = totalSize > 0 ? Math.min(100, Math.round((receivedSize / totalSize) * 100)) : this.attachmentDownload.progress;
+        let status = this.attachmentDownload.status;
+
+        if (download.state === 3) {
+          status = 'downloading';
+        } else if (download.state === 4) {
+          status = 'completed';
+        } else if (download.state === 5) {
+          status = 'paused';
+        }
+
+        this.updateAttachmentDownloadState({
+          visible: true,
+          receivedSize,
+          totalSize,
+          progress,
+          status,
+          filePath: download.filename || this.attachmentDownload.filePath
+        });
+      });
+
+      this.attachmentDownloadTask = task;
+      task.start();
+      return;
+      // #endif
+
+      // #ifndef APP-PLUS
+      uni.showToast({ title: '当前环境暂不支持此下载方式', icon: 'none' });
+      // #endif
+    },
+    pauseAttachmentDownload() {
+      // #ifdef APP-PLUS
+      if (!this.attachmentDownloadTask || this.attachmentDownload.status !== 'downloading') {
+        return;
+      }
+      this.attachmentDownloadTask.pause();
+      this.updateAttachmentDownloadState({
+        status: 'paused'
+      });
+      // #endif
+    },
+    resumeAttachmentDownload() {
+      // #ifdef APP-PLUS
+      if (!this.attachmentDownloadTask || this.attachmentDownload.status !== 'paused') {
+        return;
+      }
+      this.attachmentDownloadTask.resume();
+      this.updateAttachmentDownloadState({
+        status: 'downloading'
+      });
+      // #endif
+    },
+    retryAttachmentDownload() {
+      const { item, url, filePath } = this.attachmentDownload;
+      if (!item || !url || !filePath) {
+        uni.showToast({ title: '缺少下载信息', icon: 'none' });
+        return;
+      }
+      this.startAttachmentDownload(item, url, filePath);
+    },
+    cancelAttachmentDownload() {
+      const isCompleted = this.attachmentDownload.status === 'completed';
+      this.disposeAttachmentTask(true);
+      if (!isCompleted) {
+        uni.showToast({ title: '已取消下载', icon: 'none' });
+      }
+    },
     openSourceLink() {
       const url = this.normalizedSourceUrl;
       if (!url) {
@@ -306,6 +631,10 @@ export default {
       // #ifdef H5
       window.open(fileUrl, '_blank');
       // #endif
+      // #ifdef APP-PLUS
+      this.handleAppAttachmentDownload(item, fileUrl);
+      // #endif
+      // #ifndef APP-PLUS
       // #ifndef H5
       uni.downloadFile({
         url: fileUrl,
@@ -326,6 +655,7 @@ export default {
           uni.showToast({ title: '附件下载失败', icon: 'none' });
         }
       });
+      // #endif
       // #endif
     },
     async toggleCollection() {
@@ -468,6 +798,93 @@ export default {
 
 .detail-action {
   margin-top: 28rpx;
+}
+
+.attachment-download-panel {
+  margin-top: 20rpx;
+  padding: 22rpx;
+  border-radius: 24rpx;
+  background: #f7f9fc;
+}
+
+.attachment-download-panel__header,
+.attachment-download-panel__progress,
+.attachment-download-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.attachment-download-panel__header {
+  align-items: flex-start;
+}
+
+.attachment-download-panel__title {
+  flex: 1;
+  font-size: 24rpx;
+  color: var(--text-main);
+  word-break: break-all;
+}
+
+.attachment-download-panel__meta,
+.attachment-download-panel__info,
+.attachment-download-panel__percent {
+  font-size: 22rpx;
+  color: var(--text-sub);
+}
+
+.attachment-download-panel__progress {
+  margin-top: 16rpx;
+}
+
+.attachment-download-panel__bar {
+  flex: 1;
+  height: 12rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #e6ebf3;
+}
+
+.attachment-download-panel__bar-value {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f80ed 0%, #22c1c3 100%);
+}
+
+.attachment-download-panel__info {
+  margin-top: 12rpx;
+}
+
+.attachment-download-panel__actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 18rpx;
+}
+
+.attachment-download-panel__btn {
+  min-width: 132rpx;
+  height: 60rpx;
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid #d6deeb;
+  background: #ffffff;
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.attachment-download-panel__btn--primary {
+  border-color: transparent;
+  background: var(--primary-color);
+  color: #ffffff;
+}
+
+.attachment-download-panel__btn--ghost {
+  color: var(--text-sub);
 }
 
 .result-layout {

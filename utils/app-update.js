@@ -7,8 +7,12 @@ const RELEASE_DISMISSED_PREFIX = 'huoda_app_update_dismissed_';
 let updatePrompting = false;
 
 function compareVersion(a = '0.0.0', b = '0.0.0') {
-  const aParts = String(a).split('.').map((item) => Number(item) || 0);
-  const bParts = String(b).split('.').map((item) => Number(item) || 0);
+  const aParts = String(a)
+    .split('.')
+    .map((item) => Number(item) || 0);
+  const bParts = String(b)
+    .split('.')
+    .map((item) => Number(item) || 0);
   const maxLength = Math.max(aParts.length, bParts.length);
   for (let i = 0; i < maxLength; i += 1) {
     const left = aParts[i] || 0;
@@ -26,7 +30,7 @@ function getReleaseStorageKey(prefix, platform) {
 function getStoredReleaseId(prefix, platform) {
   try {
     return String(uni.getStorageSync(getReleaseStorageKey(prefix, platform)) || '');
-  } catch (error) {
+  } catch (_error) {
     return '';
   }
 }
@@ -37,7 +41,7 @@ function setStoredReleaseId(prefix, platform, releaseId) {
   }
   try {
     uni.setStorageSync(getReleaseStorageKey(prefix, platform), String(releaseId || ''));
-  } catch (error) {}
+  } catch (_error) {}
 }
 
 function getAppliedReleaseId(platform) {
@@ -189,7 +193,7 @@ function installDownloadedPackage(filePath, options = {}) {
 
 function downloadPackage(url) {
   return new Promise((resolve, reject) => {
-    uni.showLoading({ title: '下载更新中', mask: true });
+    uni.showLoading({ title: '下载更新中...', mask: true });
     uni.downloadFile({
       url,
       success: (res) => {
@@ -216,7 +220,7 @@ export async function applyUpdate(updateInfo) {
   if (updateInfo.updateType === 'wgt') {
     const wgtUrl = resolveUpdateUrl(updateInfo.wgtUrl || updateInfo.packagePath || '');
     if (!wgtUrl) {
-      throw new Error('未配置 WGT 更新包');
+      throw new Error('WGT 更新地址未配置');
     }
     const filePath = await downloadPackage(wgtUrl);
     await installDownloadedPackage(filePath, { force: true });
@@ -227,7 +231,7 @@ export async function applyUpdate(updateInfo) {
   if (updateInfo.updateType === 'apk') {
     const apkUrl = resolveUpdateUrl(updateInfo.apkUrl || updateInfo.packagePath || '');
     if (!apkUrl) {
-      throw new Error('未配置 APK 下载地址');
+      throw new Error('APK 下载地址未配置');
     }
     const filePath = await downloadPackage(apkUrl);
     await installDownloadedPackage(filePath, { force: false });
@@ -274,9 +278,9 @@ export async function promptForAppUpdate(options = {}) {
 
     const modalResult = await showUpdateModal({
       title: updateInfo.title || '发现新版本',
-      content: `${updateInfo.description || '检测到可用更新'}\n\n当前版本：${runtimeInfo.versionName}\n最新版本：${updateInfo.latestVersion}`,
+      content: `${updateInfo.description || '检测到可用更新'}\n\n当前版本：${runtimeInfo.versionName || '-'}\n最新版本：${updateInfo.latestVersion || '-'}`,
       showCancel: !updateInfo.force,
-      confirmText: updateInfo.updateType === 'wgt' ? '立即更新' : '立即更新',
+      confirmText: '立即更新',
       cancelText: '取消'
     });
 
@@ -291,8 +295,9 @@ export async function promptForAppUpdate(options = {}) {
     if (result.type === 'wgt') {
       await showUpdateModal({
         title: '更新完成',
-        content: '热更新包已安装完成，重启应用后生效。',
-        showCancel: false
+        content: '热更新包已安装完成，应用即将重启。',
+        showCancel: false,
+        confirmText: '立即重启'
       });
       restartAfterWgt();
       return { shown: true, confirmed: true, runtimeInfo, updateInfo, result };
