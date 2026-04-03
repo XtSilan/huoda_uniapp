@@ -4,24 +4,18 @@
       <page-nav fallback="/pages/user/user" :is-tab="true" />
       <view class="page-eyebrow">设置中心</view>
       <view class="page-title">账号、安全与通知偏好</view>
-      <view class="page-subtitle">定制你的专属体验</view>
+      <view class="page-subtitle">集中管理你的账号与提醒配置</view>
     </view>
 
     <view class="surface-card section-card">
-      <view class="section-heading">账户安全</view>
-      <view class="field-block">
-        <text class="field-label">旧密码</text>
-        <view class="field-panel">
-          <input v-model="passwordForm.oldPassword" class="field-input" password placeholder="请输入当前密码" />
+      <view class="section-heading">账号与安全</view>
+      <view class="entry-item clickable" @click="goToAccountSecurity">
+        <view class="setting-main">
+          <view class="setting-text">账户安全</view>
+          <view class="setting-desc">修改登录密码，提升账号安全性</view>
         </view>
+        <view class="arrow">&#8250;</view>
       </view>
-      <view class="field-block">
-        <text class="field-label">新密码</text>
-        <view class="field-panel">
-          <input v-model="passwordForm.newPassword" class="field-input" password placeholder="请输入新密码" />
-        </view>
-      </view>
-      <custom-button text="修改密码" :loading="passwordLoading" @click="changePassword" />
     </view>
 
     <view class="surface-card section-card">
@@ -40,33 +34,33 @@
 
     <view class="surface-card section-card">
       <view class="section-heading">其他</view>
-      <view v-if="isAppPlatform" class="setting-item clickable" @click="checkAppUpdate">
+      <view v-if="isAppPlatform" class="entry-item clickable" @click="checkAppUpdate">
         <view class="setting-main">
           <view class="setting-text">检查更新</view>
           <view class="setting-desc">当前版本 {{ appVersionText }} · {{ lastUpdateDesc }}</view>
         </view>
-        <view class="arrow">›</view>
+        <view class="arrow">&#8250;</view>
       </view>
-      <view class="setting-item clickable" @click="aboutUs">
+      <view class="entry-item clickable" @click="aboutUs">
         <view class="setting-main">
           <view class="setting-text">关于我们</view>
           <view class="setting-desc">查看当前版本与平台说明</view>
         </view>
-        <view class="arrow">›</view>
+        <view class="arrow">&#8250;</view>
       </view>
-      <view class="setting-item clickable" @click="feedback">
+      <view class="entry-item clickable" @click="feedback">
         <view class="setting-main">
           <view class="setting-text">意见反馈</view>
-          <view class="setting-desc">提出您的宝贵意见</view>
+          <view class="setting-desc">提交你的使用建议</view>
         </view>
-        <view class="arrow">›</view>
+        <view class="arrow">&#8250;</view>
       </view>
-      <view class="setting-item clickable" @click="clearCache">
+      <view class="entry-item clickable" @click="clearCache">
         <view class="setting-main">
           <view class="setting-text">清除缓存</view>
-          <view class="setting-desc">仅清理本地登录和展示缓存</view>
+          <view class="setting-desc">仅清理本地登录态和展示缓存</view>
         </view>
-        <view class="arrow">›</view>
+        <view class="arrow">&#8250;</view>
       </view>
     </view>
   </view>
@@ -81,7 +75,6 @@ export default {
   data() {
     return {
       settingsLoading: false,
-      passwordLoading: false,
       settings: {
         notification: {
           activity: true,
@@ -96,11 +89,7 @@ export default {
       isAppPlatform: false,
       appVersionText: manifestVersionName || '1.0.0',
       checkingUpdate: false,
-      lastUpdateDesc: '点击检查更新。',
-      passwordForm: {
-        oldPassword: '',
-        newPassword: ''
-      }
+      lastUpdateDesc: '点击检查更新'
     };
   },
   computed: {
@@ -149,6 +138,9 @@ export default {
     this.initUpdateInfo();
   },
   methods: {
+    goToAccountSecurity() {
+      uni.navigateTo({ url: '/pages/user/account-security' });
+    },
     async initUpdateInfo() {
       // #ifdef APP-PLUS
       this.isAppPlatform = true;
@@ -196,27 +188,6 @@ export default {
         this.settingsLoading = false;
       }
     },
-    async changePassword() {
-      if (!this.passwordForm.oldPassword || !this.passwordForm.newPassword) {
-        uni.showToast({ title: '请填写旧密码和新密码', icon: 'none' });
-        return;
-      }
-      if (this.passwordForm.newPassword.length < 6) {
-        uni.showToast({ title: '新密码至少 6 位', icon: 'none' });
-        return;
-      }
-      this.passwordLoading = true;
-      try {
-        await this.$api.user.changePassword(this.passwordForm);
-        this.passwordForm.oldPassword = '';
-        this.passwordForm.newPassword = '';
-        uni.showToast({ title: '密码修改成功', icon: 'success' });
-      } catch (error) {
-        uni.showToast({ title: error.message || '密码修改失败', icon: 'none' });
-      } finally {
-        this.passwordLoading = false;
-      }
-    },
     clearCache() {
       uni.showModal({
         title: '清除缓存',
@@ -243,7 +214,7 @@ export default {
         const { runtimeInfo, updateInfo } = await checkForUpdates();
         this.appVersionText = runtimeInfo.versionName || this.appVersionText;
         this.lastUpdateDesc = updateInfo.hasUpdate
-          ? `发现 ${updateInfo.latestVersion} 版本，可${updateInfo.updateType === 'wgt' ? '热更新' : '安装整包'}。`
+          ? `发现 ${updateInfo.latestVersion} 版本，可${updateInfo.updateType === 'wgt' ? '热更新' : '安装整包'}`
           : '当前已是最新版本';
 
         if (!updateInfo.hasUpdate || updateInfo.updateType === 'none') {
@@ -290,32 +261,8 @@ export default {
   margin-top: 28rpx;
 }
 
-.field-block + .field-block,
-.save-wrap {
-  margin-top: 22rpx;
-}
-
-.field-label {
-  display: block;
-  margin-bottom: 14rpx;
-  font-size: 28rpx;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.field-panel {
-  background: #f6f7fb;
-  border-radius: 24rpx;
-  padding: 0 24rpx;
-}
-
-.field-input {
-  width: 100%;
-  height: 88rpx;
-  font-size: 28rpx;
-}
-
-.setting-item {
+.setting-item,
+.entry-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -323,8 +270,18 @@ export default {
   padding: 22rpx 0;
 }
 
-.setting-item + .setting-item {
+.setting-item + .setting-item,
+.entry-item + .entry-item,
+.save-wrap {
+  margin-top: 22rpx;
+}
+
+.entry-item + .entry-item {
   border-top: 1rpx solid #eef1f7;
+}
+
+.clickable:active {
+  opacity: 0.85;
 }
 
 .setting-main {
