@@ -12,6 +12,15 @@
         "usingComponents" : true,
         "nvueStyleCompiler" : "uni-app",
         "distribute" : {
+            "android" : {
+                "permissions" : [
+                    "<uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>"
+                ],
+                "permissionExternalStorage" : {
+                    "request" : "always",
+                    "prompt" : "应用需要存储权限来下载并打开文件"
+                }
+            },
             "ios" : {
                 "dSYMs" : false
             },

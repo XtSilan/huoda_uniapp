@@ -171,6 +171,7 @@
 
 <script>
 import { SERVER_ORIGIN } from '../../config/api';
+import { canInstallApkOnAndroid, openOrInstallLocalFile, openUnknownAppSourcesSettings } from '../../utils/native-file';
 
 const ATTACHMENT_DOWNLOAD_DIR = '_doc/attachments/';
 
@@ -204,7 +205,8 @@ export default {
       infoList: [],
       searchInfos: [],
       searchActivities: [],
-      attachmentDownload: createEmptyAttachmentDownloadState()
+      attachmentDownload: createEmptyAttachmentDownloadState(),
+      pendingInstallFile: null
     };
   },
   computed: {
@@ -244,7 +246,9 @@ export default {
     }
     this.loadInfos();
   },
-  onShow() {
+  async onShow() {
+    await this.resumePendingAttachmentInstall();
+
     if (this.detailMode) {
       return;
     }
@@ -395,8 +399,45 @@ export default {
       return Promise.resolve(false);
       // #endif
     },
-    async openDownloadedAttachment() {
-      const { filePath, name } = this.attachmentDownload;
+    getReadableLocalPath(filePath) {
+      if (!filePath) {
+        return '';
+      }
+      return filePath.startsWith('_doc/') ? `应用目录/${filePath.replace(/^_doc\//, '')}` : filePath;
+    },
+    promptForApkInstallPermission(filePath, name) {
+      this.pendingInstallFile = { filePath, name };
+      uni.showModal({
+        title: '需要安装权限',
+        content: '安装 APK 前，需要先在系统设置中允许“安装未知来源应用”。',
+        confirmText: '去设置',
+        cancelText: '取消',
+        success: ({ confirm }) => {
+          if (!confirm) {
+            return;
+          }
+          const opened = openUnknownAppSourcesSettings();
+          if (!opened) {
+            uni.showToast({ title: '打开系统设置失败', icon: 'none' });
+          }
+        }
+      });
+    },
+    async resumePendingAttachmentInstall() {
+      if (!this.pendingInstallFile) {
+        return;
+      }
+      if (!canInstallApkOnAndroid()) {
+        return;
+      }
+
+      const pendingFile = this.pendingInstallFile;
+      this.pendingInstallFile = null;
+      await this.openDownloadedAttachment(pendingFile);
+    },
+    async openDownloadedAttachment(payload) {
+      const filePath = payload && payload.filePath ? payload.filePath : this.attachmentDownload.filePath;
+      const name = payload && payload.name ? payload.name : this.attachmentDownload.name;
       if (!filePath) {
         uni.showToast({ title: '附件尚未下载完成', icon: 'none' });
         return;
@@ -413,6 +454,18 @@ export default {
         return;
       }
       // #endif
+
+      try {
+        const result = await openOrInstallLocalFile({ filePath, fileName: name });
+        if (result.status === 'permission_required') {
+          this.promptForApkInstallPermission(filePath, name);
+          return;
+        }
+        if (result.status === 'install_started') {
+          uni.showToast({ title: '已调起安装界面', icon: 'none' });
+        }
+        return;
+      } catch (_error) {}
 
       uni.openDocument({
         filePath,
@@ -509,16 +562,31 @@ export default {
         },
         (download, status) => {
           if (status === 200) {
+            const completedFilePath = download.filename || filePath;
             this.updateAttachmentDownloadState({
               visible: true,
               progress: 100,
               status: 'completed',
               receivedSize: download.downloadedSize || this.attachmentDownload.receivedSize,
               totalSize: download.totalSize || this.attachmentDownload.totalSize || download.downloadedSize || 0,
-              filePath: download.filename || filePath
+              filePath: completedFilePath
             });
             this.attachmentDownloadTask = null;
-            this.openDownloadedAttachment();
+            uni.showModal({
+              title: '下载完成',
+              content: `文件已保存到：${this.getReadableLocalPath(completedFilePath)}`,
+              confirmText: '打开文件',
+              cancelText: '知道了',
+              success: ({ confirm }) => {
+                if (!confirm) {
+                  return;
+                }
+                this.openDownloadedAttachment({
+                  filePath: completedFilePath,
+                  name: item.name || '附件'
+                });
+              }
+            });
             return;
           }
 
