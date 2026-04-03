@@ -76,6 +76,8 @@
             <view class="news-card__content">{{ item.summary || item.content }}</view>
             <view class="news-card__meta">
               <tag-badge :text="item.source || '校园推荐'" tone="purple" />
+              <tag-badge :text="item.category || item.locationType || '资讯'" tone="blue" />
+              <tag-badge :text="`发布时间 ${formatTime(item.publishTime)}`" tone="green" />
             </view>
           </view>
         </view>
@@ -117,7 +119,7 @@
       <view v-else class="surface-card empty-panel">还没有新的活动，晚点再来看看</view>
     </view>
 
-    <view class="section-block">
+    <!-- <view class="section-block">
       <view class="section-row">
         <text class="section-heading">热门资讯</text>
         <text class="section-action" @click="switchToInfo">查看全部</text>
@@ -132,7 +134,7 @@
         </view>
       </view>
       <view v-else class="surface-card empty-panel">热门资讯稍后更新</view>
-    </view>
+    </view> -->
 
     <view class="fab" @click="goTo('/pages/feature/publish/create')">+</view>
     <app-tabbar current="home" />
