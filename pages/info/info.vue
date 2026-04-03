@@ -173,7 +173,17 @@
 import { SERVER_ORIGIN } from '../../config/api';
 import { canInstallApkOnAndroid, openOrInstallLocalFile, openUnknownAppSourcesSettings } from '../../utils/native-file';
 
-const ATTACHMENT_DOWNLOAD_DIR = '_doc/attachments/';
+const ATTACHMENT_DOWNLOAD_DIR = '/sdcard/download/';
+
+function toLocalFileSystemUrl(filePath = '') {
+  if (!filePath) {
+    return '';
+  }
+  if (/^(file|content):\/\//i.test(filePath)) {
+    return filePath;
+  }
+  return filePath.startsWith('/') ? `file://${filePath}` : filePath;
+}
 
 function createEmptyAttachmentDownloadState() {
   return {
@@ -344,6 +354,28 @@ export default {
       const safeKey = encodeURIComponent(key).replace(/%/g, '');
       return `${ATTACHMENT_DOWNLOAD_DIR}${safeKey || 'attachment'}${ext}`;
     },
+    ensureAttachmentDownloadDirectory() {
+      // #ifdef APP-PLUS
+      return new Promise((resolve) => {
+        plus.io.resolveLocalFileSystemURL(
+          'file:///sdcard',
+          (rootEntry) => {
+            rootEntry.getDirectory(
+              'download',
+              { create: true },
+              () => resolve(true),
+              () => resolve(false)
+            );
+          },
+          () => resolve(false)
+        );
+      });
+      // #endif
+
+      // #ifndef APP-PLUS
+      return Promise.resolve(false);
+      // #endif
+    },
     formatFileSize(size) {
       const value = Number(size || 0);
       if (!value) {
@@ -388,7 +420,7 @@ export default {
       // #ifdef APP-PLUS
       return new Promise((resolve) => {
         plus.io.resolveLocalFileSystemURL(
-          filePath,
+          toLocalFileSystemUrl(filePath),
           () => resolve(true),
           () => resolve(false)
         );
@@ -525,7 +557,7 @@ export default {
         }
       });
     },
-    startAttachmentDownload(item, fileUrl, filePath) {
+    async startAttachmentDownload(item, fileUrl, filePath) {
       // #ifdef APP-PLUS
       if (!fileUrl) {
         uni.showToast({ title: '附件地址无效', icon: 'none' });
@@ -538,6 +570,12 @@ export default {
       }
 
       this.disposeAttachmentTask(false);
+
+      const dirReady = await this.ensureAttachmentDownloadDirectory();
+      if (!dirReady) {
+        uni.showToast({ title: '下载目录创建失败', icon: 'none' });
+        return;
+      }
 
       const key = this.getAttachmentKey(item);
       this.updateAttachmentDownloadState({
