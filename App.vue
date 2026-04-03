@@ -1,5 +1,6 @@
 <script>
 import authService from './services/auth';
+import { promptForAppUpdate } from './utils/app-update';
 import { clearSession, redirectToLogin, restoreSessionFromBackup, saveSession } from './utils/session';
 
 export default {
@@ -17,6 +18,7 @@ export default {
         }
         const res = await authService.refresh();
         await saveSession(res.token, res.user);
+        await promptForAppUpdate({ manual: false });
       } catch (error) {
         await clearSession();
         redirectToLogin();

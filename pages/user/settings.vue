@@ -57,7 +57,7 @@
       <view class="setting-item clickable" @click="feedback">
         <view class="setting-main">
           <view class="setting-text">意见反馈</view>
-          <view class="setting-desc">后续可扩展为工单或表单</view>
+          <view class="setting-desc">后续可扩展为工单或表单入口</view>
         </view>
         <view class="arrow">›</view>
       </view>
@@ -74,7 +74,7 @@
 
 <script>
 import { versionName as manifestVersionName } from '../../manifest.json';
-import { applyUpdate, checkForUpdates, getRuntimeInfo, restartAfterWgt } from '../../utils/app-update';
+import { checkForUpdates, getRuntimeInfo, promptForAppUpdate } from '../../utils/app-update';
 import { clearSession } from '../../utils/session';
 
 export default {
@@ -251,35 +251,7 @@ export default {
           return;
         }
 
-        uni.showModal({
-          title: updateInfo.title || '发现新版本',
-          content: `${updateInfo.description || '检测到可用更新'}\n\n当前版本：${runtimeInfo.versionName}\n最新版本：${updateInfo.latestVersion}`,
-          showCancel: !updateInfo.force,
-          confirmText: updateInfo.updateType === 'wgt' ? '立即热更新' : '立即更新',
-          cancelText: '稍后再说',
-          success: async (res) => {
-            if (!res.confirm) {
-              return;
-            }
-            try {
-              const result = await applyUpdate(updateInfo);
-              if (result.type === 'wgt') {
-                uni.showModal({
-                  title: '更新完成',
-                  content: '热更新包已安装完成，重启应用后生效。',
-                  showCancel: false,
-                  success: () => {
-                    restartAfterWgt();
-                  }
-                });
-                return;
-              }
-              uni.showToast({ title: '安装包已开始处理', icon: 'none' });
-            } catch (error) {
-              uni.showToast({ title: error.message || '更新失败', icon: 'none' });
-            }
-          }
-        });
+        await promptForAppUpdate({ manual: true });
       } catch (error) {
         uni.showToast({ title: error.message || '检查更新失败', icon: 'none' });
       } finally {
@@ -294,14 +266,14 @@ export default {
     aboutUs() {
       uni.showModal({
         title: '关于我们',
-        content: '活达校园平台\n统一学生与后台管理的数据流示例工程',
+        content: '活达校园平台\n统一学生与后台管理的数据流示例工程。',
         showCancel: false
       });
     },
     feedback() {
       uni.showModal({
         title: '意见反馈',
-        content: '反馈入口暂未接入，可继续扩展为表单提交或工单系统。',
+        content: '反馈入口暂未接入，后续可扩展为表单提交或工单系统。',
         showCancel: false
       });
     }

@@ -9,6 +9,12 @@
 
     <Card title="Android 更新发布">
       <Form :label-width="120">
+        <FormItem label="当前版本号">
+          <Input :value="currentRelease.latestVersion || '未发布'" readonly />
+        </FormItem>
+        <FormItem label="当前版本 Code">
+          <Input :value="currentRelease.versionCode || '-'" readonly />
+        </FormItem>
         <FormItem label="最新版本号">
           <Input v-model="form.latestVersion" :readonly="form.updateType === 'wgt'" :disabled="form.updateType === 'wgt'" placeholder="APK 请手动填写版本号" />
         </FormItem>
@@ -116,6 +122,11 @@ export default {
     return {
       saving: false,
       uploading: false,
+      currentRelease: {
+        latestVersion: '',
+        versionCode: 0,
+        publishedAt: ''
+      },
       form: createEmptyConfig()
     };
   },
@@ -159,6 +170,11 @@ export default {
     createEmptyConfig,
     async loadData() {
       const res = await getAppUpdates();
+      this.currentRelease = {
+        latestVersion: (res.android && res.android.latestVersion) || '',
+        versionCode: Number((res.android && res.android.versionCode) || 0) || 0,
+        publishedAt: (res.android && res.android.publishedAt) || ''
+      };
       this.form = {
         ...createEmptyConfig(),
         ...(res.android || {})

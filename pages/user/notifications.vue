@@ -42,7 +42,7 @@
 </template>
 
 <script>
-import { applyUpdate, checkForUpdates, restartAfterWgt } from '../../utils/app-update';
+import { promptForAppUpdate } from '../../utils/app-update';
 
 export default {
   data() {
@@ -120,12 +120,12 @@ export default {
         if (notification.type !== 'app_update') {
           return;
         }
-        await this.handleUpdateNotification(notification);
+        await this.handleUpdateNotification();
       } catch (error) {
         uni.showToast({ title: error.message || '打开通知失败', icon: 'none' });
       }
     },
-    async handleUpdateNotification(notification) {
+    async handleUpdateNotification() {
       // #ifndef APP-PLUS
       uni.showToast({ title: '仅 App 支持直接更新', icon: 'none' });
       // #endif
@@ -136,41 +136,7 @@ export default {
       }
       this.updating = true;
       try {
-        const { runtimeInfo, updateInfo } = await checkForUpdates();
-        if (!updateInfo.hasUpdate || updateInfo.updateType === 'none') {
-          uni.showToast({ title: '当前已是最新版本', icon: 'none' });
-          return;
-        }
-
-        uni.showModal({
-          title: updateInfo.title || notification.title || '发现新版本',
-          content: `${updateInfo.description || notification.content || '检测到可用更新'}\n\n当前版本：${runtimeInfo.versionName}\n最新版本：${updateInfo.latestVersion}`,
-          showCancel: !updateInfo.force,
-          confirmText: updateInfo.updateType === 'wgt' ? '立即热更新' : '立即更新',
-          cancelText: '稍后再说',
-          success: async (res) => {
-            if (!res.confirm) {
-              return;
-            }
-            try {
-              const result = await applyUpdate(updateInfo);
-              if (result.type === 'wgt') {
-                uni.showModal({
-                  title: '更新完成',
-                  content: '热更新包已安装完成，重启应用后生效。',
-                  showCancel: false,
-                  success: () => {
-                    restartAfterWgt();
-                  }
-                });
-                return;
-              }
-              uni.showToast({ title: '安装包已开始处理', icon: 'none' });
-            } catch (error) {
-              uni.showToast({ title: error.message || '更新失败', icon: 'none' });
-            }
-          }
-        });
+        await promptForAppUpdate({ manual: true });
       } catch (error) {
         uni.showToast({ title: error.message || '检查更新失败', icon: 'none' });
       } finally {
