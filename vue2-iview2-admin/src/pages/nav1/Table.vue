@@ -122,28 +122,19 @@ export default {
       this.uploading = true;
       try {
         for (const file of files) {
-          const content = await this.readFileAsDataUrl(file);
-          const uploaded = await uploadInfoAttachment({
-            fileName: file.name,
-            size: file.size,
-            content
-          });
+          const data = new FormData();
+          data.append('file', file);
+          const uploaded = await uploadInfoAttachment(data);
           this.form.attachments = [...this.form.attachments, uploaded];
         }
+      } catch (error) {
+        this.$Message.error((error.response && error.response.data && error.response.data.message) || '附件上传失败');
       } finally {
         this.uploading = false;
         if (event.target) {
           event.target.value = '';
         }
       }
-    },
-    readFileAsDataUrl(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('附件读取失败'));
-        reader.readAsDataURL(file);
-      });
     },
     removeAttachment(index) {
       this.form.attachments = this.form.attachments.filter((_, currentIndex) => currentIndex !== index);

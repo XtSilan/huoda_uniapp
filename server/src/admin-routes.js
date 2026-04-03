@@ -162,6 +162,16 @@ module.exports = function registerAdminRoutes(app, db) {
   fs.mkdirSync(infoAttachmentUploadDir, { recursive: true });
   fs.mkdirSync(appUpdateUploadDir, { recursive: true });
 
+  const infoAttachmentUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, infoAttachmentUploadDir),
+      filename: (_req, file, cb) => cb(null, buildStoredFileName(file.originalname, 'attachment'))
+    }),
+    limits: {
+      fileSize: 1024 * 1024 * 1024
+    }
+  });
+
   const appUpdateUpload = multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, appUpdateUploadDir),
@@ -377,25 +387,18 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json({ success: true });
   });
 
-  app.post('/api/admin/info-attachments/upload', requireAdmin, (req, res) => {
-    const body = req.body || {};
-    const fileName = String(body.fileName || '').trim();
-    const content = String(body.content || '');
-    const match = content.match(/^data:([a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  app.post('/api/admin/info-attachments/upload', requireAdmin, infoAttachmentUpload.single('file'), (req, res) => {
+    const file = req.file;
 
-    if (!fileName || !match) {
-      return res.status(400).json({ message: '请上传有效附件' });
+    if (!file) {
+      return res.status(400).json({ message: '请先选择要上传的附件' });
     }
 
-    const storedName = buildStoredFileName(fileName, 'attachment');
-    const targetPath = path.join(infoAttachmentUploadDir, storedName);
-    fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
-
     res.json({
-      name: fileName,
-      path: `/uploads/info-attachments/${storedName}`,
-      mimeType: match[1],
-      size: Number(body.size || 0) || 0
+      name: file.originalname,
+      path: `/uploads/info-attachments/${path.basename(file.path)}`,
+      mimeType: String(file.mimetype || '').trim(),
+      size: Number(file.size || 0) || 0
     });
   });
 
