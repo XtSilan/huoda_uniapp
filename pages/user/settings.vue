@@ -57,7 +57,7 @@
       <view class="setting-item clickable" @click="feedback">
         <view class="setting-main">
           <view class="setting-text">意见反馈</view>
-          <view class="setting-desc">后续可扩展为工单或表单入口</view>
+          <view class="setting-desc">提出您的宝贵意见</view>
         </view>
         <view class="arrow">›</view>
       </view>
@@ -96,7 +96,7 @@ export default {
       isAppPlatform: false,
       appVersionText: manifestVersionName || '1.0.0',
       checkingUpdate: false,
-      lastUpdateDesc: '仅 App 可用，支持热更新与整包更新。',
+      lastUpdateDesc: '点击检查更新。',
       passwordForm: {
         oldPassword: '',
         newPassword: ''
@@ -266,14 +266,14 @@ export default {
     aboutUs() {
       uni.showModal({
         title: '关于我们',
-        content: '活达校园平台\n统一学生与后台管理的数据流示例工程。',
+        content: '活达校园平台\n大学生的信息聚合平台。',
         showCancel: false
       });
     },
     feedback() {
       uni.showModal({
         title: '意见反馈',
-        content: '反馈入口暂未接入，后续可扩展为表单提交或工单系统。',
+        content: '反馈入口暂未接入，请等待后续开发。',
         showCancel: false
       });
     }
