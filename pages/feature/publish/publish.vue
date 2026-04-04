@@ -80,6 +80,7 @@
       <custom-button text="创建新活动" @click="goToCreate" />
     </view>
 
+    <announcement-popup ref="announcementPopup" />
     <app-tabbar current="discover" />
   </view>
 </template>
@@ -106,6 +107,11 @@ export default {
   },
   onShow() {
     this.loadData();
+    this.$nextTick(() => {
+      if (this.$refs.announcementPopup) {
+        this.$refs.announcementPopup.checkAndOpen();
+      }
+    });
   },
   methods: {
     async loadData() {

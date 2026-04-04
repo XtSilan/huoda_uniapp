@@ -227,6 +227,30 @@ async function getDb(options = {}) {
       read_at TEXT DEFAULT '',
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS popup_announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT DEFAULT '',
+      image_url TEXT DEFAULT '',
+      button_text TEXT DEFAULT '我知道了',
+      announcement_version TEXT DEFAULT '',
+      is_active INTEGER DEFAULT 1,
+      published_at TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS popup_announcement_reads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      announcement_id INTEGER NOT NULL,
+      announcement_version TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      confirmed_at TEXT NOT NULL,
+      UNIQUE(announcement_id, announcement_version, user_id),
+      FOREIGN KEY (announcement_id) REFERENCES popup_announcements(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   ensureColumn(db, 'user_settings', 'ai_settings', `TEXT DEFAULT '${JSON.stringify(DEFAULT_USER_AI_SETTINGS)}'`);

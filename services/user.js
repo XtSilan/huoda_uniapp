@@ -19,6 +19,13 @@ const getSettings = () => request(`${API.user.profile.replace('/profile', '/sett
 
 const getNotifications = () => request(API.user.notifications);
 
+const getPopupAnnouncement = () => request(API.user.popupAnnouncement);
+
+const ackPopupAnnouncement = (id) =>
+  request(`${API.user.popupAnnouncement}/${id}/ack`, {
+    method: 'POST'
+  });
+
 const readNotification = (id) =>
   request(`${API.user.notifications}/${id}/read`, {
     method: 'POST'
@@ -70,6 +77,8 @@ export default {
   uploadAvatar,
   getSettings,
   getNotifications,
+  getPopupAnnouncement,
+  ackPopupAnnouncement,
   readNotification,
   readAllNotifications,
   updateSettings,

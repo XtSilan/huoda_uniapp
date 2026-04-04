@@ -95,6 +95,7 @@ export default {
       try {
         const res = await this.$api.auth.login(this.loginForm);
         await saveSession(res.token, res.user);
+        uni.$emit('popup-announcement:check');
         saveRememberPassword(this.rememberPassword, this.loginForm);
         uni.showToast({ title: '登录成功', icon: 'success' });
         setTimeout(() => {

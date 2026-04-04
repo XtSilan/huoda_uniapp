@@ -20,6 +20,7 @@ const { platforms, readAppUpdateConfig, writeAppUpdateConfig, normalizePlatformC
 const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-group-qrcodes');
 const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
 const appUpdateUploadDir = path.resolve(__dirname, '..', 'uploads', 'app-updates');
+const popupAnnouncementUploadDir = path.resolve(__dirname, '..', 'uploads', 'popup-announcements');
 const wgtExtractRootDir = path.resolve(__dirname, '..', '..', 'unpackage', 'release', 'apk');
 
 function decodeUploadFileName(fileName) {
@@ -91,6 +92,16 @@ function buildWgtExtractDir(fileName) {
   const normalizedFileName = decodeUploadFileName(fileName);
   const baseName = path.basename(normalizedFileName || '', path.extname(normalizedFileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || 'wgt-package';
   return path.join(wgtExtractRootDir, baseName);
+}
+
+function normalizePopupAnnouncementPayload(body = {}) {
+  return {
+    title: String(body.title || '').trim(),
+    content: String(body.content || '').trim(),
+    imageUrl: String(body.imageUrl || '').trim(),
+    buttonText: String(body.buttonText || '我知道了').trim() || '我知道了',
+    isActive: body.isActive !== undefined ? Boolean(body.isActive) : true
+  };
 }
 
 function readWgtManifestVersionInfo(manifestPath) {
@@ -179,6 +190,7 @@ module.exports = function registerAdminRoutes(app, db) {
   fs.mkdirSync(classGroupUploadDir, { recursive: true });
   fs.mkdirSync(infoAttachmentUploadDir, { recursive: true });
   fs.mkdirSync(appUpdateUploadDir, { recursive: true });
+  fs.mkdirSync(popupAnnouncementUploadDir, { recursive: true });
 
   const infoAttachmentUpload = multer({
     storage: multer.diskStorage({
@@ -658,6 +670,130 @@ module.exports = function registerAdminRoutes(app, db) {
 
   app.get('/api/admin/app-updates', requireAdmin, (_req, res) => {
     res.json(readAppUpdateConfig());
+  });
+
+  app.get('/api/admin/popup-announcement', requireAdmin, (_req, res) => {
+    const current = db.get(
+      `SELECT *
+      FROM popup_announcements
+      ORDER BY datetime(published_at) DESC, datetime(updated_at) DESC, id DESC
+      LIMIT 1`
+    );
+    res.json({
+      announcement: current
+        ? {
+            id: String(current.id),
+            title: current.title || '',
+            content: current.content || '',
+            imageUrl: current.image_url || '',
+            buttonText: current.button_text || '我知道了',
+            version: current.announcement_version || '',
+            isActive: Boolean(current.is_active),
+            publishedAt: current.published_at || '',
+            updatedAt: current.updated_at || ''
+          }
+        : null
+    });
+  });
+
+  app.post('/api/admin/popup-announcement/upload', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const fileName = String(body.fileName || '').trim();
+    const content = String(body.content || '');
+    const match = content.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+
+    if (!fileName || !match) {
+      return res.status(400).json({ message: '请上传有效图片' });
+    }
+
+    const mimeType = match[1];
+    const extMap = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/webp': '.webp',
+      'image/gif': '.gif'
+    };
+    const ext = extMap[mimeType];
+    if (!ext) {
+      return res.status(400).json({ message: '仅支持 png、jpg、webp、gif 图片' });
+    }
+
+    const safeBase = path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, '') || 'popup';
+    const storedName = `${Date.now()}-${safeBase}${ext}`;
+    const targetPath = path.join(popupAnnouncementUploadDir, storedName);
+    fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
+    res.json({ path: `/uploads/popup-announcements/${storedName}` });
+  });
+
+  app.put('/api/admin/popup-announcement', requireAdmin, (req, res) => {
+    const payload = normalizePopupAnnouncementPayload(req.body || {});
+    if (!payload.title) {
+      return res.status(400).json({ message: '请填写弹窗标题' });
+    }
+    if (!payload.content) {
+      return res.status(400).json({ message: '请填写弹窗内容' });
+    }
+
+    const now = new Date().toISOString();
+    const version = now;
+    const current = db.get('SELECT * FROM popup_announcements ORDER BY id DESC LIMIT 1');
+
+    if (current) {
+      db.run(
+        `UPDATE popup_announcements
+        SET title = ?, content = ?, image_url = ?, button_text = ?, announcement_version = ?, is_active = ?, published_at = ?, updated_at = ?
+        WHERE id = ?`,
+        [payload.title, payload.content, payload.imageUrl, payload.buttonText, version, payload.isActive ? 1 : 0, now, now, current.id]
+      );
+    } else {
+      db.run(
+        `INSERT INTO popup_announcements
+        (title, content, image_url, button_text, announcement_version, is_active, published_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [payload.title, payload.content, payload.imageUrl, payload.buttonText, version, payload.isActive ? 1 : 0, now, now, now]
+      );
+    }
+
+    const saved = db.get('SELECT * FROM popup_announcements ORDER BY id DESC LIMIT 1');
+    res.json({
+      success: true,
+      announcement: {
+        id: String(saved.id),
+        title: saved.title || '',
+        content: saved.content || '',
+        imageUrl: saved.image_url || '',
+        buttonText: saved.button_text || '我知道了',
+        version: saved.announcement_version || '',
+        isActive: Boolean(saved.is_active),
+        publishedAt: saved.published_at || '',
+        updatedAt: saved.updated_at || ''
+      }
+    });
+  });
+
+  app.post('/api/admin/popup-announcement/deactivate', requireAdmin, (_req, res) => {
+    const current = db.get('SELECT * FROM popup_announcements ORDER BY id DESC LIMIT 1');
+    if (!current) {
+      return res.json({ success: true, announcement: null });
+    }
+
+    db.run('UPDATE popup_announcements SET is_active = 0, updated_at = ? WHERE id = ?', [new Date().toISOString(), current.id]);
+    const saved = db.get('SELECT * FROM popup_announcements WHERE id = ?', [current.id]);
+    res.json({
+      success: true,
+      announcement: {
+        id: String(saved.id),
+        title: saved.title || '',
+        content: saved.content || '',
+        imageUrl: saved.image_url || '',
+        buttonText: saved.button_text || '我知道了',
+        version: saved.announcement_version || '',
+        isActive: Boolean(saved.is_active),
+        publishedAt: saved.published_at || '',
+        updatedAt: saved.updated_at || ''
+      }
+    });
   });
 
   app.post('/api/admin/app-updates/upload', requireAdmin, appUpdateUpload.single('file'), (req, res) => {

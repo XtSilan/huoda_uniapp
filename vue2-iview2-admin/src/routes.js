@@ -9,6 +9,7 @@ import ClassGroups from './pages/nav1/ClassGroups.vue';
 import Banners from './pages/nav2/Page4.vue';
 import AiModels from './pages/nav2/Page5.vue';
 import AppUpdates from './pages/nav2/AppUpdates.vue';
+import PopupAnnouncement from './pages/nav2/PopupAnnouncement.vue';
 import Reports from './pages/charts/echarts.vue';
 import NotFound from './pages/404.vue';
 
@@ -24,6 +25,7 @@ export default [
       { path: '/users', component: Users, name: '用户管理' },
       { path: '/student-register', component: StudentRegister, name: '学生注册' },
       { path: '/banners', component: Banners, name: '轮播图管理' },
+      { path: '/popup-announcement', component: PopupAnnouncement, name: '弹窗通知管理' },
       { path: '/app-updates', component: AppUpdates, name: '版本更新管理' },
       { path: '/ai-models', component: AiModels, name: 'AI 默认模型' },
       { path: '/infos', component: Infos, name: '信息管理' },

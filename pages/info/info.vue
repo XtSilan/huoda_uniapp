@@ -165,6 +165,7 @@
         </scroll-view>
       </view>
     </view>
+    <announcement-popup ref="announcementPopup" />
     <app-tabbar v-if="!detailMode" current="info" />
   </view>
 </template>
@@ -263,6 +264,11 @@ export default {
     await this.resumePendingAttachmentInstall();
 
     if (this.detailMode) {
+      this.$nextTick(() => {
+        if (this.$refs.announcementPopup) {
+          this.$refs.announcementPopup.checkAndOpen();
+        }
+      });
       return;
     }
     const pendingSearch = uni.getStorageSync('pendingInfoSearch');
@@ -272,6 +278,11 @@ export default {
       uni.removeStorageSync('pendingInfoSearch');
     }
     this.loadInfos();
+    this.$nextTick(() => {
+      if (this.$refs.announcementPopup) {
+        this.$refs.announcementPopup.checkAndOpen();
+      }
+    });
   },
   methods: {
     async loadInfos() {

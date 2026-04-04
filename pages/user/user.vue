@@ -69,6 +69,7 @@
       </view>
     </view>
 
+    <announcement-popup ref="announcementPopup" />
     <app-tabbar current="user" />
   </view>
 </template>
@@ -131,6 +132,11 @@ export default {
     this.loadUserInfo();
     this.loadStats();
     this.loadNotifications();
+    this.$nextTick(() => {
+      if (this.$refs.announcementPopup) {
+        this.$refs.announcementPopup.checkAndOpen();
+      }
+    });
   },
   methods: {
     buildAdminRedirect() {

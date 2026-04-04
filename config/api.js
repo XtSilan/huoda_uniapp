@@ -11,7 +11,8 @@ const API = {
   user: {
     profile: `${BASE_URL}/user/profile`,
     avatarUpload: `${BASE_URL}/user/avatar/upload`,
-    notifications: `${BASE_URL}/user/notifications`
+    notifications: `${BASE_URL}/user/notifications`,
+    popupAnnouncement: `${BASE_URL}/user/popup-announcement`
   },
   app: {
     version: `${BASE_URL}/app/version`

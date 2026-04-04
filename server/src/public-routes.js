@@ -51,6 +51,24 @@ function resolvePublicAssetUrl(req, filePath) {
   return `${req.protocol}://${req.get('host')}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 }
 
+function mapPopupAnnouncement(row, req) {
+  if (!row) {
+    return null;
+  }
+
+  const version = String(row.announcement_version || row.published_at || row.updated_at || row.id || '').trim();
+  return {
+    id: String(row.id),
+    title: row.title || '',
+    content: row.content || '',
+    imageUrl: resolvePublicAssetUrl(req, row.image_url || ''),
+    buttonText: row.button_text || '我知道了',
+    version,
+    publishedAt: row.published_at || '',
+    isActive: Boolean(row.is_active)
+  };
+}
+
 function mapPreset(row) {
   return {
     id: String(row.id),
@@ -301,6 +319,52 @@ module.exports = function registerPublicRoutes(app, db) {
       list,
       unreadCount: list.filter((item) => !item.isRead).length
     });
+  });
+
+  app.get('/api/user/popup-announcement', requireAuth, (req, res) => {
+    const current = db.get(
+      `SELECT *
+      FROM popup_announcements
+      WHERE is_active = 1
+      ORDER BY datetime(published_at) DESC, datetime(updated_at) DESC, id DESC
+      LIMIT 1`
+    );
+
+    const announcement = mapPopupAnnouncement(current, req);
+    if (!announcement) {
+      return res.json({ active: false, announcement: null });
+    }
+
+    const confirmed = db.get(
+      `SELECT id
+      FROM popup_announcement_reads
+      WHERE announcement_id = ? AND announcement_version = ? AND user_id = ?
+      LIMIT 1`,
+      [announcement.id, announcement.version, req.user.id]
+    );
+
+    if (confirmed) {
+      return res.json({ active: false, announcement: null });
+    }
+
+    res.json({ active: true, announcement });
+  });
+
+  app.post('/api/user/popup-announcement/:id/ack', requireAuth, (req, res) => {
+    const current = db.get('SELECT * FROM popup_announcements WHERE id = ? AND is_active = 1', [req.params.id]);
+    if (!current) {
+      return res.status(404).json({ message: '弹窗通知不存在' });
+    }
+
+    const announcement = mapPopupAnnouncement(current, req);
+    db.run(
+      `INSERT OR IGNORE INTO popup_announcement_reads
+      (announcement_id, announcement_version, user_id, confirmed_at)
+      VALUES (?, ?, ?, ?)`,
+      [current.id, announcement.version, req.user.id, new Date().toISOString()]
+    );
+
+    res.json({ success: true });
   });
 
   app.post('/api/user/notifications/:id/read', requireAuth, (req, res) => {

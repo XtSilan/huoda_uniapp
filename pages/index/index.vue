@@ -137,6 +137,7 @@
     </view> -->
 
     <view class="fab" @click="goTo('/pages/feature/publish/create')">+</view>
+    <announcement-popup ref="announcementPopup" />
     <app-tabbar current="home" />
   </view>
 </template>
@@ -188,6 +189,11 @@ export default {
   },
   onShow() {
     this.loadData();
+    this.$nextTick(() => {
+      if (this.$refs.announcementPopup) {
+        this.$refs.announcementPopup.checkAndOpen();
+      }
+    });
   },
   methods: {
     async loadData() {
