@@ -30,7 +30,10 @@
           ></image>
           <view class="activity-main">
             <view class="activity-topline">
-              <tag-badge :text="item.activityType || '活动'" tone="blue" />
+              <view class="tag-group">
+                <tag-badge v-if="item.isTop" text="置顶" tone="yellow" />
+                <tag-badge :text="item.activityType || '其他'" tone="blue" />
+              </view>
               <view class="metric-pill">
                 <view class="metric-pill__icon">
                   <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
@@ -56,7 +59,10 @@
         <view v-for="item in myActivityList" :key="item.id" class="activity-card surface-card compact-card" @click="goToDetail(item)">
           <view class="activity-main">
             <view class="activity-topline">
-              <tag-badge text="已参与" tone="green" />
+              <view class="tag-group">
+                <tag-badge v-if="item.isTop" text="置顶" tone="yellow" />
+                <tag-badge text="已参与" tone="green" />
+              </view>
               <view class="metric-pill">
                 <view class="metric-pill__icon">
                   <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
@@ -217,11 +223,18 @@ export default {
 
 .activity-topline {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: 10rpx;
   margin-bottom: 14rpx;
+}
+
+.tag-group {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .metric-pill {
@@ -233,6 +246,8 @@ export default {
   background: #f5f7fb;
   color: var(--text-sub);
   font-size: 22rpx;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .metric-pill__icon {

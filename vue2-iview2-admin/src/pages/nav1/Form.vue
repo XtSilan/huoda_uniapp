@@ -14,10 +14,13 @@
       <Select v-model="form.activityType" style="margin-bottom: 10px;">
         <Option v-for="item in activityTypes" :key="item" :value="item">{{ item }}</Option>
       </Select>
+      <div style="margin-bottom: 10px;">
+        <Checkbox v-model="form.isTop">置顶</Checkbox>
+      </div>
       <Input v-model="form.startTime" placeholder="开始时间 ISO" style="margin-bottom: 10px;" />
       <Input v-model="form.endTime" placeholder="结束时间 ISO" style="margin-bottom: 10px;" />
       <Input v-model="imagesText" type="textarea" :rows="3" placeholder="图片地址，一行一个" style="margin-bottom: 10px;" />
-      <Input v-model="form.content" type="textarea" :rows="8" placeholder="内容（支持换行）" />
+      <Input v-model="form.content" type="textarea" :rows="8" placeholder="内容" />
     </Modal>
   </div>
 </template>
@@ -44,20 +47,38 @@ export default {
         content: '',
         locationType: '校内',
         status: 'upcoming',
-        images: []
+        images: [],
+        isTop: false
       },
       columns: [
-        { title: '标题', key: 'title' },
+        {
+          title: '标题',
+          key: 'title',
+          render: (h, params) =>
+            h('div', [
+              params.row.isTop ? h('Tag', { props: { color: 'red' }, style: { marginRight: '6px' } }, '置顶') : null,
+              h('span', params.row.title)
+            ])
+        },
         { title: '类型', key: 'activityType' },
         { title: '地点', key: 'locationType' },
         { title: '组织方', key: 'organizer' },
         { title: '报名人数', key: 'applyCount' },
         {
           title: '操作',
-          render: (h, params) => h('div', [
-            h('Button', { props: { size: 'small' }, on: { click: () => this.openEdit(params.row) } }, '编辑'),
-            h('Button', { props: { size: 'small', type: 'error' }, style: { marginLeft: '8px' }, on: { click: () => this.remove(params.row.id) } }, '删除')
-          ])
+          render: (h, params) =>
+            h('div', [
+              h('Button', { props: { size: 'small' }, on: { click: () => this.openEdit(params.row) } }, '编辑'),
+              h(
+                'Button',
+                {
+                  props: { size: 'small', type: 'error' },
+                  style: { marginLeft: '8px' },
+                  on: { click: () => this.remove(params.row.id) }
+                },
+                '删除'
+              )
+            ])
         }
       ]
     };
@@ -66,14 +87,8 @@ export default {
     this.loadActivities();
   },
   methods: {
-    async loadActivities() {
-      const res = await getActivities();
-      this.activities = res.list || [];
-    },
-    openCreate() {
-      this.editingId = null;
-      this.imagesText = '';
-      this.form = {
+    createEmptyForm() {
+      return {
         title: '',
         summary: '',
         organizer: '',
@@ -84,28 +99,41 @@ export default {
         content: '',
         locationType: '校内',
         status: 'upcoming',
-        images: []
+        images: [],
+        isTop: false
       };
+    },
+    async loadActivities() {
+      const res = await getActivities();
+      this.activities = res.list || [];
+    },
+    openCreate() {
+      this.editingId = null;
+      this.imagesText = '';
+      this.form = this.createEmptyForm();
       this.visible = true;
     },
     openEdit(row) {
       this.editingId = row.id;
-      this.form = { ...row, images: row.images || [] };
+      this.form = { ...this.createEmptyForm(), ...row, images: row.images || [] };
       this.imagesText = (row.images || []).join('\n');
       this.visible = true;
     },
     async submit() {
       const payload = {
         ...this.form,
-        images: this.imagesText.split('\n').map((item) => item.trim()).filter(Boolean)
+        images: this.imagesText
+          .split('\n')
+          .map((item) => item.trim())
+          .filter(Boolean)
       };
       if (this.editingId) await updateActivity(this.editingId, payload);
       else await createActivity(payload);
-      this.loadActivities();
+      await this.loadActivities();
     },
     async remove(id) {
       await deleteActivity(id);
-      this.loadActivities();
+      await this.loadActivities();
     }
   }
 };

@@ -224,20 +224,20 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/home/overview', (req, res) => {
     const banners = db.all('SELECT * FROM banners WHERE is_active = 1 ORDER BY sort_order ASC, id ASC');
-    const activities = db.all(`${activitySelect} ORDER BY datetime(a.publish_time) DESC LIMIT 4`);
+    const activities = db.all(`${activitySelect} ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC LIMIT 4`);
     const settings = req.user ? db.get('SELECT * FROM user_settings WHERE user_id = ?', [req.user.id]) : null;
     const interests = settings ? parseJson(settings.interests, []) : [];
 
     let recommendations = [];
     if (interests.length) {
       const placeholders = interests.map(() => '?').join(',');
-      recommendations = db.all(`${infoSelect} WHERE i.category IN (${placeholders}) ORDER BY datetime(i.publish_time) DESC LIMIT 4`, interests);
+      recommendations = db.all(`${infoSelect} WHERE i.category IN (${placeholders}) ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 4`, interests);
     }
     if (!recommendations.length) {
-      recommendations = db.all(`${infoSelect} ORDER BY datetime(i.publish_time) DESC LIMIT 4`);
+      recommendations = db.all(`${infoSelect} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 4`);
     }
 
-    const hotInfos = db.all(`${infoSelect} ORDER BY datetime(i.publish_time) DESC LIMIT 6`);
+    const hotInfos = db.all(`${infoSelect} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 6`);
     res.json({
       banners: banners.map(mapBanner),
       recommendations: recommendations.map(mapInfo),
@@ -563,7 +563,7 @@ module.exports = function registerPublicRoutes(app, db) {
     const limit = Number(pageSize);
     const offset = (Number(page) - 1) * limit;
     const infoWhere = where ? where.replace(/\btitle\b/g, 'i.title').replace(/\bcontent\b/g, 'i.content').replace(/\bsummary\b/g, 'i.summary').replace(/\bsource\b/g, 'i.source').replace(/\bcategory\b/g, 'i.category').replace(/\blocation_type\b/g, 'i.location_type') : '';
-    const rows = db.all(`${infoSelect} ${infoWhere} ORDER BY datetime(i.publish_time) DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
+    const rows = db.all(`${infoSelect} ${infoWhere} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
     const total = db.get(`SELECT COUNT(*) AS count FROM infos ${where}`, params).count;
     res.json({ list: rows.map(mapInfo), total, page: Number(page), pageSize: limit });
   });
@@ -574,7 +574,7 @@ module.exports = function registerPublicRoutes(app, db) {
       ? db.all(
           `${infoSelect}
           WHERE i.title LIKE ? OR i.content LIKE ? OR i.summary LIKE ? OR i.source LIKE ?
-          ORDER BY datetime(i.publish_time) DESC LIMIT 20`,
+          ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 20`,
           [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
         )
       : [];
@@ -582,7 +582,7 @@ module.exports = function registerPublicRoutes(app, db) {
       ? db.all(
           `${activitySelect}
           WHERE a.title LIKE ? OR a.content LIKE ? OR a.summary LIKE ? OR a.organizer LIKE ? OR a.location LIKE ?
-          ORDER BY datetime(a.publish_time) DESC LIMIT 20`,
+          ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC LIMIT 20`,
           [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
         )
       : [];
@@ -620,7 +620,7 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/publish/list', (_req, res) => {
-    const rows = db.all(`${activitySelect} ORDER BY datetime(a.publish_time) DESC`);
+    const rows = db.all(`${activitySelect} ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC`);
     res.json({ list: rows.map(mapActivity) });
   });
 
@@ -838,7 +838,7 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/ai/recommend', (_req, res) => {
-    const rows = db.all('SELECT * FROM infos ORDER BY datetime(publish_time) DESC LIMIT 4');
+    const rows = db.all('SELECT * FROM infos ORDER BY is_top DESC, datetime(publish_time) DESC, id DESC LIMIT 4');
     res.json({ recommendations: rows.map(mapInfo) });
   });
 
@@ -906,7 +906,7 @@ module.exports = function registerPublicRoutes(app, db) {
         ? db.all(
             `${infoSelect}
              WHERE i.title LIKE ? OR i.content LIKE ? OR i.summary LIKE ?
-             ORDER BY datetime(i.publish_time) DESC LIMIT 2`,
+             ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 2`,
             [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
           )
         : [];
@@ -914,7 +914,7 @@ module.exports = function registerPublicRoutes(app, db) {
         ? db.all(
             `${activitySelect}
              WHERE a.title LIKE ? OR a.content LIKE ? OR a.summary LIKE ?
-             ORDER BY datetime(a.publish_time) DESC LIMIT 2`,
+             ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC LIMIT 2`,
             [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
           )
         : [];
@@ -932,7 +932,7 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.post('/api/ai/search', (req, res) => {
     const query = String((req.body || {}).query || '');
-    const rows = db.all(`SELECT * FROM infos WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? ORDER BY datetime(publish_time) DESC LIMIT 6`, [`%${query}%`, `%${query}%`, `%${query}%`]);
+    const rows = db.all(`SELECT * FROM infos WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? ORDER BY is_top DESC, datetime(publish_time) DESC, id DESC LIMIT 6`, [`%${query}%`, `%${query}%`, `%${query}%`]);
     res.json({ list: rows.map(mapInfo) });
   });
 

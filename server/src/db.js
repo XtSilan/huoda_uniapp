@@ -100,6 +100,7 @@ async function getDb(options = {}) {
       source TEXT NOT NULL,
       source_url TEXT DEFAULT '',
       attachments TEXT DEFAULT '[]',
+      is_top INTEGER DEFAULT 0,
       category TEXT DEFAULT '其他',
       location_type TEXT DEFAULT '校内',
       status TEXT DEFAULT 'published',
@@ -119,6 +120,7 @@ async function getDb(options = {}) {
       location_type TEXT DEFAULT '校内',
       organizer TEXT NOT NULL,
       images TEXT DEFAULT '[]',
+      is_top INTEGER DEFAULT 0,
       activity_type TEXT DEFAULT '其他',
       status TEXT DEFAULT 'upcoming',
       publish_time TEXT NOT NULL,
@@ -257,7 +259,9 @@ async function getDb(options = {}) {
   ensureColumn(db, 'infos', 'location_type', `TEXT DEFAULT '校内'`);
   ensureColumn(db, 'infos', 'source_url', `TEXT DEFAULT ''`);
   ensureColumn(db, 'infos', 'attachments', `TEXT DEFAULT '[]'`);
+  ensureColumn(db, 'infos', 'is_top', `INTEGER DEFAULT 0`);
   ensureColumn(db, 'activities', 'images', `TEXT DEFAULT '[]'`);
+  ensureColumn(db, 'activities', 'is_top', `INTEGER DEFAULT 0`);
   ensureColumn(db, 'activities', 'location_type', `TEXT DEFAULT '校内'`);
   ensureColumn(db, 'notifications', 'payload', `TEXT DEFAULT '{}'`);
   ensureColumn(db, 'notifications', 'release_id', `TEXT DEFAULT ''`);

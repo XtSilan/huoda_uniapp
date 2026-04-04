@@ -15,7 +15,10 @@
 
     <view v-if="detailMode" class="detail-card surface-card">
       <view class="detail-topline">
-        <tag-badge :text="detail.source || '资讯'" tone="blue" />
+        <view class="tag-group">
+          <tag-badge v-if="detail.isTop" text="置顶" tone="yellow" />
+          <tag-badge :text="detail.source || '校园发布'" tone="blue" />
+        </view>
         <view class="metric-pill">
           <view class="metric-pill__icon">
             <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
@@ -79,7 +82,10 @@
         <view v-if="searchInfos.length === 0" class="empty-state">暂无匹配资讯</view>
         <view v-for="item in searchInfos" :key="item.id" class="content-card" @click="goToDetail(item.id)">
           <view class="content-card__top">
-            <view class="content-card__title">{{ item.title }}</view>
+            <view class="tag-title-row">
+              <tag-badge v-if="item.isTop" text="置顶" tone="yellow" />
+              <view class="content-card__title">{{ item.title }}</view>
+            </view>
             <view class="metric-pill">
               <view class="metric-pill__icon">
                 <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
@@ -101,7 +107,10 @@
         <view v-if="searchActivities.length === 0" class="empty-state">暂无匹配活动</view>
         <view v-for="item in searchActivities" :key="item.id" class="content-card" @click="goToActivity(item.id)">
           <view class="content-card__top">
-            <view class="content-card__title">{{ item.title }}</view>
+            <view class="tag-title-row">
+              <tag-badge v-if="item.isTop" text="置顶" tone="yellow" />
+              <view class="content-card__title">{{ item.title }}</view>
+            </view>
             <view class="metric-pill">
               <view class="metric-pill__icon">
                 <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
@@ -148,7 +157,10 @@
           <view v-if="filteredInfos.length === 0" class="surface-card empty-state">没有更多内容</view>
           <view v-for="item in filteredInfos" :key="item.id" class="content-feed-card surface-card" @click="goToDetail(item.id)">
             <view class="content-feed-card__tags">
-              <tag-badge :text="item.category || '资讯'" tone="purple" />
+              <view class="tag-group">
+                <tag-badge v-if="item.isTop" text="置顶" tone="yellow" />
+                <tag-badge :text="item.category || '其他'" tone="purple" />
+              </view>
               <view class="metric-pill">
                 <view class="metric-pill__icon">
                   <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16">
@@ -929,9 +941,7 @@ export default {
 .content-feed-card__tags,
 .content-card__top {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: 12rpx;
   margin-bottom: 16rpx;
 }
@@ -1044,6 +1054,25 @@ export default {
 
 .attachment-download-panel__progress {
   margin-top: 16rpx;
+}
+
+.tag-group,
+.tag-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-title-row {
+  flex-wrap: nowrap;
+}
+
+.content-card__top .content-card__title {
+  flex: 1;
+  min-width: 0;
 }
 
 .attachment-download-panel__bar {
@@ -1184,6 +1213,8 @@ export default {
   background: #f5f7fb;
   color: var(--text-sub);
   font-size: 22rpx;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .metric-pill__icon {

@@ -53,6 +53,7 @@ function normalizeInfoPayload(body = {}) {
     content: String(body.content || ''),
     source: String(body.source || '后台发布').trim() || '后台发布',
     sourceUrl: String(body.sourceUrl || '').trim(),
+    isTop: Boolean(body.isTop),
     category: String(body.category || '其他').trim() || '其他',
     locationType: String(body.locationType || '校内').trim() || '校内',
     status: String(body.status || 'published').trim() || 'published',
@@ -388,7 +389,7 @@ module.exports = function registerAdminRoutes(app, db) {
   });
 
   app.get('/api/admin/infos', requireAdmin, (_req, res) => {
-    const rows = db.all('SELECT * FROM infos ORDER BY datetime(created_at) DESC');
+    const rows = db.all('SELECT * FROM infos ORDER BY is_top DESC, datetime(created_at) DESC, id DESC');
     res.json({ list: rows.map(mapInfo) });
   });
 
@@ -396,9 +397,9 @@ module.exports = function registerAdminRoutes(app, db) {
     const body = normalizeInfoPayload(req.body || {});
     const now = new Date().toISOString();
     db.run(
-      `INSERT INTO infos (title, summary, content, source, source_url, attachments, category, location_type, status, publish_time, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [body.title, body.summary, body.content, body.source, body.sourceUrl, JSON.stringify(body.attachments), body.category, body.locationType, body.status, now, now, now]
+      `INSERT INTO infos (title, summary, content, source, source_url, attachments, category, location_type, is_top, status, publish_time, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [body.title, body.summary, body.content, body.source, body.sourceUrl, JSON.stringify(body.attachments), body.category, body.locationType, body.isTop ? 1 : 0, body.status, now, now, now]
     );
     res.json({ success: true });
   });
@@ -406,8 +407,8 @@ module.exports = function registerAdminRoutes(app, db) {
   app.put('/api/admin/infos/:id', requireAdmin, (req, res) => {
     const body = normalizeInfoPayload(req.body || {});
     db.run(
-      `UPDATE infos SET title = ?, summary = ?, content = ?, source = ?, source_url = ?, attachments = ?, category = ?, location_type = ?, status = ?, updated_at = ? WHERE id = ?`,
-      [body.title, body.summary, body.content, body.source, body.sourceUrl, JSON.stringify(body.attachments), body.category, body.locationType, body.status, new Date().toISOString(), req.params.id]
+      `UPDATE infos SET title = ?, summary = ?, content = ?, source = ?, source_url = ?, attachments = ?, category = ?, location_type = ?, is_top = ?, status = ?, updated_at = ? WHERE id = ?`,
+      [body.title, body.summary, body.content, body.source, body.sourceUrl, JSON.stringify(body.attachments), body.category, body.locationType, body.isTop ? 1 : 0, body.status, new Date().toISOString(), req.params.id]
     );
     res.json({ success: true });
   });
@@ -433,7 +434,7 @@ module.exports = function registerAdminRoutes(app, db) {
   });
 
   app.get('/api/admin/activities', requireAdmin, (_req, res) => {
-    const rows = db.all('SELECT * FROM activities ORDER BY datetime(created_at) DESC');
+    const rows = db.all('SELECT * FROM activities ORDER BY is_top DESC, datetime(created_at) DESC, id DESC');
     res.json({ list: rows.map(mapActivity) });
   });
 
@@ -442,8 +443,8 @@ module.exports = function registerAdminRoutes(app, db) {
     const now = new Date().toISOString();
     db.run(
       `INSERT INTO activities
-      (title, summary, content, start_time, end_time, location, location_type, organizer, images, activity_type, status, publish_time, creator_user_id, apply_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (title, summary, content, start_time, end_time, location, location_type, organizer, images, activity_type, is_top, status, publish_time, creator_user_id, apply_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         body.title,
         body.summary || '',
@@ -455,6 +456,7 @@ module.exports = function registerAdminRoutes(app, db) {
         body.organizer || '后台发布',
         JSON.stringify(body.images || []),
         body.activityType || '其他',
+        body.isTop ? 1 : 0,
         body.status || 'upcoming',
         now,
         req.user.id,
@@ -470,7 +472,7 @@ module.exports = function registerAdminRoutes(app, db) {
     const body = req.body || {};
     db.run(
       `UPDATE activities SET
-      title = ?, summary = ?, content = ?, start_time = ?, end_time = ?, location = ?, location_type = ?, organizer = ?, images = ?, activity_type = ?, status = ?, apply_count = ?, updated_at = ?
+      title = ?, summary = ?, content = ?, start_time = ?, end_time = ?, location = ?, location_type = ?, organizer = ?, images = ?, activity_type = ?, is_top = ?, status = ?, apply_count = ?, updated_at = ?
       WHERE id = ?`,
       [
         body.title,
@@ -483,6 +485,7 @@ module.exports = function registerAdminRoutes(app, db) {
         body.organizer || '后台发布',
         JSON.stringify(body.images || []),
         body.activityType || '其他',
+        body.isTop ? 1 : 0,
         body.status || 'upcoming',
         body.applyCount || 0,
         new Date().toISOString(),

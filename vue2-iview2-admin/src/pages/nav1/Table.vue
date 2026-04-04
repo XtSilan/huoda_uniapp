@@ -6,7 +6,7 @@
       <Input v-model="form.title" placeholder="标题" style="margin-bottom: 10px;" />
       <Input v-model="form.summary" placeholder="摘要" style="margin-bottom: 10px;" />
       <Input v-model="form.source" placeholder="来源名称，例如：学校官网" style="margin-bottom: 10px;" />
-      <Input v-model="form.sourceUrl" placeholder="来源链接，可直接粘贴网址" style="margin-bottom: 10px;" />
+      <Input v-model="form.sourceUrl" placeholder="来源链接" style="margin-bottom: 10px;" />
       <Select v-model="form.locationType" style="margin-bottom: 10px;">
         <Option value="校内">校内</Option>
         <Option value="校外">校外</Option>
@@ -14,7 +14,10 @@
       <Select v-model="form.category" style="margin-bottom: 10px;">
         <Option v-for="item in categories" :key="item" :value="item">{{ item }}</Option>
       </Select>
-      <Input v-model="form.content" type="textarea" :rows="8" placeholder="请输入内容，支持换行显示" />
+      <div style="margin-bottom: 10px;">
+        <Checkbox v-model="form.isTop">置顶</Checkbox>
+      </div>
+      <Input v-model="form.content" type="textarea" :rows="8" placeholder="请输入内容" />
       <div style="margin-top: 12px;">
         <Button :loading="uploading" @click="triggerAttachmentSelect">上传附件</Button>
         <input ref="attachmentInput" type="file" multiple style="display: none;" @change="handleAttachmentChange" />
@@ -49,10 +52,19 @@ export default {
         category: '其他',
         locationType: '校内',
         content: '',
-        attachments: []
+        attachments: [],
+        isTop: false
       },
       columns: [
-        { title: '标题', key: 'title' },
+        {
+          title: '标题',
+          key: 'title',
+          render: (h, params) =>
+            h('div', [
+              params.row.isTop ? h('Tag', { props: { color: 'red' }, style: { marginRight: '6px' } }, '置顶') : null,
+              h('span', params.row.title)
+            ])
+        },
         { title: '分类', key: 'category' },
         { title: '范围', key: 'locationType' },
         { title: '来源', key: 'source' },
@@ -88,7 +100,8 @@ export default {
         category: '其他',
         locationType: '校内',
         content: '',
-        attachments: []
+        attachments: [],
+        isTop: false
       };
     },
     async loadInfos() {
