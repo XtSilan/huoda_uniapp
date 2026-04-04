@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const {
   createToken,
@@ -439,7 +439,7 @@ module.exports = function registerPublicRoutes(app, db) {
         id: String(row.id),
         targetType: row.target_type,
         targetId: String(row.target_id),
-        title: row.info_title || row.activity_title || '鏈煡鍐呭',
+        title: row.info_title || row.activity_title || '未知内容',
         summary: row.info_summary || row.activity_summary || '',
         time: row.created_at
       }))
@@ -673,10 +673,10 @@ module.exports = function registerPublicRoutes(app, db) {
         body.startTime,
         body.endTime,
         body.location,
-        body.locationType || '鏍″唴',
+        body.locationType || '校内',
         body.organizer,
         JSON.stringify(body.images || []),
-        body.activityType || '鍏朵粬',
+        body.activityType || '其他',
         body.status || 'upcoming',
         now,
         req.user.id,
@@ -829,7 +829,7 @@ module.exports = function registerPublicRoutes(app, db) {
   app.post('/api/sign/do', requireAuth, (req, res) => {
     const body = req.body || {};
     const now = new Date().toISOString();
-    db.run('INSERT INTO sign_records (user_id, course_name, teacher, status, time, created_at) VALUES (?, ?, ?, ?, ?, ?)', [req.user.id, body.courseName || '楂樼瓑鏁板', body.teacher || '寮犺€佸笀', 'success', now, now]);
+    db.run('INSERT INTO sign_records (user_id, course_name, teacher, status, time, created_at) VALUES (?, ?, ?, ?, ?, ?)', [req.user.id, body.courseName || '高等数学', body.teacher || '张老师', 'success', now, now]);
     res.json({ success: true });
   });
 
@@ -866,7 +866,7 @@ module.exports = function registerPublicRoutes(app, db) {
         ? db.get('SELECT id FROM ai_model_presets WHERE id = ? AND is_active = 1', [settings.selectedPresetId])
         : db.get('SELECT id FROM ai_model_presets WHERE is_default = 1 AND is_active = 1 LIMIT 1');
       if (!preset) {
-        error = '鏈壘鍒板彲鐢ㄧ殑榛樿妯″瀷閰嶇疆';
+        error = '未找到可用的默认模型配置';
       }
     } else if (settings.mode === 'custom-openai') {
       error = validateAiConfig(settings.customOpenAI);
