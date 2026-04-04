@@ -89,7 +89,8 @@ function mapInfo(row) {
     publishTime: row.publish_time,
     favoriteCount: Number(row.favorite_count || 0),
     viewCount: Number(row.view_count || 0),
-    isCollected: Boolean(row.is_collected)
+    isCollected: Boolean(row.is_collected),
+    recommendationReason: row.recommendation_reason || ''
   };
 }
 
@@ -109,10 +110,11 @@ function mapActivity(row) {
     isTop: Boolean(row.is_top),
     status: row.status,
     publishTime: row.publish_time,
-    applyCount: Number(row.apply_count || 0),
+    applyCount: Number(row.application_count || row.apply_count || 0),
     favoriteCount: Number(row.favorite_count || 0),
     isCollected: Boolean(row.is_collected),
-    isApplied: Boolean(row.is_applied)
+    isApplied: Boolean(row.is_applied),
+    recommendationReason: row.recommendation_reason || ''
   };
 }
 

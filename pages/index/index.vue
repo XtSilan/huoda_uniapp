@@ -72,6 +72,7 @@
         >
           <view class="news-card__icon tone-purple">荐</view>
           <view class="news-card__body">
+            <view v-if="item.recommendationReason" class="recommend-reason">{{ item.recommendationReason }}</view>
             <view class="news-card__title">{{ item.title }}</view>
             <view class="news-card__content">{{ item.summary || item.content }}</view>
             <view class="news-card__meta">
@@ -99,6 +100,7 @@
         >
           <image v-if="item.images && item.images.length" class="activity-image" :src="item.images[0]" mode="aspectFill"></image>
           <view class="activity-body">
+            <view v-if="item.recommendationReason" class="recommend-reason">{{ item.recommendationReason }}</view>
             <view class="activity-topline">
               <tag-badge :text="item.activityType || '活动'" tone="blue" />
               <view class="metric-pill">
@@ -421,6 +423,18 @@ export default {
   font-size: 30rpx;
   font-weight: 700;
   line-height: 1.4;
+}
+
+.recommend-reason {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 12rpx;
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(107, 72, 255, 0.1);
+  color: var(--primary-color);
+  font-size: 22rpx;
+  font-weight: 700;
 }
 
 .news-card__content,

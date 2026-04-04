@@ -148,6 +148,232 @@ function buildSearchConditions(search, columns, params) {
   return `(${condition})`;
 }
 
+function dedupeById(rows = []) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const id = String(row && row.id ? row.id : '');
+    if (!id || seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
+function withReason(rows = [], reason = '') {
+  return rows.map((row) => ({
+    ...row,
+    recommendation_reason: reason
+  }));
+}
+
+function buildHomeInfoRecommendations(db, reqUser, infoSelect, interests = []) {
+  const sections = [];
+  const usedIds = new Set();
+  const pushRows = (rows) => {
+    rows.forEach((row) => {
+      if (!row || usedIds.has(String(row.id))) {
+        return;
+      }
+      usedIds.add(String(row.id));
+      sections.push(row);
+    });
+  };
+
+  if (reqUser) {
+    const favoriteSeed = db.get(
+      `SELECT i.id, i.title, i.category
+      FROM favorites f
+      INNER JOIN infos i ON i.id = f.target_id
+      WHERE f.user_id = ? AND f.target_type = 'info'
+      ORDER BY datetime(f.created_at) DESC, f.id DESC
+      LIMIT 1`,
+      [reqUser.id]
+    );
+    if (favoriteSeed && favoriteSeed.category) {
+      pushRows(
+        withReason(
+          db.all(
+            `${infoSelect}
+            WHERE i.category = ? AND i.id != ?
+            ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC
+            LIMIT 2`,
+            [favoriteSeed.category, favoriteSeed.id]
+          ),
+          `因为你收藏过 ${favoriteSeed.title}`
+        )
+      );
+    }
+
+    const browseSeed = db.get(
+      `SELECT i.id, i.title, i.category
+      FROM browse_history bh
+      INNER JOIN infos i ON i.id = bh.target_id
+      WHERE bh.user_id = ? AND bh.target_type = 'info'
+      ORDER BY datetime(bh.created_at) DESC, bh.id DESC
+      LIMIT 1`,
+      [reqUser.id]
+    );
+    if (browseSeed && browseSeed.category) {
+      pushRows(
+        withReason(
+          db.all(
+            `${infoSelect}
+            WHERE i.category = ? AND i.id != ?
+            ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC
+            LIMIT 2`,
+            [browseSeed.category, browseSeed.id]
+          ),
+          `因为你看过 ${browseSeed.title}`
+        )
+      );
+    }
+
+    const className = String(reqUser.class_name || '').trim();
+    if (className) {
+      pushRows(
+        withReason(
+          db.all(
+            `${infoSelect}
+            WHERE i.id IN (
+              SELECT bh.target_id
+              FROM browse_history bh
+              INNER JOIN users u ON u.id = bh.user_id
+              WHERE bh.target_type = 'info'
+                AND u.id != ?
+                AND TRIM(u.class_name) = ?
+              GROUP BY bh.target_id
+              ORDER BY COUNT(*) DESC, MAX(datetime(bh.created_at)) DESC
+              LIMIT 2
+            )
+            ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC`,
+            [reqUser.id, className]
+          ),
+          '本班同学最近在看'
+        )
+      );
+    }
+  }
+
+  if (interests.length) {
+    const placeholders = interests.map(() => '?').join(',');
+    pushRows(
+      withReason(
+        db.all(
+          `${infoSelect}
+          WHERE i.category IN (${placeholders})
+          ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC
+          LIMIT 3`,
+          interests
+        ),
+        '根据你的兴趣推荐'
+      )
+    );
+  }
+
+  pushRows(
+    withReason(
+      db.all(`${infoSelect} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 4`),
+      '最新发布'
+    )
+  );
+
+  return dedupeById(sections).slice(0, 4);
+}
+
+function buildHomeActivityRecommendations(db, reqUser, activitySelect, interests = []) {
+  const sections = [];
+  const usedIds = new Set();
+  const pushRows = (rows) => {
+    rows.forEach((row) => {
+      if (!row || usedIds.has(String(row.id))) {
+        return;
+      }
+      usedIds.add(String(row.id));
+      sections.push(row);
+    });
+  };
+
+  if (reqUser) {
+    const activitySeed = db.get(
+      `SELECT a.id, a.title, a.activity_type
+      FROM activity_applications aa
+      INNER JOIN activities a ON a.id = aa.activity_id
+      WHERE aa.user_id = ?
+      ORDER BY datetime(aa.created_at) DESC, aa.id DESC
+      LIMIT 1`,
+      [reqUser.id]
+    );
+    if (activitySeed && activitySeed.activity_type) {
+      pushRows(
+        withReason(
+          db.all(
+            `${activitySelect}
+            WHERE a.activity_type = ? AND a.id != ? AND a.status = 'upcoming'
+            ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC
+            LIMIT 2`,
+            [activitySeed.activity_type, activitySeed.id]
+          ),
+          `因为你参加过 ${activitySeed.title}`
+        )
+      );
+    }
+  }
+
+  pushRows(
+    withReason(
+      db.all(
+        `${activitySelect}
+        WHERE a.status = 'upcoming'
+        ORDER BY a.is_top DESC, application_count DESC, datetime(a.publish_time) DESC, a.id DESC
+        LIMIT 2`
+      ),
+      '最近报名最多的活动'
+    )
+  );
+
+  pushRows(
+    withReason(
+      db.all(
+        `${activitySelect}
+        WHERE a.status = 'upcoming'
+        ORDER BY a.is_top DESC, datetime(a.end_time) ASC, datetime(a.publish_time) DESC, a.id DESC
+        LIMIT 2`
+      ),
+      '离截止时间最近'
+    )
+  );
+
+  if (interests.length) {
+    const placeholders = interests.map(() => '?').join(',');
+    pushRows(
+      withReason(
+        db.all(
+          `${activitySelect}
+          WHERE a.activity_type IN (${placeholders}) AND a.status = 'upcoming'
+          ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC
+          LIMIT 2`,
+          interests
+        ),
+        '符合你的兴趣偏好'
+      )
+    );
+  }
+
+  pushRows(
+    withReason(
+      db.all(
+        `${activitySelect}
+        ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC
+        LIMIT 4`
+      ),
+      '最新活动'
+    )
+  );
+
+  return dedupeById(sections).slice(0, 4);
+}
+
 module.exports = function registerPublicRoutes(app, db) {
   fs.mkdirSync(userUploadDir, { recursive: true });
   const infoSelect = `
@@ -158,7 +384,8 @@ module.exports = function registerPublicRoutes(app, db) {
   `;
   const activitySelect = `
     SELECT a.*,
-      (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count
+      (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count,
+      (SELECT COUNT(*) FROM activity_applications aa WHERE aa.activity_id = a.id) AS application_count
     FROM activities a
   `;
 
@@ -224,18 +451,10 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.get('/api/home/overview', (req, res) => {
     const banners = db.all('SELECT * FROM banners WHERE is_active = 1 ORDER BY sort_order ASC, id ASC');
-    const activities = db.all(`${activitySelect} ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC LIMIT 4`);
     const settings = req.user ? db.get('SELECT * FROM user_settings WHERE user_id = ?', [req.user.id]) : null;
     const interests = settings ? parseJson(settings.interests, []) : [];
-
-    let recommendations = [];
-    if (interests.length) {
-      const placeholders = interests.map(() => '?').join(',');
-      recommendations = db.all(`${infoSelect} WHERE i.category IN (${placeholders}) ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 4`, interests);
-    }
-    if (!recommendations.length) {
-      recommendations = db.all(`${infoSelect} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 4`);
-    }
+    const recommendations = buildHomeInfoRecommendations(db, req.user, infoSelect, interests);
+    const activities = buildHomeActivityRecommendations(db, req.user, activitySelect, interests);
 
     const hotInfos = db.all(`${infoSelect} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 6`);
     res.json({
