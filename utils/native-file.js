@@ -81,6 +81,34 @@ export function openDocumentFile(filePath) {
   });
 }
 
+export function scanFileToMediaLibrary(filePath) {
+  return new Promise((resolve) => {
+    // #ifdef APP-PLUS
+    try {
+      const systemInfo = uni.getSystemInfoSync();
+      const platform = String(systemInfo.platform || systemInfo.osName || '').toLowerCase();
+      if (!platform.includes('android') || !filePath) {
+        resolve(false);
+        return;
+      }
+
+      const main = plus.android.runtimeMainActivity();
+      const MediaScannerConnection = plus.android.importClass('android.media.MediaScannerConnection');
+      MediaScannerConnection.scanFile(main, [filePath], null, null);
+      resolve(true);
+      return;
+    } catch (_error) {
+      resolve(false);
+      return;
+    }
+    // #endif
+
+    // #ifndef APP-PLUS
+    resolve(false);
+    // #endif
+  });
+}
+
 export async function openOrInstallLocalFile({ filePath = '', fileName = '' } = {}) {
   if (!filePath) {
     throw new Error('文件路径不能为空');

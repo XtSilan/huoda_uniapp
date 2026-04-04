@@ -12,16 +12,21 @@ import {
 export default {
   async onLaunch() {
     console.log('Huoda app launched');
+    await this.checkAppUpdateOnLaunch();
     await this.restoreLoginSession();
   },
   methods: {
+    async checkAppUpdateOnLaunch() {
+      try {
+        await promptForAppUpdate({ manual: false });
+      } catch (_error) {}
+    },
     async restoreLoginSession() {
       try {
         const { token } = await restoreSessionFromBackup();
         if (token) {
           const res = await authService.refresh();
           await saveSession(res.token, res.user);
-          await promptForAppUpdate({ manual: false });
           return;
         }
 
@@ -33,7 +38,6 @@ export default {
 
         const res = await authService.login(savedCredentials);
         await saveSession(res.token, res.user);
-        await promptForAppUpdate({ manual: false });
       } catch (error) {
         await clearSession();
         redirectToLogin();

@@ -171,9 +171,9 @@
 
 <script>
 import { SERVER_ORIGIN } from '../../config/api';
-import { canInstallApkOnAndroid, openOrInstallLocalFile, openUnknownAppSourcesSettings } from '../../utils/native-file';
+import { canInstallApkOnAndroid, openOrInstallLocalFile, openUnknownAppSourcesSettings, scanFileToMediaLibrary } from '../../utils/native-file';
 
-const ATTACHMENT_DOWNLOAD_DIR = '/sdcard/download/';
+const ATTACHMENT_DOWNLOAD_DIR = '_downloads/';
 
 function toLocalFileSystemUrl(filePath = '') {
   if (!filePath) {
@@ -355,28 +355,101 @@ export default {
       const key = this.getAttachmentKey(item);
       const ext = this.getAttachmentExtension(item);
       const safeKey = encodeURIComponent(key).replace(/%/g, '');
-      return `${ATTACHMENT_DOWNLOAD_DIR}${safeKey || 'attachment'}${ext}`;
+      return `${this.getAttachmentDownloadDirectory()}${safeKey || 'attachment'}${ext}`;
     },
-    ensureAttachmentDownloadDirectory() {
+    getAttachmentDownloadDirectory() {
+      // #ifdef APP-PLUS
+      try {
+        const systemInfo = uni.getSystemInfoSync();
+        const platform = String(systemInfo.platform || systemInfo.osName || '').toLowerCase();
+        if (platform.includes('android')) {
+          const Environment = plus.android.importClass('android.os.Environment');
+          const directory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+          plus.android.importClass(directory);
+          const absolutePath = String(directory.getAbsolutePath() || '').replace(/\\/g, '/');
+          if (absolutePath) {
+            return absolutePath.endsWith('/') ? absolutePath : `${absolutePath}/`;
+          }
+        }
+      } catch (_error) {}
+      // #endif
+
+      return ATTACHMENT_DOWNLOAD_DIR;
+    },
+    ensureAttachmentStoragePermission() {
       // #ifdef APP-PLUS
       return new Promise((resolve) => {
-        plus.io.resolveLocalFileSystemURL(
-          'file:///sdcard',
-          (rootEntry) => {
-            rootEntry.getDirectory(
-              'download',
-              { create: true },
-              () => resolve(true),
-              () => resolve(false)
-            );
-          },
-          () => resolve(false)
-        );
+        try {
+          const systemInfo = uni.getSystemInfoSync();
+          const platform = String(systemInfo.platform || systemInfo.osName || '').toLowerCase();
+          if (!platform.includes('android')) {
+            resolve(true);
+            return;
+          }
+
+          const Build = plus.android.importClass('android.os.Build');
+          if (Number(Build.VERSION.SDK_INT) >= 30) {
+            resolve(true);
+            return;
+          }
+
+          plus.android.requestPermissions(
+            ['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE'],
+            (result) => {
+              const deniedAlways = Array.isArray(result.deniedAlways) ? result.deniedAlways : [];
+              const deniedPresent = Array.isArray(result.deniedPresent) ? result.deniedPresent : [];
+              resolve(!deniedAlways.length && !deniedPresent.length);
+            },
+            () => resolve(false)
+          );
+        } catch (_error) {
+          resolve(false);
+        }
       });
       // #endif
 
       // #ifndef APP-PLUS
       return Promise.resolve(false);
+      // #endif
+    },
+    ensureAttachmentDownloadDirectory() {
+      // #ifdef APP-PLUS
+      return new Promise(async (resolve) => {
+        const hasPermission = await this.ensureAttachmentStoragePermission();
+        if (!hasPermission) {
+          resolve({ ok: false, message: '\u8bf7\u5148\u5141\u8bb8\u5b58\u50a8\u6743\u9650' });
+          return;
+        }
+
+        const downloadDirectory = this.getAttachmentDownloadDirectory().replace(/\/$/, '');
+        const normalizedPath = toLocalFileSystemUrl(downloadDirectory);
+
+        plus.io.resolveLocalFileSystemURL(
+          normalizedPath,
+          () => resolve({ ok: true, path: downloadDirectory }),
+          () => {
+            const pathParts = downloadDirectory.split('/').filter(Boolean);
+            const directoryName = pathParts.pop();
+            const parentPath = `/${pathParts.join('/')}`;
+            plus.io.resolveLocalFileSystemURL(
+              toLocalFileSystemUrl(parentPath),
+              (parentEntry) => {
+                parentEntry.getDirectory(
+                  directoryName,
+                  { create: true },
+                  () => resolve({ ok: true, path: downloadDirectory }),
+                  () => resolve({ ok: false, message: '\u4e0b\u8f7d\u76ee\u5f55\u521b\u5efa\u5931\u8d25' })
+                );
+              },
+              () => resolve({ ok: false, message: '\u65e0\u6cd5\u8bbf\u95ee\u7cfb\u7edf\u4e0b\u8f7d\u76ee\u5f55' })
+            );
+          }
+        );
+      });
+      // #endif
+
+      // #ifndef APP-PLUS
+      return Promise.resolve({ ok: false, message: '\u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301\u4e0b\u8f7d\u5230\u672c\u5730\u76ee\u5f55' });
       // #endif
     },
     formatFileSize(size) {
@@ -439,6 +512,14 @@ export default {
         return '';
       }
       return filePath.startsWith('_doc/') ? `应用目录/${filePath.replace(/^_doc\//, '')}` : filePath;
+    },
+    async notifyAttachmentIndexed(filePath) {
+      if (!filePath) {
+        return;
+      }
+      try {
+        await scanFileToMediaLibrary(filePath);
+      } catch (_error) {}
     },
     promptForApkInstallPermission(filePath, name) {
       this.pendingInstallFile = { filePath, name };
@@ -574,9 +655,9 @@ export default {
 
       this.disposeAttachmentTask(false);
 
-      const dirReady = await this.ensureAttachmentDownloadDirectory();
-      if (!dirReady) {
-        uni.showToast({ title: '下载目录创建失败', icon: 'none' });
+      const dirResult = await this.ensureAttachmentDownloadDirectory();
+      if (!dirResult.ok) {
+        uni.showToast({ title: dirResult.message || '\u4e0b\u8f7d\u76ee\u5f55\u521b\u5efa\u5931\u8d25', icon: 'none' });
         return;
       }
 
@@ -604,6 +685,7 @@ export default {
         (download, status) => {
           if (status === 200) {
             const completedFilePath = download.filename || filePath;
+            this.notifyAttachmentIndexed(completedFilePath);
             this.updateAttachmentDownloadState({
               visible: true,
               progress: 100,

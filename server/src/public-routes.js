@@ -148,7 +148,7 @@ module.exports = function registerPublicRoutes(app, db) {
     res.json({ ok: true });
   });
 
-  app.get('/api/app/version', requireAuth, (req, res) => {
+  app.get('/api/app/version', (req, res) => {
     const platform = String(req.query.platform || 'android').toLowerCase();
     const currentVersionName = String(req.query.versionName || '0.0.0');
     const currentVersionCode = Number(req.query.versionCode || 0) || 0;
