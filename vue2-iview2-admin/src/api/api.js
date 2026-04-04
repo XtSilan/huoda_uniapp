@@ -53,6 +53,8 @@ export const getPopupAnnouncement = () => http.get('/admin/popup-announcement').
 export const uploadPopupAnnouncementImage = (payload) => http.post('/admin/popup-announcement/upload', payload).then((res) => res.data);
 export const updatePopupAnnouncement = (payload) => http.put('/admin/popup-announcement', payload).then((res) => res.data);
 export const deactivatePopupAnnouncement = () => http.post('/admin/popup-announcement/deactivate').then((res) => res.data);
+export const getNotifications = () => http.get('/admin/notifications').then((res) => res.data);
+export const createNotification = (payload) => http.post('/admin/notifications', payload).then((res) => res.data);
 export const getReports = () => http.get('/admin/reports').then((res) => res.data);
 export const getAiModels = () => http.get('/admin/ai-models').then((res) => res.data);
 export const createAiModel = (payload) => http.post('/admin/ai-models', payload).then((res) => res.data);

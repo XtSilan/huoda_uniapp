@@ -143,6 +143,64 @@ function extractWgtPackage(file) {
   };
 }
 
+function normalizeNotificationType(type = '') {
+  if (type === 'app_update') {
+    return 'version';
+  }
+  return ['system', 'activity', 'sign', 'version'].includes(type) ? type : 'system';
+}
+
+function createNotification(db, payload = {}) {
+  const userId = Number(payload.userId || 0);
+  if (!userId) {
+    return null;
+  }
+  const now = payload.createdAt || new Date().toISOString();
+  const type = normalizeNotificationType(payload.type);
+  const releaseId = String(payload.releaseId || '').trim();
+  const serializedPayload = JSON.stringify(payload.payload || {});
+
+  if (releaseId) {
+    const existing = db.get('SELECT id FROM notifications WHERE user_id = ? AND type = ? AND release_id = ?', [userId, type, releaseId]);
+    if (existing) {
+      db.run(
+        `UPDATE notifications
+        SET title = ?, content = ?, payload = ?, is_read = 0, read_at = '', created_at = ?
+        WHERE id = ?`,
+        [payload.title || '', payload.content || '', serializedPayload, now, existing.id]
+      );
+      return;
+    }
+  }
+
+  db.run(
+    `INSERT INTO notifications
+    (user_id, type, title, content, payload, release_id, is_read, created_at, read_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, type, payload.title || '', payload.content || '', serializedPayload, releaseId, 0, now, '']
+  );
+}
+
+function createNotificationsForUsers(db, userIds = [], payload = {}) {
+  [...new Set((userIds || []).map((item) => Number(item || 0)).filter(Boolean))].forEach((userId) => {
+    createNotification(db, { ...payload, userId });
+  });
+}
+
+function notifyFavoritedUsers(db, targetType, targetId, payload) {
+  const rows = db.all(
+    `SELECT DISTINCT user_id
+    FROM favorites
+    WHERE target_type = ? AND target_id = ?`,
+    [targetType, targetId]
+  );
+  createNotificationsForUsers(
+    db,
+    rows.map((row) => row.user_id),
+    payload
+  );
+}
+
 function publishAppUpdateNotifications(db, payload) {
   if (!payload || payload.updateType === 'none') {
     return;
@@ -165,7 +223,7 @@ function publishAppUpdateNotifications(db, payload) {
 
   users.forEach((user) => {
     const existing = releaseId
-      ? db.get(`SELECT id FROM notifications WHERE user_id = ? AND type = 'app_update' AND release_id = ?`, [user.id, releaseId])
+      ? db.get(`SELECT id FROM notifications WHERE user_id = ? AND type IN ('app_update', 'version') AND release_id = ?`, [user.id, releaseId])
       : null;
 
     if (existing) {
@@ -182,7 +240,7 @@ function publishAppUpdateNotifications(db, payload) {
       `INSERT INTO notifications
       (user_id, type, title, content, payload, release_id, is_read, created_at, read_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user.id, 'app_update', notificationTitle, notificationContent, serializedPayload, releaseId, 0, now, '']
+      [user.id, 'version', notificationTitle, notificationContent, serializedPayload, releaseId, 0, now, '']
     );
   });
 }
@@ -410,6 +468,17 @@ module.exports = function registerAdminRoutes(app, db) {
       `UPDATE infos SET title = ?, summary = ?, content = ?, source = ?, source_url = ?, attachments = ?, category = ?, location_type = ?, is_top = ?, status = ?, updated_at = ? WHERE id = ?`,
       [body.title, body.summary, body.content, body.source, body.sourceUrl, JSON.stringify(body.attachments), body.category, body.locationType, body.isTop ? 1 : 0, body.status, new Date().toISOString(), req.params.id]
     );
+    notifyFavoritedUsers(db, 'info', req.params.id, {
+      type: 'system',
+      title: '收藏内容有更新',
+      content: `你收藏的资讯“${body.title}”有新内容，点击查看最新详情。`,
+      releaseId: `favorite-info-update-${req.params.id}-${Date.now()}`,
+      payload: {
+        targetType: 'info',
+        targetId: String(req.params.id),
+        action: 'open-info-detail'
+      }
+    });
     res.json({ success: true });
   });
 
@@ -492,6 +561,17 @@ module.exports = function registerAdminRoutes(app, db) {
         req.params.id
       ]
     );
+    notifyFavoritedUsers(db, 'activity', req.params.id, {
+      type: 'activity',
+      title: '收藏活动有更新',
+      content: `你收藏的活动“${body.title}”有新变化，点击查看最新安排。`,
+      releaseId: `favorite-activity-update-${req.params.id}-${Date.now()}`,
+      payload: {
+        targetType: 'activity',
+        targetId: String(req.params.id),
+        action: 'open-activity-detail'
+      }
+    });
     res.json({ success: true });
   });
 
@@ -797,6 +877,82 @@ module.exports = function registerAdminRoutes(app, db) {
         updatedAt: saved.updated_at || ''
       }
     });
+  });
+
+  app.get('/api/admin/notifications', requireAdmin, (_req, res) => {
+    const rows = db.all(
+      `SELECT n.*, u.name AS user_name, u.student_id
+      FROM notifications n
+      LEFT JOIN users u ON u.id = n.user_id
+      ORDER BY datetime(n.created_at) DESC, n.id DESC
+      LIMIT 100`
+    );
+    res.json({
+      list: rows.map((row) => ({
+        id: String(row.id),
+        type: normalizeNotificationType(row.type),
+        title: row.title || '',
+        content: row.content || '',
+        payload: parseJson(row.payload, {}),
+        releaseId: row.release_id || '',
+        isRead: Boolean(row.is_read),
+        createdAt: row.created_at || '',
+        readAt: row.read_at || '',
+        userName: row.user_name || '',
+        studentId: row.student_id || ''
+      }))
+    });
+  });
+
+  app.post('/api/admin/notifications', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const type = normalizeNotificationType(body.type);
+    const title = String(body.title || '').trim();
+    const content = String(body.content || '').trim();
+    const targetScope = String(body.targetScope || 'all').trim();
+    const releaseId = String(body.releaseId || `manual-${type}-${Date.now()}`).trim();
+    const targetType = String(body.targetType || '').trim();
+    const targetId = String(body.targetId || '').trim();
+
+    if (!title) {
+      return res.status(400).json({ message: '通知标题不能为空' });
+    }
+    if (!content) {
+      return res.status(400).json({ message: '通知内容不能为空' });
+    }
+
+    let userIds = [];
+    if (targetScope === 'specific') {
+      userIds = Array.isArray(body.userIds) ? body.userIds.map((item) => Number(item || 0)).filter(Boolean) : [];
+      if (!userIds.length) {
+        return res.status(400).json({ message: '请选择接收通知的用户' });
+      }
+    } else {
+      userIds = db.all(`SELECT id FROM users WHERE status = 'active' ORDER BY id ASC`).map((row) => row.id);
+    }
+
+    createNotificationsForUsers(db, userIds, {
+      type,
+      title,
+      content,
+      releaseId,
+      payload: {
+        targetType,
+        targetId,
+        action:
+          targetType === 'activity'
+            ? 'open-activity-detail'
+            : targetType === 'info'
+              ? 'open-info-detail'
+              : targetType === 'sign'
+                ? 'open-sign-page'
+                : targetType === 'version'
+                  ? 'open-version-update'
+                  : 'none'
+      }
+    });
+
+    res.json({ success: true, count: userIds.length });
   });
 
   app.post('/api/admin/app-updates/upload', requireAdmin, appUpdateUpload.single('file'), (req, res) => {

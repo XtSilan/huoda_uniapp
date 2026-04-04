@@ -46,6 +46,21 @@ function parseJson(value, fallback) {
   }
 }
 
+const DEFAULT_NOTIFICATION_SETTINGS = {
+  activity: true,
+  lecture: true,
+  partTime: true,
+  sign: true,
+  system: true,
+  version: true,
+  doNotDisturb: false
+};
+
+const DEFAULT_THEME_SETTINGS = {
+  darkMode: false,
+  autoRefresh: true
+};
+
 function mapUser(row) {
   return {
     id: row.id,
@@ -133,9 +148,10 @@ function mapClassGroup(row) {
 }
 
 function mapNotification(row) {
+  const normalizedType = row.type === 'app_update' ? 'version' : (row.type || 'system');
   return {
     id: String(row.id),
-    type: row.type || 'system',
+    type: normalizedType,
     title: row.title || '',
     content: row.content || '',
     payload: parseJson(row.payload, {}),
@@ -229,13 +245,21 @@ function getClassGroupWithMembers(db, row) {
 }
 
 function parseSettings(row) {
+  const notification = {
+    ...DEFAULT_NOTIFICATION_SETTINGS,
+    ...parseJson(row.notification_settings, {})
+  };
+  const theme = {
+    ...DEFAULT_THEME_SETTINGS,
+    ...parseJson(row.theme_settings, {})
+  };
   return {
     grade: row.grade || '',
     educationType: row.education_type || '',
     interests: parseJson(row.interests, []),
     futurePlan: row.future_plan || '',
-    notification: parseJson(row.notification_settings, {}),
-    theme: parseJson(row.theme_settings, {}),
+    notification,
+    theme,
     aiConfig: parseJson(row.ai_settings, {})
   };
 }
@@ -280,5 +304,7 @@ module.exports = {
   buildClassmatesFromUsers,
   getClassGroupWithMembers,
   parseSettings,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_THEME_SETTINGS,
   recordBrowse
 };

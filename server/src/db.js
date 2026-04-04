@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 const { DEFAULT_AI_CONFIG, DEFAULT_USER_AI_SETTINGS } = require('./ai-client');
+const { DEFAULT_NOTIFICATION_SETTINGS, DEFAULT_THEME_SETTINGS } = require('./shared');
 
 const dataDir = path.resolve(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'huoda.sqlite');
@@ -296,14 +297,22 @@ async function seed(db) {
           '本科',
           JSON.stringify(user.role === 'admin' ? ['讲座', '竞赛'] : ['讲座', '就业', '公益']),
           '就业',
-          JSON.stringify({ activity: true, lecture: true, partTime: true }),
-          JSON.stringify({ darkMode: false, autoRefresh: true }),
+          JSON.stringify(DEFAULT_NOTIFICATION_SETTINGS),
+          JSON.stringify(DEFAULT_THEME_SETTINGS),
           JSON.stringify(DEFAULT_USER_AI_SETTINGS),
           now
         ]
       );
     }
   });
+
+  db.run(
+    `UPDATE user_settings
+    SET notification_settings = COALESCE(NULLIF(notification_settings, ''), ?),
+        theme_settings = COALESCE(NULLIF(theme_settings, ''), ?)
+    WHERE notification_settings IS NULL OR notification_settings = '' OR theme_settings IS NULL OR theme_settings = ''`,
+    [JSON.stringify(DEFAULT_NOTIFICATION_SETTINGS), JSON.stringify(DEFAULT_THEME_SETTINGS)]
+  );
 
   db.run(
     `UPDATE user_settings

@@ -11,6 +11,7 @@ const {
   ensureClassGroup,
   getClassGroupWithMembers,
   parseSettings,
+  DEFAULT_NOTIFICATION_SETTINGS,
   parseJson,
   recordBrowse
 } = require('./shared');
@@ -146,6 +147,99 @@ function buildSearchConditions(search, columns, params) {
     params.push(`%${search}%`);
   });
   return `(${condition})`;
+}
+
+function normalizeNotificationType(type = '') {
+  if (type === 'app_update') {
+    return 'version';
+  }
+  return ['system', 'activity', 'sign', 'version'].includes(type) ? type : 'system';
+}
+
+function getNotificationTypeLabel(type = '') {
+  const normalized = normalizeNotificationType(type);
+  const labels = {
+    system: '系统通知',
+    activity: '活动通知',
+    sign: '签到通知',
+    version: '版本通知'
+  };
+  return labels[normalized] || '系统通知';
+}
+
+function createNotification(db, payload = {}) {
+  const userId = Number(payload.userId || 0);
+  if (!userId) {
+    return null;
+  }
+  const now = payload.createdAt || new Date().toISOString();
+  const type = normalizeNotificationType(payload.type);
+  const releaseId = String(payload.releaseId || '').trim();
+  const serializedPayload = JSON.stringify(payload.payload || {});
+
+  if (releaseId) {
+    const existing = db.get('SELECT id FROM notifications WHERE user_id = ? AND type = ? AND release_id = ?', [userId, type, releaseId]);
+    if (existing) {
+      db.run(
+        `UPDATE notifications
+        SET title = ?, content = ?, payload = ?, is_read = 0, read_at = '', created_at = ?
+        WHERE id = ?`,
+        [payload.title || '', payload.content || '', serializedPayload, now, existing.id]
+      );
+      return db.get('SELECT * FROM notifications WHERE id = ?', [existing.id]);
+    }
+  }
+
+  const result = db.run(
+    `INSERT INTO notifications
+    (user_id, type, title, content, payload, release_id, is_read, created_at, read_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, type, payload.title || '', payload.content || '', serializedPayload, releaseId, 0, now, '']
+  );
+  return db.get('SELECT * FROM notifications WHERE id = ?', [result.lastID]);
+}
+
+function createNotificationsForUsers(db, userIds = [], payload = {}) {
+  const uniqueIds = [...new Set((userIds || []).map((item) => Number(item || 0)).filter(Boolean))];
+  return uniqueIds.map((userId) => createNotification(db, { ...payload, userId })).filter(Boolean);
+}
+
+function parseNotificationPreferences(reqUser, db) {
+  const row = reqUser ? db.get('SELECT notification_settings FROM user_settings WHERE user_id = ?', [reqUser.id]) : null;
+  return {
+    ...DEFAULT_NOTIFICATION_SETTINGS,
+    ...parseJson(row && row.notification_settings, {})
+  };
+}
+
+function ensureActivityStartNotifications(db, userId) {
+  const upcomingRows = db.all(
+    `SELECT a.id, a.title, a.start_time
+    FROM activity_applications aa
+    INNER JOIN activities a ON a.id = aa.activity_id
+    WHERE aa.user_id = ?
+      AND a.status = 'upcoming'
+      AND datetime(a.start_time) >= datetime('now')
+      AND datetime(a.start_time) <= datetime('now', '+24 hour')
+    ORDER BY datetime(a.start_time) ASC`,
+    [userId]
+  );
+
+  upcomingRows.forEach((row) => {
+    createNotification(db, {
+      userId,
+      type: 'activity',
+      title: '活动即将开始',
+      content: `你报名的“${row.title}”将在 24 小时内开始，记得准时参加。`,
+      releaseId: `activity-start-${row.id}`,
+      payload: {
+        targetType: 'activity',
+        targetId: String(row.id),
+        action: 'open-activity-detail',
+        startTime: row.start_time
+      }
+    });
+  });
 }
 
 function dedupeById(rows = []) {
@@ -525,18 +619,42 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/user/notifications', requireAuth, (req, res) => {
+    ensureActivityStartNotifications(db, req.user.id);
+    const type = normalizeNotificationType(String(req.query.type || '').trim());
+    const status = String(req.query.status || 'all').trim();
+    const preferences = parseNotificationPreferences(req.user, db);
+    const conditions = ['user_id = ?'];
+    const params = [req.user.id];
+
+    if (String(req.query.type || '').trim()) {
+      conditions.push('type = ?');
+      params.push(type);
+    }
+    if (status === 'read') {
+      conditions.push('is_read = 1');
+    } else if (status === 'unread') {
+      conditions.push('is_read = 0');
+    }
+
     const rows = db.all(
       `SELECT *
       FROM notifications
-      WHERE user_id = ?
+      WHERE ${conditions.join(' AND ')}
       ORDER BY is_read ASC, datetime(created_at) DESC, id DESC
       LIMIT 50`,
-      [req.user.id]
+      params
     );
     const list = rows.map(mapNotification);
+    const totalUnread = db.get('SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND is_read = 0', [req.user.id]).count;
     res.json({
       list,
-      unreadCount: list.filter((item) => !item.isRead).length
+      unreadCount: Number(totalUnread || 0),
+      unreadBadgeCount: preferences.doNotDisturb ? 0 : Number(totalUnread || 0),
+      preferences,
+      filters: {
+        type: String(req.query.type || '').trim() ? type : 'all',
+        status
+      }
     });
   });
 
@@ -599,11 +717,22 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.post('/api/user/notifications/read-all', requireAuth, (req, res) => {
+    const type = String(req.body && req.body.type ? req.body.type : '').trim();
+    const status = String(req.body && req.body.status ? req.body.status : 'all').trim();
+    const conditions = ['user_id = ?', 'is_read = 0'];
+    const params = [req.user.id];
+    if (type) {
+      conditions.push('type = ?');
+      params.push(normalizeNotificationType(type));
+    }
+    if (status === 'read') {
+      return res.json({ success: true });
+    }
     db.run(
       `UPDATE notifications
       SET is_read = 1, read_at = ?
-      WHERE user_id = ? AND is_read = 0`,
-      [new Date().toISOString(), req.user.id]
+      WHERE ${conditions.join(' AND ')}`,
+      [new Date().toISOString(), ...params]
     );
     res.json({ success: true });
   });
@@ -618,8 +747,8 @@ module.exports = function registerPublicRoutes(app, db) {
       educationType: body.educationType !== undefined ? body.educationType : currentSettings.educationType,
       interests: body.interests !== undefined ? body.interests : currentSettings.interests,
       futurePlan: body.futurePlan !== undefined ? body.futurePlan : currentSettings.futurePlan,
-      notification: body.notification !== undefined ? body.notification : currentSettings.notification,
-      theme: body.theme !== undefined ? body.theme : currentSettings.theme,
+      notification: body.notification !== undefined ? { ...currentSettings.notification, ...body.notification } : currentSettings.notification,
+      theme: body.theme !== undefined ? { ...currentSettings.theme, ...body.theme } : currentSettings.theme,
       aiConfig: body.aiConfig !== undefined ? body.aiConfig : currentAiSettings
     };
     db.run(
@@ -910,6 +1039,10 @@ module.exports = function registerPublicRoutes(app, db) {
 
   app.post('/api/publish/apply', requireAuth, (req, res) => {
     const { activityId } = req.body || {};
+    const activity = db.get('SELECT * FROM activities WHERE id = ?', [activityId]);
+    if (!activity) {
+      return res.status(404).json({ message: '活动不存在' });
+    }
     const exists = db.get('SELECT id FROM activity_applications WHERE activity_id = ? AND user_id = ?', [activityId, req.user.id]);
     if (exists) {
       db.run('DELETE FROM activity_applications WHERE id = ?', [exists.id]);
@@ -917,6 +1050,18 @@ module.exports = function registerPublicRoutes(app, db) {
         'UPDATE activities SET apply_count = CASE WHEN apply_count > 0 THEN apply_count - 1 ELSE 0 END, updated_at = ? WHERE id = ?',
         [new Date().toISOString(), activityId]
       );
+      createNotification(db, {
+        userId: req.user.id,
+        type: 'activity',
+        title: '活动报名已取消',
+        content: `你已取消“${activity.title}”的报名。`,
+        releaseId: `activity-cancel-${activityId}-${req.user.id}-${Date.now()}`,
+        payload: {
+          targetType: 'activity',
+          targetId: String(activityId),
+          action: 'open-activity-detail'
+        }
+      });
       const updated = db.get(
         `SELECT a.*,
           (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count,
@@ -939,6 +1084,19 @@ module.exports = function registerPublicRoutes(app, db) {
     }
     db.run('INSERT INTO activity_applications (activity_id, user_id, created_at) VALUES (?, ?, ?)', [activityId, req.user.id, new Date().toISOString()]);
     db.run('UPDATE activities SET apply_count = apply_count + 1, updated_at = ? WHERE id = ?', [new Date().toISOString(), activityId]);
+    createNotification(db, {
+      userId: req.user.id,
+      type: 'activity',
+      title: '活动报名成功',
+      content: `你已成功报名“${activity.title}”。`,
+      releaseId: `activity-apply-${activityId}-${req.user.id}`,
+      payload: {
+        targetType: 'activity',
+        targetId: String(activityId),
+        action: 'open-activity-detail',
+        startTime: activity.start_time
+      }
+    });
     const updated = db.get(
       `SELECT a.*,
         (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count,
@@ -1049,10 +1207,34 @@ module.exports = function registerPublicRoutes(app, db) {
     const body = req.body || {};
     const now = new Date().toISOString();
     db.run('INSERT INTO sign_records (user_id, course_name, teacher, status, time, created_at) VALUES (?, ?, ?, ?, ?, ?)', [req.user.id, body.courseName || '高等数学', body.teacher || '张老师', 'success', now, now]);
+    createNotification(db, {
+      userId: req.user.id,
+      type: 'sign',
+      title: '签到成功',
+      content: `你已完成 ${body.courseName || '高等数学'} 的签到。`,
+      releaseId: `sign-success-${req.user.id}-${now}`,
+      payload: {
+        targetType: 'sign',
+        action: 'open-sign-page',
+        courseName: body.courseName || '高等数学'
+      }
+    });
     res.json({ success: true });
   });
 
   app.post('/api/sign/leave', requireAuth, (req, res) => {
+    createNotification(db, {
+      userId: req.user.id,
+      type: 'sign',
+      title: '请假申请已提交',
+      content: '你的请假申请已提交，等待老师或管理员处理。',
+      releaseId: `leave-submit-${req.user.id}-${Date.now()}`,
+      payload: {
+        targetType: 'sign',
+        action: 'open-sign-page',
+        leaveTime: (req.body || {}).leaveTime || ''
+      }
+    });
     res.json({ success: true, reason: req.body.reason || '', leaveTime: req.body.leaveTime || '' });
   });
 

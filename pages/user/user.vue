@@ -92,7 +92,8 @@ export default {
         history: 0,
         views: 0
       },
-      unreadNotifications: 0
+      unreadNotifications: 0,
+      notificationDoNotDisturb: false
     };
   },
   computed: {
@@ -114,11 +115,15 @@ export default {
         { title: '个性化设置', desc: '调整偏好与展示方式', url: '/pages/user/personalization', icon: '个', tone: 'tone-blue' },
         {
           title: '系统通知',
-          desc: this.unreadNotifications ? `有 ${this.unreadNotifications} 条未读更新消息` : '查看版本更新和系统通知',
+          desc: this.notificationDoNotDisturb
+            ? '已开启免打扰，通知红点已隐藏'
+            : this.unreadNotifications
+              ? `有 ${this.unreadNotifications} 条未读通知`
+              : '查看版本更新和系统通知',
           url: '/pages/user/notifications',
           icon: '新',
           tone: 'tone-yellow',
-          badge: this.unreadNotifications > 99 ? '99+' : (this.unreadNotifications || '')
+          badge: this.notificationDoNotDisturb ? '' : (this.unreadNotifications > 99 ? '99+' : (this.unreadNotifications || ''))
         },
         { title: '我的收藏', desc: '快速回看收藏内容', url: '/pages/user/collection', icon: '藏', tone: 'tone-green' },
         { title: '浏览历史', desc: '继续上次浏览的内容', url: '/pages/user/history', icon: '历', tone: 'tone-yellow' },
@@ -190,7 +195,8 @@ export default {
     async loadNotifications() {
       try {
         const res = await this.$api.user.getNotifications();
-        this.unreadNotifications = Number(res.unreadCount || 0) || 0;
+        this.unreadNotifications = Number(res.unreadBadgeCount !== undefined ? res.unreadBadgeCount : res.unreadCount || 0) || 0;
+        this.notificationDoNotDisturb = Boolean(res.preferences && res.preferences.doNotDisturb);
       } catch (error) {}
     },
     handleMenuClick(item) {

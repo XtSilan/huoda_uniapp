@@ -17,7 +17,10 @@ const uploadAvatar = (payload) =>
 
 const getSettings = () => request(`${API.user.profile.replace('/profile', '/settings')}`);
 
-const getNotifications = () => request(API.user.notifications);
+const getNotifications = (params = {}) => {
+  const query = toQueryString(params);
+  return request(query ? `${API.user.notifications}?${query}` : API.user.notifications);
+};
 
 const getPopupAnnouncement = () => request(API.user.popupAnnouncement);
 
@@ -31,9 +34,10 @@ const readNotification = (id) =>
     method: 'POST'
   });
 
-const readAllNotifications = () =>
+const readAllNotifications = (payload = {}) =>
   request(`${API.user.notifications}/read-all`, {
-    method: 'POST'
+    method: 'POST',
+    data: payload
   });
 
 const updateSettings = (payload) =>
