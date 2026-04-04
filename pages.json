@@ -91,6 +91,12 @@
       }
     },
     {
+      "path": "pages/user/change-password",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/user/notifications",
       "style": {
         "navigationStyle": "custom"

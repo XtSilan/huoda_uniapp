@@ -31,12 +31,12 @@
       <view class="section-heading">活动详情</view>
       <view class="content">{{ activity.content || '暂无详情说明' }}</view>
       <view class="content-action">
-        <custom-button text="收藏活动" ghost @click="toggleCollection" />
+        <custom-button :text="collectionButtonText" ghost @click="toggleCollection" />
       </view>
     </view>
 
     <view class="bottom-action">
-      <custom-button text="立即报名" :loading="applying" @click="applyActivity" />
+      <custom-button :text="applyButtonText" :loading="applying" @click="applyActivity" />
     </view>
   </view>
 </template>
@@ -55,9 +55,20 @@ export default {
         location: '',
         organizer: '',
         images: [],
-        applyCount: 0
+        applyCount: 0,
+        favoriteCount: 0,
+        isCollected: false,
+        isApplied: false
       }
     };
+  },
+  computed: {
+    collectionButtonText() {
+      return this.activity.isCollected ? '已收藏' : '收藏活动';
+    },
+    applyButtonText() {
+      return this.activity.isApplied ? '已报名' : '立即报名';
+    }
   },
   onLoad(options) {
     if (options.id) {
@@ -84,8 +95,12 @@ export default {
     async applyActivity() {
       this.applying = true;
       try {
-        this.activity = await this.$api.publish.apply(this.activity.id);
-        uni.showToast({ title: '报名成功', icon: 'success' });
+        const result = await this.$api.publish.apply(this.activity.id);
+        this.activity = {
+          ...this.activity,
+          ...result
+        };
+        uni.showToast({ title: result.action === 'cancel' ? '已取消报名' : '已报名', icon: 'success' });
       } catch (error) {
         uni.showToast({ title: error.message || '报名失败', icon: 'none' });
       } finally {
@@ -94,12 +109,18 @@ export default {
     },
     async toggleCollection() {
       try {
-        await this.$api.user.toggleCollection({
+        const result = await this.$api.user.toggleCollection({
           targetType: 'activity',
           targetId: Number(this.activity.id)
         });
-        this.activity = await this.$api.publish.getDetail(this.activity.id);
-        uni.showToast({ title: '收藏状态已更新', icon: 'success' });
+        const collected = Boolean(result && result.collected);
+        const favoriteCount = Number(this.activity.favoriteCount || 0);
+        this.activity = {
+          ...this.activity,
+          isCollected: collected,
+          favoriteCount: collected ? favoriteCount + 1 : Math.max(0, favoriteCount - 1)
+        };
+        uni.showToast({ title: collected ? '已收藏' : '已取消收藏', icon: 'success' });
       } catch (error) {
         uni.showToast({ title: error.message || '操作失败', icon: 'none' });
       }

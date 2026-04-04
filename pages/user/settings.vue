@@ -7,11 +7,10 @@
       <view class="page-subtitle">集中管理你的账号与提醒配置</view>
     </view>
 
-    <view class="surface-card section-card">
+    <view class="surface-card section-card section-card--compact">
       <view class="section-heading">账号与安全</view>
       <view class="entry-item clickable" @click="goToAccountSecurity">
         <view class="setting-main">
-          <view class="setting-text">账户安全</view>
           <view class="setting-desc">修改登录密码，提升账号安全性</view>
         </view>
         <view class="arrow">&#8250;</view>
@@ -257,6 +256,11 @@ export default {
   padding: 28rpx 24rpx;
 }
 
+.section-card--compact {
+  padding-top: 20rpx;
+  padding-bottom: 20rpx;
+}
+
 .section-card + .section-card {
   margin-top: 28rpx;
 }
@@ -268,6 +272,15 @@ export default {
   align-items: center;
   gap: 24rpx;
   padding: 22rpx 0;
+}
+
+.section-card--compact .entry-item {
+  padding-top: 12rpx;
+  padding-bottom: 12rpx;
+}
+
+.section-card--compact .setting-desc {
+  margin-top: 0;
 }
 
 .setting-item + .setting-item,

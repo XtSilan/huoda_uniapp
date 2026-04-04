@@ -67,7 +67,7 @@
         </view>
       </view>
       <view class="detail-action">
-        <custom-button text="收藏 / 取消收藏" @click="toggleCollection" />
+        <custom-button :text="collectionButtonText" @click="toggleCollection" />
       </view>
     </view>
 
@@ -220,6 +220,9 @@ export default {
     };
   },
   computed: {
+    collectionButtonText() {
+      return this.detail.isCollected ? '已收藏' : '收藏资讯';
+    },
     normalizedSourceUrl() {
       return this.normalizeUrl(this.detail.sourceUrl || (this.isUrl(this.detail.source) ? this.detail.source : ''));
     },
@@ -766,12 +769,18 @@ export default {
     },
     async toggleCollection() {
       try {
-        await this.$api.user.toggleCollection({
+        const result = await this.$api.user.toggleCollection({
           targetType: 'info',
           targetId: Number(this.detail.id)
         });
-        await this.loadDetail(this.detail.id);
-        uni.showToast({ title: '收藏状态已更新', icon: 'success' });
+        const collected = Boolean(result && result.collected);
+        const favoriteCount = Number(this.detail.favoriteCount || 0);
+        this.detail = {
+          ...this.detail,
+          isCollected: collected,
+          favoriteCount: collected ? favoriteCount + 1 : Math.max(0, favoriteCount - 1)
+        };
+        uni.showToast({ title: collected ? '已收藏' : '已取消收藏', icon: 'success' });
       } catch (error) {
         uni.showToast({ title: error.message || '操作失败', icon: 'none' });
       }

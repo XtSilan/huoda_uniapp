@@ -534,7 +534,21 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/info/detail', (req, res) => {
-    const row = db.get(`${infoSelect} WHERE i.id = ?`, [req.query.id]);
+    const row = db.get(
+      `SELECT i.*,
+        (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'info' AND f.target_id = i.id) AS favorite_count,
+        (SELECT COUNT(*) FROM browse_history bh WHERE bh.target_type = 'info' AND bh.target_id = i.id) AS view_count,
+        CASE
+          WHEN ? IS NOT NULL AND EXISTS(
+            SELECT 1 FROM favorites f2
+            WHERE f2.user_id = ? AND f2.target_type = 'info' AND f2.target_id = i.id
+          ) THEN 1
+          ELSE 0
+        END AS is_collected
+      FROM infos i
+      WHERE i.id = ?`,
+      [req.user ? req.user.id : null, req.user ? req.user.id : null, req.query.id]
+    );
     if (!row) {
       return res.status(404).json({ message: '信息不存在' });
     }
@@ -547,7 +561,33 @@ module.exports = function registerPublicRoutes(app, db) {
   });
 
   app.get('/api/publish/detail', (req, res) => {
-    const row = db.get(`${activitySelect} WHERE a.id = ?`, [req.query.id]);
+    const row = db.get(
+      `SELECT a.*,
+        (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count,
+        CASE
+          WHEN ? IS NOT NULL AND EXISTS(
+            SELECT 1 FROM favorites f2
+            WHERE f2.user_id = ? AND f2.target_type = 'activity' AND f2.target_id = a.id
+          ) THEN 1
+          ELSE 0
+        END AS is_collected,
+        CASE
+          WHEN ? IS NOT NULL AND EXISTS(
+            SELECT 1 FROM activity_applications aa
+            WHERE aa.user_id = ? AND aa.activity_id = a.id
+          ) THEN 1
+          ELSE 0
+        END AS is_applied
+      FROM activities a
+      WHERE a.id = ?`,
+      [
+        req.user ? req.user.id : null,
+        req.user ? req.user.id : null,
+        req.user ? req.user.id : null,
+        req.user ? req.user.id : null,
+        req.query.id
+      ]
+    );
     if (!row) {
       return res.status(404).json({ message: '活动不存在' });
     }
@@ -589,12 +629,52 @@ module.exports = function registerPublicRoutes(app, db) {
     const { activityId } = req.body || {};
     const exists = db.get('SELECT id FROM activity_applications WHERE activity_id = ? AND user_id = ?', [activityId, req.user.id]);
     if (exists) {
-      return res.status(400).json({ message: '你已经报名过该活动' });
+      db.run('DELETE FROM activity_applications WHERE id = ?', [exists.id]);
+      db.run(
+        'UPDATE activities SET apply_count = CASE WHEN apply_count > 0 THEN apply_count - 1 ELSE 0 END, updated_at = ? WHERE id = ?',
+        [new Date().toISOString(), activityId]
+      );
+      const updated = db.get(
+        `SELECT a.*,
+          (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count,
+          0 AS is_applied,
+          CASE
+            WHEN EXISTS(
+              SELECT 1 FROM favorites f2
+              WHERE f2.user_id = ? AND f2.target_type = 'activity' AND f2.target_id = a.id
+            ) THEN 1
+            ELSE 0
+          END AS is_collected
+        FROM activities a
+        WHERE a.id = ?`,
+        [req.user.id, activityId]
+      );
+      return res.json({
+        ...mapActivity(updated),
+        action: 'cancel'
+      });
     }
     db.run('INSERT INTO activity_applications (activity_id, user_id, created_at) VALUES (?, ?, ?)', [activityId, req.user.id, new Date().toISOString()]);
     db.run('UPDATE activities SET apply_count = apply_count + 1, updated_at = ? WHERE id = ?', [new Date().toISOString(), activityId]);
-    const updated = db.get('SELECT * FROM activities WHERE id = ?', [activityId]);
-    res.json(mapActivity(updated));
+    const updated = db.get(
+      `SELECT a.*,
+        (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'activity' AND f.target_id = a.id) AS favorite_count,
+        1 AS is_applied,
+        CASE
+          WHEN EXISTS(
+            SELECT 1 FROM favorites f2
+            WHERE f2.user_id = ? AND f2.target_type = 'activity' AND f2.target_id = a.id
+          ) THEN 1
+          ELSE 0
+        END AS is_collected
+      FROM activities a
+      WHERE a.id = ?`,
+      [req.user.id, activityId]
+    );
+    res.json({
+      ...mapActivity(updated),
+      action: 'apply'
+    });
   });
 
   app.post('/api/publish/delete', requireAuth, (req, res) => {

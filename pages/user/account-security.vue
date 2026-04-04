@@ -3,27 +3,17 @@
     <view class="page-header">
       <page-nav fallback="/pages/user/settings" />
       <view class="page-eyebrow">账户安全</view>
-      <view class="page-title">修改登录密码</view>
-      <view class="page-subtitle">定期更新密码，让账号更安全</view>
+      <view class="page-title">账号与安全</view>
+      <view class="page-subtitle">集中管理你的账号与提醒配置</view>
     </view>
 
-    <view class="surface-card section-card">
-      <view class="section-heading">密码修改</view>
-      <view class="field-block">
-        <text class="field-label">旧密码</text>
-        <view class="field-panel">
-          <input v-model="passwordForm.oldPassword" class="field-input" password placeholder="请输入当前密码" />
+    <view class="surface-card section-card section-card--compact">
+      <view class="entry-item clickable" @click="goToChangePassword">
+        <view class="setting-main">
+          <view class="setting-text">修改密码</view>
+          <view class="setting-desc">修改登录密码，提升账号安全性</view>
         </view>
-      </view>
-      <view class="field-block">
-        <text class="field-label">新密码</text>
-        <view class="field-panel">
-          <input v-model="passwordForm.newPassword" class="field-input" password placeholder="请输入新密码" />
-        </view>
-      </view>
-      <view class="tips-text">密码建议至少 6 位，并尽量包含字母和数字组合。</view>
-      <view class="save-wrap">
-        <custom-button text="修改密码" :loading="passwordLoading" @click="changePassword" />
+        <view class="arrow">&#8250;</view>
       </view>
     </view>
   </view>
@@ -31,36 +21,9 @@
 
 <script>
 export default {
-  data() {
-    return {
-      passwordLoading: false,
-      passwordForm: {
-        oldPassword: '',
-        newPassword: ''
-      }
-    };
-  },
   methods: {
-    async changePassword() {
-      if (!this.passwordForm.oldPassword || !this.passwordForm.newPassword) {
-        uni.showToast({ title: '请填写旧密码和新密码', icon: 'none' });
-        return;
-      }
-      if (this.passwordForm.newPassword.length < 6) {
-        uni.showToast({ title: '新密码至少 6 位', icon: 'none' });
-        return;
-      }
-      this.passwordLoading = true;
-      try {
-        await this.$api.user.changePassword(this.passwordForm);
-        this.passwordForm.oldPassword = '';
-        this.passwordForm.newPassword = '';
-        uni.showToast({ title: '密码修改成功', icon: 'success' });
-      } catch (error) {
-        uni.showToast({ title: error.message || '密码修改失败', icon: 'none' });
-      } finally {
-        this.passwordLoading = false;
-      }
+    goToChangePassword() {
+      uni.navigateTo({ url: '/pages/user/change-password' });
     }
   }
 };
@@ -71,35 +34,51 @@ export default {
   padding: 28rpx 24rpx;
 }
 
-.field-block + .field-block,
-.tips-text,
-.save-wrap {
-  margin-top: 22rpx;
+.section-card--compact {
+  padding-top: 20rpx;
+  padding-bottom: 20rpx;
 }
 
-.field-label {
-  display: block;
-  margin-bottom: 14rpx;
+.entry-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24rpx;
+  padding: 22rpx 0;
+}
+
+.section-card--compact .entry-item {
+  padding-top: 12rpx;
+  padding-bottom: 12rpx;
+}
+
+.clickable:active {
+  opacity: 0.85;
+}
+
+.setting-main {
+  flex: 1;
+}
+
+.setting-text {
   font-size: 28rpx;
   font-weight: 700;
   color: var(--text-main);
 }
 
-.field-panel {
-  background: #f6f7fb;
-  border-radius: 24rpx;
-  padding: 0 24rpx;
-}
-
-.field-input {
-  width: 100%;
-  height: 88rpx;
-  font-size: 28rpx;
-}
-
-.tips-text {
+.setting-desc {
+  margin-top: 8rpx;
   font-size: 24rpx;
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-sub);
+}
+
+.section-card--compact .setting-desc {
+  margin-top: 0;
+}
+
+.arrow {
+  font-size: 36rpx;
+  color: var(--text-light);
 }
 </style>
