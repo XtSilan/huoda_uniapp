@@ -4,6 +4,7 @@ const LOGIN_STATE_KEY = 'isLoggedIn';
 const REMEMBER_PASSWORD_KEY = 'rememberPassword';
 const CREDENTIALS_KEY = 'savedLoginCredentials';
 const SESSION_BACKUP_FILE = '_doc/huoda-session.json';
+const DOWNLOAD_CACHE_DIR = '_downloads';
 
 function canUsePlus() {
   return typeof plus !== 'undefined' && plus.io;
@@ -103,6 +104,33 @@ function removeAppBackup() {
   });
 }
 
+function removeLocalEntry(targetPath) {
+  return new Promise((resolve) => {
+    // #ifdef APP-PLUS
+    if (!canUsePlus() || !targetPath) {
+      resolve();
+      return;
+    }
+    plus.io.resolveLocalFileSystemURL(
+      targetPath,
+      (entry) => {
+        const done = () => resolve();
+        if (entry.isDirectory) {
+          entry.removeRecursively(done, done);
+          return;
+        }
+        entry.remove(done, done);
+      },
+      () => resolve()
+    );
+    // #endif
+
+    // #ifndef APP-PLUS
+    resolve();
+    // #endif
+  });
+}
+
 export function getToken() {
   return uni.getStorageSync(TOKEN_KEY) || '';
 }
@@ -144,6 +172,14 @@ export async function clearSession() {
   uni.removeStorageSync(USER_INFO_KEY);
   uni.removeStorageSync(LOGIN_STATE_KEY);
   await removeAppBackup();
+}
+
+export async function clearLocalCache() {
+  try {
+    uni.clearStorageSync();
+  } catch (_error) {}
+  await removeAppBackup();
+  await removeLocalEntry(DOWNLOAD_CACHE_DIR);
 }
 
 export function getRememberPassword() {

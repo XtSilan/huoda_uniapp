@@ -57,7 +57,7 @@
       <view class="entry-item clickable" @click="clearCache">
         <view class="setting-main">
           <view class="setting-text">清除缓存</view>
-          <view class="setting-desc">仅清理本地登录态和展示缓存</view>
+          <view class="setting-desc">清理本地缓存</view>
         </view>
         <view class="arrow">&#8250;</view>
       </view>
@@ -68,7 +68,7 @@
 <script>
 import { versionName as manifestVersionName } from '../../manifest.json';
 import { checkForUpdates, getRuntimeInfo, promptForAppUpdate } from '../../utils/app-update';
-import { clearSession } from '../../utils/session';
+import { clearLocalCache } from '../../utils/session';
 
 export default {
   data() {
@@ -190,15 +190,15 @@ export default {
     clearCache() {
       uni.showModal({
         title: '清除缓存',
-        content: '将清除本地登录态和用户缓存，是否继续？',
+        content: '将清理本地缓存，是否继续？',
         success: async (res) => {
           if (!res.confirm) {
             return;
           }
-          await clearSession();
-          uni.showToast({ title: '缓存已清除', icon: 'success' });
+          await clearLocalCache();
+          uni.showToast({ title: '已清理', icon: 'success' });
           setTimeout(() => {
-            uni.navigateTo({ url: '/pages/login/login' });
+            uni.reLaunch({ url: '/pages/login/login' });
           }, 300);
         }
       });
