@@ -177,12 +177,45 @@ async function getDb(options = {}) {
     CREATE TABLE IF NOT EXISTS sign_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
+      batch_id INTEGER,
       course_name TEXT NOT NULL,
       teacher TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'success',
       time TEXT NOT NULL,
       created_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS sign_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      class_name TEXT NOT NULL,
+      course_name TEXT NOT NULL,
+      teacher TEXT NOT NULL,
+      sign_date TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      late_end_time TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_by INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      batch_id INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      leave_time TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      review_comment TEXT DEFAULT '',
+      reviewed_by INTEGER,
+      reviewed_at TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (batch_id) REFERENCES sign_batches(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS class_groups (
@@ -264,6 +297,7 @@ async function getDb(options = {}) {
   ensureColumn(db, 'activities', 'images', `TEXT DEFAULT '[]'`);
   ensureColumn(db, 'activities', 'is_top', `INTEGER DEFAULT 0`);
   ensureColumn(db, 'activities', 'location_type', `TEXT DEFAULT '校内'`);
+  ensureColumn(db, 'sign_records', 'batch_id', `INTEGER`);
   ensureColumn(db, 'notifications', 'payload', `TEXT DEFAULT '{}'`);
   ensureColumn(db, 'notifications', 'release_id', `TEXT DEFAULT ''`);
   ensureColumn(db, 'notifications', 'read_at', `TEXT DEFAULT ''`);
@@ -360,6 +394,21 @@ async function seed(db) {
       );
     }
   });
+
+  const firstStudentClass = db.get(`SELECT TRIM(class_name) AS class_name FROM users WHERE role = 'user' AND TRIM(class_name) <> '' ORDER BY id ASC LIMIT 1`);
+  if (firstStudentClass && firstStudentClass.class_name && !db.get('SELECT id FROM sign_batches LIMIT 1')) {
+    const today = new Date();
+    const signDate = today.toISOString().slice(0, 10);
+    const startTime = `${signDate}T09:00:00`;
+    const endTime = `${signDate}T09:20:00`;
+    const lateEndTime = `${signDate}T10:00:00`;
+    db.run(
+      `INSERT INTO sign_batches
+      (class_name, course_name, teacher, sign_date, start_time, end_time, late_end_time, status, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [firstStudentClass.class_name, '高等数学', '张老师', signDate, startTime, endTime, lateEndTime, 'active', 1, now, now]
+    );
+  }
 }
 
 module.exports = {

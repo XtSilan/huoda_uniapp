@@ -17,8 +17,8 @@
       <div style="margin-bottom: 10px;">
         <Checkbox v-model="form.isTop">置顶</Checkbox>
       </div>
-      <Input v-model="form.startTime" placeholder="开始时间 ISO" style="margin-bottom: 10px;" />
-      <Input v-model="form.endTime" placeholder="结束时间 ISO" style="margin-bottom: 10px;" />
+      <DatePicker type="datetime" :value="form.startTime" format="yyyy-MM-dd HH:mm" style="width: 100%; margin-bottom: 10px;" @on-change="handleDateChange('startTime', $event)" />
+      <DatePicker type="datetime" :value="form.endTime" format="yyyy-MM-dd HH:mm" style="width: 100%; margin-bottom: 10px;" @on-change="handleDateChange('endTime', $event)" />
       <Input v-model="imagesText" type="textarea" :rows="3" placeholder="图片地址，一行一个" style="margin-bottom: 10px;" />
       <Input v-model="form.content" type="textarea" :rows="8" placeholder="内容" />
     </Modal>
@@ -28,6 +28,18 @@
 <script>
 import { getActivities, createActivity, updateActivity, deleteActivity } from '../../api';
 
+function pad(value) {
+  return `${value}`.padStart(2, '0');
+}
+
+function formatDateTime(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toApiDateTime(value) {
+  return String(value || '').trim().replace(' ', 'T') + ':00';
+}
+
 export default {
   data() {
     return {
@@ -36,20 +48,7 @@ export default {
       editingId: null,
       imagesText: '',
       activityTypes: ['讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他', '运动'],
-      form: {
-        title: '',
-        summary: '',
-        organizer: '',
-        location: '',
-        activityType: '其他',
-        startTime: new Date().toISOString(),
-        endTime: new Date(Date.now() + 3600000).toISOString(),
-        content: '',
-        locationType: '校内',
-        status: 'upcoming',
-        images: [],
-        isTop: false
-      },
+      form: this.createEmptyForm(),
       columns: [
         {
           title: '标题',
@@ -94,14 +93,17 @@ export default {
         organizer: '',
         location: '',
         activityType: '其他',
-        startTime: new Date().toISOString(),
-        endTime: new Date(Date.now() + 3600000).toISOString(),
+        startTime: formatDateTime(new Date()),
+        endTime: formatDateTime(new Date(Date.now() + 3600000)),
         content: '',
         locationType: '校内',
         status: 'upcoming',
         images: [],
         isTop: false
       };
+    },
+    handleDateChange(key, value) {
+      this.form[key] = value;
     },
     async loadActivities() {
       const res = await getActivities();
@@ -115,20 +117,31 @@ export default {
     },
     openEdit(row) {
       this.editingId = row.id;
-      this.form = { ...this.createEmptyForm(), ...row, images: row.images || [] };
+      this.form = {
+        ...this.createEmptyForm(),
+        ...row,
+        startTime: formatDateTime(new Date(row.startTime || Date.now())),
+        endTime: formatDateTime(new Date(row.endTime || Date.now() + 3600000)),
+        images: row.images || []
+      };
       this.imagesText = (row.images || []).join('\n');
       this.visible = true;
     },
     async submit() {
       const payload = {
         ...this.form,
+        startTime: toApiDateTime(this.form.startTime),
+        endTime: toApiDateTime(this.form.endTime),
         images: this.imagesText
           .split('\n')
           .map((item) => item.trim())
           .filter(Boolean)
       };
-      if (this.editingId) await updateActivity(this.editingId, payload);
-      else await createActivity(payload);
+      if (this.editingId) {
+        await updateActivity(this.editingId, payload);
+      } else {
+        await createActivity(payload);
+      }
       await this.loadActivities();
     },
     async remove(id) {

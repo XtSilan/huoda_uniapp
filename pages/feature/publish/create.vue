@@ -4,7 +4,7 @@
       <page-nav fallback="/pages/feature/publish/publish" :is-tab="true" />
       <view class="page-eyebrow">创建活动</view>
       <view class="page-title">发起一场值得参与的校园活动</view>
-      <view class="page-subtitle">与大家共同创造精彩</view>
+      <view class="page-subtitle">把时间、地点和组织信息一次填清楚</view>
     </view>
 
     <view class="form-stack">
@@ -24,13 +24,32 @@
 
       <view class="surface-card form-card">
         <text class="field-title">活动时间</text>
-        <view class="double-grid">
-          <view class="field-panel">
-            <input class="field-input" v-model="activity.startTime" placeholder="开始时间" />
+        <view class="time-card">
+          <view class="time-block">
+            <text class="time-label">开始时间</text>
+            <view class="time-picker-row">
+              <picker mode="date" :value="activity.startDate" @change="handleDateChange('startDate', $event)">
+                <view class="picker-chip">{{ activity.startDate }}</view>
+              </picker>
+              <picker mode="time" :value="activity.startClock" @change="handleTimeChange('startClock', $event)">
+                <view class="picker-chip">{{ activity.startClock }}</view>
+              </picker>
+            </view>
           </view>
-          <view class="field-panel">
-            <input class="field-input" v-model="activity.endTime" placeholder="结束时间" />
+
+          <view class="time-block">
+            <text class="time-label">结束时间</text>
+            <view class="time-picker-row">
+              <picker mode="date" :value="activity.endDate" @change="handleDateChange('endDate', $event)">
+                <view class="picker-chip">{{ activity.endDate }}</view>
+              </picker>
+              <picker mode="time" :value="activity.endClock" @change="handleTimeChange('endClock', $event)">
+                <view class="picker-chip">{{ activity.endClock }}</view>
+              </picker>
+            </view>
           </view>
+
+          <view class="time-preview">当前安排：{{ displayTimeRange }}</view>
         </view>
       </view>
 
@@ -86,26 +105,61 @@
 </template>
 
 <script>
+function pad(value) {
+  return `${value}`.padStart(2, '0');
+}
+
+function formatDateValue(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function formatTimeValue(date) {
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function createDefaultActivity() {
+  const start = new Date(Date.now() + 60 * 60 * 1000);
+  const end = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  return {
+    title: '',
+    content: '',
+    startDate: formatDateValue(start),
+    startClock: formatTimeValue(start),
+    endDate: formatDateValue(end),
+    endClock: formatTimeValue(end),
+    location: '',
+    locationType: '校内',
+    organizer: '',
+    images: [],
+    activityType: '其他'
+  };
+}
+
+function combineDateTime(datePart, timePart) {
+  return `${datePart}T${timePart}:00`;
+}
+
 export default {
   data() {
     return {
       submitting: false,
       activityTypes: ['讲座', '公益', '兼职', '就业', '娱乐', '竞赛', '美食', '其他'],
       locationTypes: ['校内', '校外'],
-      activity: {
-        title: '',
-        content: '',
-        startTime: new Date(Date.now() + 3600000).toISOString(),
-        endTime: new Date(Date.now() + 7200000).toISOString(),
-        location: '',
-        locationType: '校内',
-        organizer: '',
-        images: [],
-        activityType: '其他'
-      }
+      activity: createDefaultActivity()
     };
   },
+  computed: {
+    displayTimeRange() {
+      return `${this.activity.startDate} ${this.activity.startClock} - ${this.activity.endDate} ${this.activity.endClock}`;
+    }
+  },
   methods: {
+    handleDateChange(key, event) {
+      this.activity[key] = event.detail.value;
+    },
+    handleTimeChange(key, event) {
+      this.activity[key] = event.detail.value;
+    },
     chooseImages() {
       uni.chooseImage({
         count: 3,
@@ -115,16 +169,33 @@ export default {
       });
     },
     async submitForm() {
-      const requiredFields = ['title', 'content', 'startTime', 'endTime', 'location', 'organizer'];
+      const requiredFields = ['title', 'content', 'startDate', 'startClock', 'endDate', 'endClock', 'location', 'organizer'];
       const missing = requiredFields.some((key) => !this.activity[key]);
       if (missing) {
         uni.showToast({ title: '请把活动信息填写完整', icon: 'none' });
         return;
       }
 
+      const startTime = combineDateTime(this.activity.startDate, this.activity.startClock);
+      const endTime = combineDateTime(this.activity.endDate, this.activity.endClock);
+      if (new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+        uni.showToast({ title: '结束时间要晚于开始时间', icon: 'none' });
+        return;
+      }
+
       this.submitting = true;
       try {
-        await this.$api.publish.create(this.activity);
+        await this.$api.publish.create({
+          title: this.activity.title,
+          content: this.activity.content,
+          startTime,
+          endTime,
+          location: this.activity.location,
+          locationType: this.activity.locationType,
+          organizer: this.activity.organizer,
+          images: this.activity.images,
+          activityType: this.activity.activityType
+        });
         uni.showToast({ title: '发布成功', icon: 'success' });
         setTimeout(() => {
           uni.navigateBack();
@@ -191,10 +262,41 @@ export default {
   color: var(--text-main);
 }
 
-.double-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 18rpx;
+.time-card {
+  padding: 8rpx 0;
+}
+
+.time-block + .time-block {
+  margin-top: 18rpx;
+}
+
+.time-label {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 24rpx;
+  color: var(--text-sub);
+}
+
+.time-picker-row {
+  display: flex;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.picker-chip {
+  min-width: 220rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 24rpx;
+  background: #f6f7fb;
+  font-size: 28rpx;
+  color: var(--text-main);
+  text-align: center;
+}
+
+.time-preview {
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: var(--primary-color);
 }
 
 .chip-group {

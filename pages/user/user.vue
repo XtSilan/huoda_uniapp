@@ -104,7 +104,13 @@ export default {
       return this.userInfo.avatarUrl.startsWith('http') ? this.userInfo.avatarUrl : `${SERVER_ORIGIN}${this.userInfo.avatarUrl}`;
     },
     roleText() {
-      return this.userInfo.role === 'admin' ? '管理员' : '普通用户';
+      if (this.userInfo.role === 'admin') {
+        return '管理员';
+      }
+      if (this.userInfo.role === 'teacher') {
+        return '教师';
+      }
+      return '普通用户';
     },
     loginStateText() {
       return this.userInfo.studentId ? '资料已同步' : '待完善';

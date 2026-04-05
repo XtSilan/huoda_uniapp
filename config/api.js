@@ -37,10 +37,14 @@ const API = {
     target: `${BASE_URL}/run/target`
   },
   sign: {
+    overview: `${BASE_URL}/sign/overview`,
     do: `${BASE_URL}/sign/do`,
     history: `${BASE_URL}/sign/history`,
     statistics: `${BASE_URL}/sign/statistics`,
-    leave: `${BASE_URL}/sign/leave`
+    leave: `${BASE_URL}/sign/leave`,
+    teacherOverview: `${BASE_URL}/sign/teacher/overview`,
+    teacherBatchCreate: `${BASE_URL}/sign/teacher/batches`,
+    teacherLeaveReview: (id) => `${BASE_URL}/sign/teacher/leave-requests/${id}/review`
   },
   publish: {
     create: `${BASE_URL}/publish/create`,

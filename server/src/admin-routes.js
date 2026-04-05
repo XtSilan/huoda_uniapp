@@ -201,6 +201,27 @@ function notifyFavoritedUsers(db, targetType, targetId, payload) {
   );
 }
 
+function appendClassGroupMessage(db, className, message) {
+  const trimmed = String(className || '').trim();
+  if (!trimmed || !message) {
+    return;
+  }
+  ensureClassGroup(db, trimmed);
+  const row = db.get('SELECT * FROM class_groups WHERE class_name = ?', [trimmed]);
+  if (!row) {
+    return;
+  }
+  const messages = parseJson(row.messages, []);
+  messages.push({
+    id: Date.now(),
+    sender: '签到助手',
+    text: message,
+    time: new Date().toISOString(),
+    type: 'system'
+  });
+  db.run('UPDATE class_groups SET messages = ?, updated_at = ? WHERE id = ?', [JSON.stringify(messages.slice(-100)), new Date().toISOString(), row.id]);
+}
+
 function publishAppUpdateNotifications(db, payload) {
   if (!payload || payload.updateType === 'none') {
     return;
@@ -346,12 +367,19 @@ module.exports = function registerAdminRoutes(app, db) {
 
   app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
     const current = db.get('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    if (!current) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
     const body = req.body || {};
     const className = String(body.className || current.class_name || '').trim();
+    const role = String(body.role || current.role || 'user').trim();
+    if (!['user', 'teacher', 'admin'].includes(role)) {
+      return res.status(400).json({ message: '角色类型不合法' });
+    }
     db.run(
       `UPDATE users SET role = ?, status = ?, name = ?, department = ?, class_name = ?, updated_at = ? WHERE id = ?`,
       [
-        body.role || current.role,
+        role,
         body.status || current.status,
         body.name || current.name,
         body.department || current.department,
@@ -386,6 +414,9 @@ module.exports = function registerAdminRoutes(app, db) {
     if (!studentId || !password || !name) {
       return res.status(400).json({ message: '学号、密码、姓名不能为空' });
     }
+    if (!['user', 'teacher'].includes(role)) {
+      return res.status(400).json({ message: '只能创建普通用户或教师账号' });
+    }
     if (db.get('SELECT id FROM users WHERE student_id = ?', [studentId])) {
       return res.status(400).json({ message: '该学号已存在' });
     }
@@ -399,7 +430,7 @@ module.exports = function registerAdminRoutes(app, db) {
         studentId,
         password,
         name,
-        'user',
+        role,
         'active',
         String(body.school || '').trim(),
         String(body.department || '').trim(),
@@ -718,6 +749,155 @@ module.exports = function registerAdminRoutes(app, db) {
       req.params.userId,
       group.class_name
     ]);
+    res.json({ success: true });
+  });
+
+  app.get('/api/admin/sign-batches', requireAdmin, (_req, res) => {
+    const rows = db.all(
+      `SELECT sb.*,
+        (SELECT COUNT(*) FROM sign_records sr WHERE sr.batch_id = sb.id) AS sign_count,
+        (SELECT COUNT(*) FROM leave_requests lr WHERE lr.batch_id = sb.id AND lr.status = 'pending') AS pending_leave_count
+      FROM sign_batches sb
+      ORDER BY datetime(sb.sign_date) DESC, datetime(sb.start_time) DESC, sb.id DESC`
+    );
+    res.json({
+      list: rows.map((row) => ({
+        id: String(row.id),
+        className: row.class_name,
+        courseName: row.course_name,
+        teacher: row.teacher,
+        signDate: row.sign_date,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        lateEndTime: row.late_end_time,
+        status: row.status,
+        signCount: Number(row.sign_count || 0),
+        pendingLeaveCount: Number(row.pending_leave_count || 0)
+      }))
+    });
+  });
+
+  app.post('/api/admin/sign-batches', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const className = String(body.className || '').trim();
+    const role = String(body.role || 'user').trim();
+    const courseName = String(body.courseName || '').trim();
+    const teacher = String(body.teacher || '').trim();
+    const signDate = String(body.signDate || '').trim();
+    const startTime = String(body.startTime || '').trim();
+    const endTime = String(body.endTime || '').trim();
+    const lateEndTime = String(body.lateEndTime || '').trim();
+    if (!className || !courseName || !teacher || !signDate || !startTime || !endTime || !lateEndTime) {
+      return res.status(400).json({ message: '请完整填写签到批次信息' });
+    }
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO sign_batches
+      (class_name, course_name, teacher, sign_date, start_time, end_time, late_end_time, status, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [className, courseName, teacher, signDate, startTime, endTime, lateEndTime, body.status || 'active', req.user.id, now, now]
+    );
+    appendClassGroupMessage(db, className, `老师发起了《${courseName}》签到批次，请按时完成签到。`);
+    res.json({ success: true });
+  });
+
+  app.put('/api/admin/sign-batches/:id', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const current = db.get('SELECT * FROM sign_batches WHERE id = ?', [req.params.id]);
+    if (!current) {
+      return res.status(404).json({ message: '签到批次不存在' });
+    }
+    db.run(
+      `UPDATE sign_batches
+      SET class_name = ?, course_name = ?, teacher = ?, sign_date = ?, start_time = ?, end_time = ?, late_end_time = ?, status = ?, updated_at = ?
+      WHERE id = ?`,
+      [
+        String(body.className || current.class_name).trim(),
+        String(body.courseName || current.course_name).trim(),
+        String(body.teacher || current.teacher).trim(),
+        String(body.signDate || current.sign_date).trim(),
+        String(body.startTime || current.start_time).trim(),
+        String(body.endTime || current.end_time).trim(),
+        String(body.lateEndTime || current.late_end_time).trim(),
+        String(body.status || current.status).trim(),
+        new Date().toISOString(),
+        req.params.id
+      ]
+    );
+    res.json({ success: true });
+  });
+
+  app.get('/api/admin/leave-requests', requireAdmin, (_req, res) => {
+    const rows = db.all(
+      `SELECT lr.*, u.name AS user_name, u.student_id, u.class_name, sb.course_name, sb.teacher, sb.sign_date
+      FROM leave_requests lr
+      INNER JOIN users u ON u.id = lr.user_id
+      INNER JOIN sign_batches sb ON sb.id = lr.batch_id
+      ORDER BY CASE WHEN lr.status = 'pending' THEN 0 ELSE 1 END, datetime(lr.created_at) DESC, lr.id DESC`
+    );
+    res.json({
+      list: rows.map((row) => ({
+        id: String(row.id),
+        userId: String(row.user_id),
+        userName: row.user_name,
+        studentId: row.student_id,
+        className: row.class_name,
+        batchId: String(row.batch_id),
+        courseName: row.course_name,
+        teacher: row.teacher,
+        signDate: row.sign_date,
+        reason: row.reason,
+        leaveTime: row.leave_time,
+        status: row.status,
+        reviewComment: row.review_comment || '',
+        reviewedAt: row.reviewed_at || '',
+        createdAt: row.created_at
+      }))
+    });
+  });
+
+  app.post('/api/admin/leave-requests/:id/review', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const status = String(body.status || '').trim();
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: '审核状态不合法' });
+    }
+    const current = db.get(
+      `SELECT lr.*, u.name AS user_name, u.class_name, sb.course_name, sb.id AS sign_batch_id
+      FROM leave_requests lr
+      INNER JOIN users u ON u.id = lr.user_id
+      INNER JOIN sign_batches sb ON sb.id = lr.batch_id
+      WHERE lr.id = ?`,
+      [req.params.id]
+    );
+    if (!current) {
+      return res.status(404).json({ message: '请假申请不存在' });
+    }
+    const comment = String(body.reviewComment || '').trim();
+    const now = new Date().toISOString();
+    db.run(
+      `UPDATE leave_requests
+      SET status = ?, review_comment = ?, reviewed_by = ?, reviewed_at = ?
+      WHERE id = ?`,
+      [status, comment, req.user.id, now, req.params.id]
+    );
+    appendClassGroupMessage(
+      db,
+      current.class_name,
+      `${current.user_name}的《${current.course_name}》请假申请已${status === 'approved' ? '通过' : '驳回'}`
+    );
+    createNotification(db, {
+      userId: current.user_id,
+      type: 'sign',
+      title: status === 'approved' ? '请假申请已通过' : '请假申请未通过',
+      content: comment || `《${current.course_name}》请假申请已${status === 'approved' ? '通过' : '驳回'}。`,
+      releaseId: `leave-review-${req.params.id}-${status}`,
+      payload: {
+        targetType: 'sign',
+        action: 'open-sign-page',
+        batchId: String(current.sign_batch_id)
+      }
+    });
     res.json({ success: true });
   });
 

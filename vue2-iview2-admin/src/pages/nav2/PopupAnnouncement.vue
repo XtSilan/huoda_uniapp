@@ -11,7 +11,7 @@
       <Form :label-width="110">
         <FormItem label="当前状态">
           <Tag :color="form.isActive ? 'green' : 'default'">{{ form.isActive ? '发布中' : '未发布' }}</Tag>
-          <span style="margin-left: 12px; color: #666;">{{ form.publishedAt ? `最近发布时间：${form.publishedAt}` : '还没有发布记录' }}</span>
+          <span style="margin-left: 12px; color: #666;">{{ form.publishedAt ? `最近发布时间：${formatDateTime(form.publishedAt)}` : '还没有发布记录' }}</span>
         </FormItem>
 
         <FormItem label="弹窗标题">
@@ -75,6 +75,21 @@ function createEmptyForm() {
   };
 }
 
+function pad(value) {
+  return `${value}`.padStart(2, '0');
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export default {
   data() {
     return {
@@ -99,6 +114,7 @@ export default {
     this.loadData();
   },
   methods: {
+    formatDateTime,
     async loadData() {
       const res = await getPopupAnnouncement();
       this.form = {

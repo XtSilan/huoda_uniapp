@@ -4,7 +4,7 @@
       Android 更新改成后台上传更新包后再发布。
       <template slot="desc">
         发布页统一维护当前版本、待发布版本、更新方式、更新说明、强制更新和安装包信息。
-        WGT 上传后会自动解压并读取 `manifest.json` 里的版本号和版本号 code，APK 仍然手动填写版本信息。
+        WGT 上传后会自动读取 `manifest.json` 里的版本号和版本 code，APK 仍然手动填写版本信息。
       </template>
     </Alert>
 
@@ -17,7 +17,7 @@
           <Input :value="currentRelease.versionCode || '-'" readonly />
         </FormItem>
         <FormItem label="当前发布时间">
-          <Input :value="currentRelease.publishedAt || '未发布'" readonly />
+          <Input :value="currentRelease.publishedAt ? formatDateTime(currentRelease.publishedAt) : '未发布'" readonly />
         </FormItem>
 
         <FormItem label="更新方式">
@@ -85,6 +85,10 @@
               <a :href="packageDownloadUrl" target="_blank" rel="noopener noreferrer">{{ packageDownloadUrl }}</a>
             </div>
             <div class="package-item">
+              <span class="package-label">发布时间</span>
+              <span class="package-value">{{ form.publishedAt ? formatDateTime(form.publishedAt) : '待发布' }}</span>
+            </div>
+            <div class="package-item">
               <span class="package-label">发布标识</span>
               <span class="package-value">{{ form.releaseId || '-' }}</span>
             </div>
@@ -100,12 +104,12 @@
       <div class="hint-panel">
         <Tag color="blue">当前平台：Android</Tag>
         <Tag color="green">当前方式：{{ updateTypeText }}</Tag>
-        <Tag v-if="form.publishedAt" color="gold">发布时间：{{ form.publishedAt }}</Tag>
+        <Tag v-if="form.publishedAt" color="gold">发布时间：{{ formatDateTime(form.publishedAt) }}</Tag>
         <Tag v-if="form.updateType === 'wgt' && form.extractedDir" color="cyan">解压目录：{{ form.extractedDir }}</Tag>
         <Tag v-if="form.updateType === 'wgt' && form.manifestPath" color="cyan">manifest：{{ form.manifestPath }}</Tag>
-        <p class="hint-text">WGT 适合前端资源热更新；涉及原生插件、权限、SDK、启动图或打包配置变化时，请改用 APK 整包更新。</p>
-        <p class="hint-text">WGT 上传后，后台会自动解压到 `unpackage/release/apk/文件名/`，再读取其中 `manifest.json` 的版本号和版本号 code，不需要你手动填写。</p>
-        <p class="hint-text">APK 上传后，只负责上传文件，版本号和 code 仍然由你手动提交。</p>
+        <p class="hint-text">WGT 适合前端资源热更新；涉及原生插件、权限、SDK、启动图或打包配置变更时，请改用 APK 整包更新。</p>
+        <p class="hint-text">WGT 上传后，后台会自动解压并读取版本信息，不需要再手填时间和版本元数据。</p>
+        <p class="hint-text">APK 上传后，版本号和版本 code 仍需要你手动确认，但发布时间会在发布时自动生成。</p>
       </div>
     </Card>
   </div>
@@ -134,6 +138,21 @@ function createEmptyConfig() {
     marketUrl: '',
     publishedAt: ''
   };
+}
+
+function pad(value) {
+  return `${value}`.padStart(2, '0');
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export default {
@@ -186,7 +205,7 @@ export default {
     this.loadData();
   },
   methods: {
-    createEmptyConfig,
+    formatDateTime,
     async loadData() {
       const res = await getAppUpdates();
       const android = res.android || {};

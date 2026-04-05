@@ -42,6 +42,11 @@ export const getClassGroups = () => http.get('/admin/class-groups').then((res) =
 export const createClassGroup = (payload) => http.post('/admin/class-groups', payload).then((res) => res.data);
 export const updateClassGroup = (id, payload) => http.put(`/admin/class-groups/${id}`, payload).then((res) => res.data);
 export const deleteClassGroup = (id) => http.delete(`/admin/class-groups/${id}`).then((res) => res.data);
+export const getSignBatches = () => http.get('/admin/sign-batches').then((res) => res.data);
+export const createSignBatch = (payload) => http.post('/admin/sign-batches', payload).then((res) => res.data);
+export const updateSignBatch = (id, payload) => http.put(`/admin/sign-batches/${id}`, payload).then((res) => res.data);
+export const getLeaveRequests = () => http.get('/admin/leave-requests').then((res) => res.data);
+export const reviewLeaveRequest = (id, payload) => http.post(`/admin/leave-requests/${id}/review`, payload).then((res) => res.data);
 export const getClassGroupStudents = (id, keyword = '') => http.get(`/admin/class-groups/${id}/students`, { params: { keyword } }).then((res) => res.data);
 export const addClassGroupStudent = (id, userId) => http.post(`/admin/class-groups/${id}/students`, { userId }).then((res) => res.data);
 export const removeClassGroupStudent = (id, userId) => http.delete(`/admin/class-groups/${id}/students/${userId}`).then((res) => res.data);
