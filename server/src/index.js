@@ -6,8 +6,12 @@ const { getDb, dbPath } = require('./db');
 const { parseToken } = require('./shared');
 const registerPublicRoutes = require('./public-routes');
 const registerAdminRoutes = require('./admin-routes');
+const loadServerEnv = require('./load-env');
+
+loadServerEnv();
 
 const PORT = process.env.PORT || 3000;
+const PUBLIC_HOST = process.env.PUBLIC_HOST || '127.0.0.1';
 const uploadDir = path.resolve(__dirname, '..', 'uploads');
 
 async function start() {
@@ -37,7 +41,7 @@ async function start() {
   registerAdminRoutes(app, db);
 
   app.listen(PORT, () => {
-    console.log(`Huoda server listening on http://localhost:${PORT}`);
+    console.log(`Huoda server listening on http://${PUBLIC_HOST}:${PORT}`);
     console.log(`SQLite database: ${dbPath}`);
   });
 }

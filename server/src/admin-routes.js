@@ -21,7 +21,7 @@ const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-grou
 const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
 const appUpdateUploadDir = path.resolve(__dirname, '..', 'uploads', 'app-updates');
 const popupAnnouncementUploadDir = path.resolve(__dirname, '..', 'uploads', 'popup-announcements');
-const wgtExtractRootDir = path.resolve(__dirname, '..', '..', 'unpackage', 'release', 'apk');
+const wgtExtractRootDir = path.resolve(__dirname, '..', '..', 'huoda_uniapp', 'unpackage', 'release', 'apk');
 
 function decodeUploadFileName(fileName) {
   const rawName = String(fileName || '').trim();

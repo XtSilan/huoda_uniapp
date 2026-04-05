@@ -1,222 +1,415 @@
 # 活达校园平台
 
-这个仓库现在包含三部分：
+当前仓库的结构：
 
-- `uni-app` 前台用户端
-- `server/` 下的 Express + SQLite 后端
-- `vue2-iview2-admin/` 后台管理端
+- `huoda_uniapp/`：`uni-app` 用户端
+- `server/`：`Express + SQLite` 服务端
+- `vue2-iview2-admin/`：`Vue2` 管理后台
 
-当前项目已经接通统一账号体系。前台用户和后台管理员共用同一套账号表，管理员可从统一登录入口登录后直接跳转到后台。
+用户端、服务端、管理后台共用同一套业务数据与账号体系，其中管理员可从用户端登录后直接跳转到后台。
 
 ## 目录结构
 
 ```text
-huoda_uniapp/
-├─ config/                     前台接口与跳转地址配置
-├─ pages/                      uni-app 页面
-├─ plugins/                    前台插件
-├─ services/                   前台接口封装
-├─ utils/                      前台请求工具
-├─ server/
-│  ├─ src/                     后端源码
-│  └─ data/                    SQLite 数据库文件目录
-├─ vue2-iview2-admin/
-│  ├─ src/                     后台源码
-│  └─ config/                  后台环境配置
-├─ App.vue
-├─ main.js
-├─ pages.json
-└─ package.json
+repo-root/
+├─ huoda_uniapp/               用户端项目
+│  ├─ components/
+│  ├─ config/
+│  ├─ custom-tab-bar/
+│  ├─ pages/
+│  ├─ plugins/
+│  ├─ services/
+│  ├─ static/
+│  ├─ utils/
+│  ├─ .env
+│  ├─ App.vue
+│  ├─ main.js
+│  ├─ manifest.json
+│  ├─ package.json
+│  └─ pages.json
+├─ server/                     服务端项目
+│  ├─ src/
+│  ├─ data/
+│  └─ uploads/
+├─ vue2-iview2-admin/          管理后台项目
+│  ├─ src/
+│  ├─ config/
+│  └─ package.json
+├─ .gitignore
+└─ README.md
 ```
+
+## 技术栈
+
+### 用户端
+
+- `uni-app`
+- `Vue 2`
+- `@dcloudio/uni-ui`
+
+### 服务端
+
+- `Express`
+- `node:sqlite`
+- `multer`
+- `cors`
+
+### 管理后台
+
+- `Vue 2`
+- `iView`
+- `Webpack 2`
+- `Axios`
+- `ECharts`
 
 ## 功能概览
 
-已接通的主要能力：
+### 用户端
 
-- 统一登录，用户与管理员共用账号
-- 角色权限控制
-- 前台首页真实数据流
-- 首页轮播图读取与后台轮播图管理
-- 资讯列表、详情、搜索、收藏
-- 活动发布、活动列表、详情、报名
-- 我的资料、个性化设置、收藏、历史、统计、设置
-- 校园乐跑记录与排行榜
-- 班级签到记录与统计
-- 后台用户管理
-- 后台轮播图管理
-- 后台资讯管理
-- 后台活动管理
-- 后台数据报表
+- 登录、记住密码、统一会话
+- 首页资讯流、轮播图、弹窗公告
+- 资讯列表、详情、搜索、收藏、评论
+- 活动发布、活动详情、报名与记录
+- 乐跑记录、排行榜、目标查看
+- 班级签到、补签、请假、统计
+- 班级群消息展示
+- 个人资料、通知、历史、收藏、统计、个性化设置
+- AI 对话、搜索、推荐、配置
+- 管理员跳转后台
 
-## 启动方式
+### 管理后台
 
-### 1. 安装前台依赖
+- 仪表盘统计
+- 用户管理
+- 轮播图管理
+- 资讯管理
+- 活动管理
+- 班级群与二维码管理
+- 签到批次与请假审批
+- 通知发布
+- AI 模型预设管理
+- App 更新包上传与配置
+- 首页弹窗公告管理
+- 数据报表
+
+### 服务端
+
+- 用户端与后台统一 API
+- 认证与角色权限控制
+- SQLite 数据初始化与种子数据
+- 上传文件管理
+- 通知、收藏、浏览历史、活动报名、签到等业务存储
+
+## 运行环境
+
+- Node.js `>= 22`
+- npm `>= 10`
+
+说明：
+
+- 服务端依赖 `node:sqlite`
+- SQLite 数据库文件位于 `server/data/huoda.sqlite`
+
+## 安装依赖
+
+### 用户端
 
 ```bash
+cd huoda_uniapp
 npm install
 ```
 
-### 2. 安装后端依赖
+### 服务端
 
 ```bash
 cd server
 npm install
-cd ..
 ```
 
-### 3. 安装后台依赖
+服务端使用 `dotenv` 依赖。
+
+### 管理后台
 
 ```bash
 cd vue2-iview2-admin
 npm install
-cd ..
 ```
 
-### 4. 初始化数据库
+## 快速启动
+
+### 1. 初始化数据库
 
 ```bash
-npm run server:init-db
+cd server
+npm run db:init
 ```
 
-初始化后会生成数据库文件：
+初始化完成后会生成：
 
 ```text
 server/data/huoda.sqlite
 ```
 
-### 5. 启动后端
+### 2. 启动服务端
 
 ```bash
-npm run server
+cd server
+npm run dev
 ```
 
-默认接口地址：
+默认地址：
 
 ```text
-http://localhost:3000/api
+http://127.0.0.1:3000
+http://127.0.0.1:3000/api
 ```
 
-### 6. 启动 uni-app 前台
+### 3. 启动用户端
+
+H5 调试：
 
 ```bash
+cd huoda_uniapp
+npm run dev:h5
+```
+
+微信小程序调试：
+
+```bash
+cd huoda_uniapp
 npm run dev:mp-weixin
 ```
 
-如果你在 HBuilderX 或 uni-app H5 环境里调试，前台 H5 常见地址通常是：
-
-```text
-http://localhost:8080
-```
-
-### 7. 启动后台管理端
+### 4. 启动管理后台
 
 ```bash
 cd vue2-iview2-admin
 npm run dev
 ```
 
-后台默认地址：
+默认地址：
 
 ```text
-http://localhost:8081/#/login
+http://127.0.0.1:8081/#/login
 ```
 
-## 默认管理员账号
+## 常用命令
+
+### 用户端
+
+```bash
+cd huoda_uniapp
+npm run dev:h5
+npm run build:h5
+npm run dev:mp-weixin
+npm run build:mp-weixin
+npm run server
+npm run server:init-db
+```
+
+说明：
+
+- `npm run server` 和 `npm run server:init-db` 会转调根目录下的 `server/`
+
+### 服务端
+
+```bash
+cd server
+npm run dev
+npm run db:init
+```
+
+### 管理后台
+
+```bash
+cd vue2-iview2-admin
+npm run dev
+npm run build
+```
+
+## 默认账号
+
+数据库初始化后会自动创建管理员账号：
 
 ```text
 账号：admin
 密码：admin
 ```
 
-## 统一登录说明
+## 环境变量
 
-- 前台登录页在 `pages/login/login.vue`
-- 登录成功后，如果是普通用户，进入前台首页
-- 登录成功后，如果是管理员，在 H5 环境下会直接带登录态跳转到后台
-- 管理员也可以从“我的”页进入后台
-- 后台支持接收前台传入的登录态，免二次登录
+仓库现在已经把三端的 `.env` 文件从 `.gitignore` 放出来，可以直接纳入版本管理。
 
-注意：
+### 用户端环境变量
 
-- 当前“统一登录”是“统一账号 + 登录后按角色分流”
-- 前台和后台仍然是两个前端工程，不是物理上合并成一个 Vue 工程
+位置：
 
-## 地址配置
+- `huoda_uniapp/.env`
 
-### 前台配置
+当前变量：
 
-文件：
+```env
+VUE_APP_SERVER_ORIGIN=http://127.0.0.1:3000
+VUE_APP_BASE_URL=http://127.0.0.1:3000/api
+VUE_APP_ADMIN_ORIGIN=http://127.0.0.1:8081
+VUE_APP_ADMIN_LOGIN_URL=http://127.0.0.1:8081/#/login
+```
 
-[`config/api.js`](/abs/path/c:/Users/28902/Desktop/活达/huoda_uniapp/config/api.js)
+读取位置：
 
-关键配置项：
+- `huoda_uniapp/config/api.js`
 
-- `SERVER_ORIGIN`：后端服务地址
-- `BASE_URL`：前台 API 基地址
-- `ADMIN_ORIGIN`：后台地址
-- `ADMIN_LOGIN_URL`：管理员跳转登录地址
 
-### 后台配置
+### 管理后台环境变量
 
-文件：
+位置：
 
-- [`vue2-iview2-admin/src/config/runtime.js`](/abs/path/c:/Users/28902/Desktop/活达/huoda_uniapp/vue2-iview2-admin/src/config/runtime.js)
-- [`vue2-iview2-admin/config/dev.env.js`](/abs/path/c:/Users/28902/Desktop/活达/huoda_uniapp/vue2-iview2-admin/config/dev.env.js)
-- [`vue2-iview2-admin/config/prod.env.js`](/abs/path/c:/Users/28902/Desktop/活达/huoda_uniapp/vue2-iview2-admin/config/prod.env.js)
+- `vue2-iview2-admin/.env`
 
-关键配置项：
+当前变量：
 
-- `API_BASE_URL`：后台调用的后端 API 地址
-- `USER_APP_URL`：后台“返回用户端”的默认地址
+```env
+API_BASE_URL=http://127.0.0.1:3000/api
+USER_APP_URL=http://127.0.0.1:8080/#/pages/user/user
+```
 
-如果你要切到局域网 IP 或正式域名，优先修改这些配置文件，不要直接到页面中搜索替换地址。
+读取位置：
 
-## 数据库说明
+- `vue2-iview2-admin/config/load-env.js`
+- `vue2-iview2-admin/config/dev.env.js`
+- `vue2-iview2-admin/config/prod.env.js`
+- `vue2-iview2-admin/src/config/runtime.js`
 
-当前项目使用 SQLite，本地数据库文件位于：
+### 服务端相关变量
+
+- `server/.env`
+
+当前示例变量：
+
+```env
+PORT=3000
+PUBLIC_HOST=127.0.0.1
+```
+
+说明：
+
+- `PORT`：服务启动端口，默认 `3000`
+- `PUBLIC_HOST`：服务日志展示主机名，默认 `127.0.0.1`
+- `HOST`：管理后台开发服务显示地址使用的主机名，默认 `127.0.0.1`
+
+### Linux 下复制与修改示例
+
+如果你在 Linux 服务器上部署或调试，可以直接用下面这些命令处理环境变量文件。
+
+使用编辑器手动修改：
+
+```bash
+nano server/.env
+nano huoda_uniapp/.env
+nano vue2-iview2-admin/.env
+```
+
+
+使用 `sed` 直接替换变量值：
+
+```bash
+sed -i 's#^PORT=.*#PORT=3001#' server/.env
+sed -i 's#^PUBLIC_HOST=.*#PUBLIC_HOST=0.0.0.0#' server/.env
+sed -i 's#^VUE_APP_BASE_URL=.*#VUE_APP_BASE_URL=https://api.example.com/api#' huoda_uniapp/.env
+sed -i 's#^API_BASE_URL=.*#API_BASE_URL=https://api.example.com/api#' vue2-iview2-admin/.env
+```
+
+查看修改结果：
+
+```bash
+cat server/.env
+cat huoda_uniapp/.env
+cat vue2-iview2-admin/.env
+```
+
+
+## 登录与角色说明
+
+- 用户端登录页位于 `huoda_uniapp/pages/login/login.vue`
+- 普通用户登录后进入用户端首页
+- `admin` 角色在 H5 环境下会带登录态跳转到后台
+- 后台支持接收来自用户端的 `token`、用户信息和返回地址
+- 后台退出登录后可返回用户端
+
+当前角色分为：
+
+- `user`：普通用户
+- `teacher`：教师
+- `admin`：管理员
+
+## 主要 API 模块
+
+用户端 API 配置位于 `huoda_uniapp/config/api.js`，按模块划分为：
+
+- `auth`：登录、刷新 token
+- `user`：资料、头像、通知、首页弹窗
+- `app`：版本更新
+- `classGroup`：班级群信息与消息
+- `info`：资讯列表、详情、搜索、收藏、评论
+- `run`：乐跑开始、结束、历史、排行、目标
+- `sign`：签到概览、签到、请假、教师签到管理
+- `publish`：活动发布、详情、列表、报名
+- `ai`：AI 设置、校验、聊天、搜索、推荐、历史
+
+## 数据存储
+
+数据库文件：
 
 ```text
 server/data/huoda.sqlite
 ```
 
-你可以使用以下工具打开：
+主要数据表：
 
-- DBeaver
-- DB Browser for SQLite
-- DataGrip
-- VS Code SQLite 插件
+- `users`
+- `user_settings`
+- `banners`
+- `infos`
+- `activities`
+- `activity_applications`
+- `favorites`
+- `browse_history`
+- `runs`
+- `sign_batches`
+- `sign_records`
+- `leave_requests`
+- `class_groups`
+- `notifications`
+- `ai_model_presets`
+- `popup_announcements`
 
-连接参数：
+## 关键目录说明
 
-- 数据库类型：`SQLite`
-- 数据库文件：`server/data/huoda.sqlite`
+### 用户端
 
-不需要额外填写 `host`、`port`、用户名或密码。
+- `huoda_uniapp/pages/index`：首页
+- `huoda_uniapp/pages/info`：资讯页
+- `huoda_uniapp/pages/feature/run`：乐跑模块
+- `huoda_uniapp/pages/feature/sign`：签到模块
+- `huoda_uniapp/pages/feature/publish`：活动模块
+- `huoda_uniapp/pages/feature/ai`：AI 模块
+- `huoda_uniapp/pages/user`：个人中心与设置
 
-### 主要表
+### 服务端
 
-- `users`：用户表
-- `user_settings`：用户个性化设置
-- `banners`：首页轮播图
-- `infos`：资讯内容
-- `activities`：活动内容
-- `activity_applications`：活动报名
-- `favorites`：收藏
-- `browse_history`：浏览历史
-- `runs`：乐跑记录
-- `sign_records`：签到记录
+- `server/src/index.js`：服务入口
+- `server/src/db.js`：数据库初始化与种子数据
+- `server/src/public-routes.js`：用户端 API
+- `server/src/admin-routes.js`：后台 API
 
-## 重要说明
+### 管理后台
 
-- 执行 `npm run server:init-db` 会重置数据库，并只保留管理员账号 `admin / admin`
-- 前台和后台都依赖 `http://localhost:3000/api`
-- 后台默认使用 `8081`，避免与前台 H5 常见的 `8080` 冲突
-- 后端当前使用的是轻量 token 方案，不是标准 JWT
+- `vue2-iview2-admin/src/pages/Home.vue`：后台主布局
+- `vue2-iview2-admin/src/config/runtime.js`：后台运行时地址配置
 
-## 后续可继续扩展
+## 注意事项
 
-- 把 SQLite 切换为 MySQL
-- 给轮播图、活动、资讯增加图片上传
-- 完善意见反馈、邮箱绑定、手机号绑定
-- 增加更完整的后台权限粒度
-- 增加部署脚本与生产环境配置
+- 执行数据库初始化会重建数据库
+- 数据库重建后默认管理员账号恢复为 `admin / admin`
+- 用户端与管理后台是两个独立前端工程，共享同一个服务端
+- WGT 解压目录现在跟随新的用户端目录结构，写入 `huoda_uniapp/unpackage/release/apk/`

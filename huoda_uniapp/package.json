@@ -8,8 +8,8 @@
     "build:h5": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-build --platform h5",
     "dev:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-serve --platform mp-weixin",
     "build:mp-weixin": "cross-env UNI_INPUT_DIR=. UNI_CLI_CONTEXT=. vue-cli-service uni-build --platform mp-weixin",
-    "server": "npm --prefix server run dev",
-    "server:init-db": "npm --prefix server run db:init"
+    "server": "npm --prefix ../server run dev",
+    "server:init-db": "npm --prefix ../server run db:init"
   },
   "dependencies": {
     "@dcloudio/uni-ui": "^1.4.26"

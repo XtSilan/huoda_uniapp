@@ -1,7 +1,10 @@
-export const SERVER_ORIGIN = 'http://localhost:3000';
-export const BASE_URL = `${SERVER_ORIGIN}/api`;
-export const ADMIN_ORIGIN = 'http://localhost:8081';
-export const ADMIN_LOGIN_URL = `${ADMIN_ORIGIN}/#/login`;
+const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
+const joinUrl = (origin, suffix) => `${trimTrailingSlash(origin)}${suffix}`;
+
+export const SERVER_ORIGIN = trimTrailingSlash(process.env.VUE_APP_SERVER_ORIGIN || '');
+export const BASE_URL = trimTrailingSlash(process.env.VUE_APP_BASE_URL || joinUrl(SERVER_ORIGIN, '/api'));
+export const ADMIN_ORIGIN = trimTrailingSlash(process.env.VUE_APP_ADMIN_ORIGIN || '');
+export const ADMIN_LOGIN_URL = process.env.VUE_APP_ADMIN_LOGIN_URL || joinUrl(ADMIN_ORIGIN, '/#/login');
 
 const API = {
   auth: {
