@@ -75,7 +75,8 @@
 </template>
 
 <script>
-import { ADMIN_LOGIN_URL, SERVER_ORIGIN } from '../../config/api';
+import { ADMIN_LOGIN_URL } from '../../config/api';
+import { resolveAssetUrl } from '../../utils/assets';
 import { clearSession } from '../../utils/session';
 
 export default {
@@ -101,7 +102,7 @@ export default {
       if (!this.userInfo.avatarUrl) {
         return '/static/avatar.png';
       }
-      return this.userInfo.avatarUrl.startsWith('http') ? this.userInfo.avatarUrl : `${SERVER_ORIGIN}${this.userInfo.avatarUrl}`;
+      return resolveAssetUrl(this.userInfo.avatarUrl);
     },
     roleText() {
       if (this.userInfo.role === 'admin') {

@@ -13,7 +13,7 @@
 </template>
 
 <script>
-import { SERVER_ORIGIN } from '../../config/api';
+import { resolveAssetUrl } from '../../utils/assets';
 
 export default {
   created() {
@@ -41,14 +41,7 @@ export default {
       this.checkAndOpen(true);
     },
     resolveImage(url) {
-      const normalized = String(url || '').trim();
-      if (!normalized) {
-        return '';
-      }
-      if (/^https?:\/\//i.test(normalized)) {
-        return normalized;
-      }
-      return `${SERVER_ORIGIN}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
+      return resolveAssetUrl(url);
     },
     async checkAndOpen(force = false) {
       const token = uni.getStorageSync('token');

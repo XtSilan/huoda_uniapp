@@ -16,6 +16,19 @@ const {
 } = require('./shared');
 const { normalizeAiConfig, validateAiConfig } = require('./ai-client');
 const { platforms, readAppUpdateConfig, writeAppUpdateConfig, normalizePlatformConfig } = require('./app-update-store');
+const {
+  getStorageSettings,
+  sanitizeStorageSettings,
+  saveStorageSettings,
+  normalizeStorageSettingsPayload,
+  validateOssConnection,
+  validateOssConfig,
+  createOssClient,
+  finalizeUploadedLocalFile,
+  syncLocalUploadsToOss,
+  syncOssToLocal,
+  toAssetProxyUrl
+} = require('./storage-service');
 
 const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-group-qrcodes');
 const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
@@ -103,6 +116,14 @@ function normalizePopupAnnouncementPayload(body = {}) {
     buttonText: String(body.buttonText || '我知道了').trim() || '我知道了',
     isActive: body.isActive !== undefined ? Boolean(body.isActive) : true
   };
+}
+
+function getStorageSwitchConfirmText(target) {
+  return target === 'oss' ? '确认转入OSS' : '确认切回本地';
+}
+
+function getStorageSwitchConfirmText() {
+  return '我同意';
 }
 
 function readWgtManifestVersionInfo(manifestPath) {
@@ -292,6 +313,66 @@ module.exports = function registerAdminRoutes(app, db) {
     }
   });
 
+  app.get('/api/admin/storage', requireAdmin, (_req, res) => {
+    res.json({
+      settings: sanitizeStorageSettings(getStorageSettings(db))
+    });
+  });
+
+  app.put('/api/admin/storage', requireAdmin, (req, res) => {
+    try {
+      const saved = saveStorageSettings(db, req.body || {});
+      res.json({
+        success: true,
+        settings: sanitizeStorageSettings(saved)
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || '存储配置保存失败' });
+    }
+  });
+
+  app.post('/api/admin/storage/validate', requireAdmin, async (req, res) => {
+    try {
+      const current = getStorageSettings(db);
+      const next = normalizeStorageSettingsPayload(req.body || {}, current);
+      const configError = validateOssConfig(next);
+      if (configError) {
+        return res.status(400).json({ message: configError });
+      }
+      const result = await validateOssConnection(next);
+      res.json({
+        success: true,
+        result
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || 'OSS 连通性校验失败' });
+    }
+  });
+
+  app.post('/api/admin/storage/switch', requireAdmin, async (req, res) => {
+    const target = String((req.body && req.body.target) || '').trim().toLowerCase();
+    const confirmText = String((req.body && req.body.confirmText) || '').trim();
+
+    if (!['local', 'oss'].includes(target)) {
+      return res.status(400).json({ message: '不支持的存储目标' });
+    }
+    if (confirmText !== getStorageSwitchConfirmText(target)) {
+      return res.status(400).json({ message: `请填写确认文本：${getStorageSwitchConfirmText(target)}` });
+    }
+
+    try {
+      const result = target === 'oss' ? await syncLocalUploadsToOss(db) : await syncOssToLocal(db);
+      res.json({
+        success: true,
+        target,
+        result,
+        settings: sanitizeStorageSettings(getStorageSettings(db))
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || '存储切换失败' });
+    }
+  });
+
   app.get('/api/admin/dashboard', requireAdmin, (_req, res) => {
     res.json({
       cards: {
@@ -409,6 +490,7 @@ module.exports = function registerAdminRoutes(app, db) {
     const studentId = String(body.studentId || '').trim();
     const password = String(body.password || '').trim();
     const name = String(body.name || '').trim();
+    const role = String(body.role || 'user').trim();
     const className = String(body.className || '').trim();
 
     if (!studentId || !password || !name) {
@@ -518,19 +600,27 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json({ success: true });
   });
 
-  app.post('/api/admin/info-attachments/upload', requireAdmin, infoAttachmentUpload.single('file'), (req, res) => {
+  app.post('/api/admin/info-attachments/upload', requireAdmin, infoAttachmentUpload.single('file'), async (req, res) => {
     const file = req.file;
 
     if (!file) {
       return res.status(400).json({ message: '请先选择要上传的附件' });
     }
 
-    res.json({
-      name: decodeUploadFileName(file.originalname),
-      path: `/uploads/info-attachments/${path.basename(file.path)}`,
-      mimeType: String(file.mimetype || '').trim(),
-      size: Number(file.size || 0) || 0
-    });
+    try {
+      const stored = await finalizeUploadedLocalFile(db, file.path, {
+        contentType: String(file.mimetype || '').trim()
+      });
+      res.json({
+        name: decodeUploadFileName(file.originalname),
+        path: stored.storedPath,
+        url: toAssetProxyUrl(req, stored.storedPath),
+        mimeType: String(file.mimetype || '').trim(),
+        size: Number(file.size || 0) || 0
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || '附件上传失败' });
+    }
   });
 
   app.get('/api/admin/activities', requireAdmin, (_req, res) => {
@@ -901,7 +991,7 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json({ success: true });
   });
 
-  app.post('/api/admin/class-groups/upload', requireAdmin, (req, res) => {
+  app.post('/api/admin/class-groups/upload', requireAdmin, async (req, res) => {
     const body = req.body || {};
     const fileName = String(body.fileName || '').trim();
     const content = String(body.content || '');
@@ -928,7 +1018,17 @@ module.exports = function registerAdminRoutes(app, db) {
     const storedName = `${Date.now()}-${safeBase}${ext}`;
     const targetPath = path.join(classGroupUploadDir, storedName);
     fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
-    res.json({ path: `/uploads/class-group-qrcodes/${storedName}` });
+    try {
+      const stored = await finalizeUploadedLocalFile(db, targetPath, {
+        contentType: mimeType
+      });
+      res.json({
+        path: stored.storedPath,
+        url: toAssetProxyUrl(req, stored.storedPath)
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || '二维码上传失败' });
+    }
   });
 
   app.get('/api/admin/app-updates', requireAdmin, (_req, res) => {
@@ -959,7 +1059,7 @@ module.exports = function registerAdminRoutes(app, db) {
     });
   });
 
-  app.post('/api/admin/popup-announcement/upload', requireAdmin, (req, res) => {
+  app.post('/api/admin/popup-announcement/upload', requireAdmin, async (req, res) => {
     const body = req.body || {};
     const fileName = String(body.fileName || '').trim();
     const content = String(body.content || '');
@@ -986,7 +1086,17 @@ module.exports = function registerAdminRoutes(app, db) {
     const storedName = `${Date.now()}-${safeBase}${ext}`;
     const targetPath = path.join(popupAnnouncementUploadDir, storedName);
     fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
-    res.json({ path: `/uploads/popup-announcements/${storedName}` });
+    try {
+      const stored = await finalizeUploadedLocalFile(db, targetPath, {
+        contentType: mimeType
+      });
+      res.json({
+        path: stored.storedPath,
+        url: toAssetProxyUrl(req, stored.storedPath)
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || '弹窗图片上传失败' });
+    }
   });
 
   app.put('/api/admin/popup-announcement', requireAdmin, (req, res) => {
@@ -1135,7 +1245,7 @@ module.exports = function registerAdminRoutes(app, db) {
     res.json({ success: true, count: userIds.length });
   });
 
-  app.post('/api/admin/app-updates/upload', requireAdmin, appUpdateUpload.single('file'), (req, res) => {
+  app.post('/api/admin/app-updates/upload', requireAdmin, appUpdateUpload.single('file'), async (req, res) => {
     const file = req.file;
     const updateType = String((req.body && req.body.updateType) || '').trim().toLowerCase();
 
@@ -1155,11 +1265,21 @@ module.exports = function registerAdminRoutes(app, db) {
       return res.status(400).json({ message: `当前更新方式与上传文件不匹配，应上传 ${updateType.toUpperCase()} 文件` });
     }
 
+    let storedPackage;
+    try {
+      storedPackage = await finalizeUploadedLocalFile(db, file.path, {
+        contentType: String(file.mimetype || '').trim() || 'application/octet-stream'
+      });
+    } catch (error) {
+      return res.status(400).json({ message: error.message || '更新包上传失败' });
+    }
+
     const response = {
       updateType: ext.slice(1),
       packageName: originalName,
       packageSize: Number(file.size || 0) || 0,
-      packagePath: `/uploads/app-updates/${path.basename(file.path)}`,
+      packagePath: storedPackage.storedPath,
+      packageUrl: toAssetProxyUrl(req, storedPackage.storedPath),
       releaseId: path.basename(file.path)
     };
 
@@ -1173,6 +1293,14 @@ module.exports = function registerAdminRoutes(app, db) {
       } catch (error) {
         fs.unlinkSync(file.path);
         fs.rmSync(buildWgtExtractDir(file.originalname || file.filename || ''), { recursive: true, force: true });
+        if (storedPackage && storedPackage.objectKey) {
+          try {
+            const settings = getStorageSettings(db);
+            await createOssClient(settings).delete(storedPackage.objectKey);
+          } catch (_cleanupError) {
+            // Ignore cleanup failures so the original manifest error is preserved.
+          }
+        }
         return res.status(400).json({ message: error.message || 'WGT 解压失败' });
       }
     }

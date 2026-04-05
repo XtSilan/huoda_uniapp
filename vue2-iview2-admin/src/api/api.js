@@ -65,3 +65,7 @@ export const getAiModels = () => http.get('/admin/ai-models').then((res) => res.
 export const createAiModel = (payload) => http.post('/admin/ai-models', payload).then((res) => res.data);
 export const updateAiModel = (id, payload) => http.put(`/admin/ai-models/${id}`, payload).then((res) => res.data);
 export const deleteAiModel = (id) => http.delete(`/admin/ai-models/${id}`).then((res) => res.data);
+export const getStorageSettings = () => http.get('/admin/storage').then((res) => res.data);
+export const updateStorageSettings = (payload) => http.put('/admin/storage', payload).then((res) => res.data);
+export const validateStorageSettings = (payload) => http.post('/admin/storage/validate', payload).then((res) => res.data);
+export const switchStorageProvider = (payload) => http.post('/admin/storage/switch', payload).then((res) => res.data);

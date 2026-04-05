@@ -55,13 +55,13 @@
 </template>
 
 <script>
-import { API_BASE_URL } from '../../config/runtime';
 import {
   deactivatePopupAnnouncement,
   getPopupAnnouncement,
   updatePopupAnnouncement,
   uploadPopupAnnouncementImage
 } from '../../api';
+import { resolveAssetUrl } from '../../common/asset';
 
 function createEmptyForm() {
   return {
@@ -104,10 +104,7 @@ export default {
       if (!this.form.imageUrl) {
         return '';
       }
-      if (/^https?:\/\//i.test(this.form.imageUrl)) {
-        return this.form.imageUrl;
-      }
-      return `${API_BASE_URL.replace(/\/api$/, '')}${this.form.imageUrl.startsWith('/') ? this.form.imageUrl : `/${this.form.imageUrl}`}`;
+      return resolveAssetUrl(this.form.imageUrl);
     }
   },
   mounted() {

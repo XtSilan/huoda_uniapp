@@ -45,7 +45,7 @@ import {
   removeClassGroupStudent,
   uploadClassGroupQr
 } from '../../api';
-import { API_BASE_URL } from '../../config/runtime';
+import { resolveAssetUrl } from '../../common/asset';
 
 export default {
   data() {
@@ -130,8 +130,7 @@ export default {
       };
     },
     fullQrCodeUrl(path) {
-      if (!path) return '';
-      return path.startsWith('http') ? path : `${API_BASE_URL.replace(/\/api$/, '')}${path}`;
+      return resolveAssetUrl(path);
     },
     async loadGroups() {
       const res = await getClassGroups();

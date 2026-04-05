@@ -33,8 +33,8 @@
 </template>
 
 <script>
-import { API_BASE_URL } from '../../config/runtime';
 import { getInfos, createInfo, updateInfo, deleteInfo, uploadInfoAttachment } from '../../api';
+import { resolveAssetUrl } from '../../common/asset';
 
 export default {
   data() {
@@ -153,10 +153,7 @@ export default {
       this.form.attachments = this.form.attachments.filter((_, currentIndex) => currentIndex !== index);
     },
     resolveAttachmentUrl(filePath) {
-      if (!filePath) {
-        return '#';
-      }
-      return filePath.startsWith('http') ? filePath : `${API_BASE_URL.replace(/\/api$/, '')}${filePath}`;
+      return resolveAssetUrl(filePath) || '#';
     },
     async submit() {
       if (this.editingId) {

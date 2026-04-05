@@ -287,6 +287,18 @@ async function getDb(options = {}) {
       FOREIGN KEY (announcement_id) REFERENCES popup_announcements(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS storage_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      provider TEXT NOT NULL DEFAULT 'local',
+      config_json TEXT DEFAULT '{}',
+      last_sync_direction TEXT DEFAULT '',
+      last_sync_status TEXT DEFAULT '',
+      last_sync_message TEXT DEFAULT '',
+      last_sync_stats TEXT DEFAULT '{}',
+      last_sync_at TEXT DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
   `);
 
   ensureColumn(db, 'user_settings', 'ai_settings', `TEXT DEFAULT '${JSON.stringify(DEFAULT_USER_AI_SETTINGS)}'`);
@@ -407,6 +419,14 @@ async function seed(db) {
       (class_name, course_name, teacher, sign_date, start_time, end_time, late_end_time, status, created_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [firstStudentClass.class_name, '高等数学', '张老师', signDate, startTime, endTime, lateEndTime, 'active', 1, now, now]
+    );
+  }
+  if (!db.get('SELECT id FROM storage_settings WHERE id = 1')) {
+    db.run(
+      `INSERT INTO storage_settings
+      (id, provider, config_json, last_sync_direction, last_sync_status, last_sync_message, last_sync_stats, last_sync_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [1, 'local', JSON.stringify({ oss: {} }), '', '', '', '{}', '', now]
     );
   }
 }

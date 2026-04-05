@@ -238,7 +238,7 @@ npm run build
 
 ## 环境变量
 
-仓库现在已经把三端的 `.env` 文件从 `.gitignore` 放出来，可以直接纳入版本管理。
+各级目录下的 `.env` 文件
 
 ### 用户端环境变量
 
@@ -413,3 +413,88 @@ server/data/huoda.sqlite
 - 数据库重建后默认管理员账号恢复为 `admin / admin`
 - 用户端与管理后台是两个独立前端工程，共享同一个服务端
 - WGT 解压目录现在跟随新的用户端目录结构，写入 `huoda_uniapp/unpackage/release/apk/`
+
+## OSS 对象存储补充说明
+
+当前版本已经支持阿里云 OSS，并在管理后台新增“对象存储配置”页面，支持：
+
+- 保存 OSS 配置
+- 测试 OSS 连通性
+- 一键从本地转入 OSS
+- 一键从 OSS 切回本地
+- 二次确认后执行真实同步
+
+说明：
+
+- OSS 配置不通过 `.env` 维护，而是保存在数据库表 `storage_settings`
+- 服务端已新增 `ali-oss` 依赖，部署后请在 `server/` 目录重新执行一次 `npm install`
+- 用户端和后台访问资源时统一通过后端代理接口 `/api/assets/object?path=...`
+
+### 需要准备的 OSS 配置项
+
+在后台“对象存储配置”页中需要填写这些字段：
+
+- `Region`
+- `Bucket`
+- `AccessKeyId`
+- `AccessKeySecret`
+- `Endpoint`：可选，留空时使用 SDK 默认地域 endpoint
+- `CNAME`：如果 `Endpoint` 使用的是自定义域名，需要勾选
+- `objectPrefix`：对象前缀，可选，建议使用 `huoda`
+- `secure`：是否启用 HTTPS
+- `authorizationV4`：是否启用 V4 签名
+
+建议使用专用 RAM 用户，并至少授予以下 OSS 权限：
+
+- `oss:PutObject`
+- `oss:GetObject`
+- `oss:DeleteObject`
+- `oss:ListObjects`
+
+### 存储切换规则
+
+本地模式：
+
+- 数据库资源路径保存为 `/uploads/...`
+- 文件实际存放在 `server/uploads/`
+
+OSS 模式：
+
+- 数据库资源路径保存为 `oss://uploads/...`
+- 文件上传后会自动同步到 OSS
+
+切换逻辑：
+
+- 转入 OSS：把 `server/uploads/` 下已有资源上传到 OSS，然后批量把数据库路径改成 `oss://...`
+- 切回本地：从 OSS 下载资源到 `server/uploads/`，然后批量把数据库路径改回 `/uploads/...`
+- 历史手工填写的第三方 `http/https` 资源地址不会被强制改写
+
+当前跟随切换的资源范围：
+
+- 用户头像
+- 资讯附件
+- 班级群二维码
+- 弹窗公告图片
+- App 更新包
+
+### 推荐接入步骤
+
+1. 在阿里云创建 OSS Bucket
+2. 创建专用 RAM 用户并授权
+3. 部署最新代码后进入 `server/` 执行 `npm install`
+4. 启动服务端和管理后台
+5. 进入后台“对象存储配置”
+6. 填写 OSS 参数并先点击“测试 OSS”
+7. 测试通过后点击“一键转入 OSS”
+8. 检查头像、附件、二维码、弹窗图片、更新包下载是否正常
+9. 如需回退，点击“切回本地”
+
+### 新增相关文件
+
+- `server/src/storage-service.js`
+- `server/src/admin-routes.js`
+- `server/src/public-routes.js`
+- `server/src/db.js`
+- `vue2-iview2-admin/src/pages/nav2/StorageSettings.vue`
+- `vue2-iview2-admin/src/common/asset.js`
+- `huoda_uniapp/utils/assets.js`

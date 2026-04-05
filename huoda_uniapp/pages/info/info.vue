@@ -183,7 +183,7 @@
 </template>
 
 <script>
-import { SERVER_ORIGIN } from '../../config/api';
+import { resolveAssetUrl } from '../../utils/assets';
 import { canInstallApkOnAndroid, openOrInstallLocalFile, openUnknownAppSourcesSettings, scanFileToMediaLibrary } from '../../utils/native-file';
 
 const ATTACHMENT_DOWNLOAD_DIR = '_downloads/';
@@ -361,13 +361,10 @@ export default {
       return '';
     },
     resolveAssetUrl(filePath) {
-      if (!filePath) {
-        return '';
-      }
-      return filePath.startsWith('http') ? filePath : `${SERVER_ORIGIN}${filePath}`;
+      return resolveAssetUrl(filePath);
     },
     getAttachmentKey(item) {
-      return String((item && (item.path || item.name)) || '').trim();
+      return String((item && (item.name || item.path || item.url)) || '').trim();
     },
     getAttachmentExtension(item) {
       const source = String((item && (item.name || item.path)) || '').trim();
@@ -834,7 +831,7 @@ export default {
       // #endif
     },
     openAttachment(item) {
-      const fileUrl = this.resolveAssetUrl(item && item.path);
+      const fileUrl = this.resolveAssetUrl(item && (item.url || item.path));
       if (!fileUrl) {
         return;
       }

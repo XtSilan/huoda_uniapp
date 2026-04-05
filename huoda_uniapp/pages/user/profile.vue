@@ -42,7 +42,7 @@
 </template>
 
 <script>
-import { SERVER_ORIGIN } from '../../config/api';
+import { resolveAssetUrl } from '../../utils/assets';
 
 export default {
   data() {
@@ -81,10 +81,7 @@ export default {
   },
   methods: {
     buildAssetUrl(value) {
-      if (!value) {
-        return '';
-      }
-      return value.startsWith('http') ? value : `${SERVER_ORIGIN}${value}`;
+      return resolveAssetUrl(value);
     },
     onFieldInput(key, event) {
       this.userInfo[key] = event.detail.value;

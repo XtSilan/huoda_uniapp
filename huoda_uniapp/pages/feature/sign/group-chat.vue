@@ -53,7 +53,7 @@
 </template>
 
 <script>
-import { SERVER_ORIGIN } from '../../../config/api';
+import { resolveAssetUrl } from '../../../utils/assets';
 
 export default {
   data() {
@@ -91,10 +91,7 @@ export default {
       }
     },
     fullQrCode(path) {
-      if (!path) {
-        return '';
-      }
-      return path.startsWith('http') ? path : `${SERVER_ORIGIN}${path}`;
+      return resolveAssetUrl(path);
     },
     previewQrCode() {
       if (!this.group || !this.group.qrCode) {

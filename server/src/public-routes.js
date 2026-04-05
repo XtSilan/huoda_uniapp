@@ -25,6 +25,12 @@ const {
   validateAiConnection
 } = require('./ai-client');
 const { readAppUpdateConfig } = require('./app-update-store');
+const {
+  assetProxyPath,
+  toAssetProxyUrl,
+  sendAssetToResponse,
+  finalizeUploadedLocalFile
+} = require('./storage-service');
 
 const userUploadDir = path.resolve(__dirname, '..', 'uploads', 'user');
 
@@ -42,14 +48,42 @@ function compareVersion(a = '0.0.0', b = '0.0.0') {
 }
 
 function resolvePublicAssetUrl(req, filePath) {
-  const normalized = String(filePath || '').trim();
-  if (!normalized) {
-    return '';
-  }
-  if (/^https?:\/\//i.test(normalized)) {
-    return normalized;
-  }
-  return `${req.protocol}://${req.get('host')}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
+  return toAssetProxyUrl(req, filePath);
+}
+
+function mapUserForClient(row, req) {
+  const mapped = mapUser(row);
+  return {
+    ...mapped
+  };
+}
+
+function mapBannerForClient(row, req) {
+  const mapped = mapBanner(row);
+  return {
+    ...mapped,
+    imageUrl: resolvePublicAssetUrl(req, mapped.imageUrl)
+  };
+}
+
+function mapInfoForClient(row, req) {
+  const mapped = mapInfo(row);
+  return {
+    ...mapped,
+    attachments: (mapped.attachments || []).map((item) => ({
+      ...item,
+      path: item && item.path ? item.path : '',
+      url: resolvePublicAssetUrl(req, item && item.path ? item.path : '')
+    }))
+  };
+}
+
+function mapActivityForClient(row, req) {
+  const mapped = mapActivity(row);
+  return {
+    ...mapped,
+    images: (mapped.images || []).map((item) => resolvePublicAssetUrl(req, item))
+  };
 }
 
 function mapPopupAnnouncement(row, req) {
@@ -711,7 +745,7 @@ function getAiIntentPrompt(intent, options = {}) {
   return prompts[intent] || options.fallback || '你是校园助手“小达老师”，请结合校园上下文回答。';
 }
 
-function buildAiIntentContext(db, reqUser, intent, infoSelect, activitySelect) {
+function buildAiIntentContext(db, reqUser, intent, infoSelect, activitySelect, req) {
   const profile = buildAiUserProfile(db, reqUser);
 
   if (intent === 'recommend_activities') {
@@ -724,7 +758,7 @@ ${serializeAiProfile(profile)}
 
 候选活动：
 ${activities.length ? activities.map((item, index) => `${index + 1}. ${item.title}｜类型：${item.activity_type || '其他'}｜推荐理由：${item.recommendation_reason || '无'}｜时间：${item.start_time || ''}｜地点：${item.location || ''}`).join('\n') : '暂无候选活动'}`,
-      relatedInfos: activities.map(mapActivity)
+      relatedInfos: activities.map((item) => mapActivityForClient(item, req))
     };
   }
 
@@ -744,12 +778,12 @@ ${activities.length ? activities.map((item, index) => `${index + 1}. ${item.titl
     const activityCards = linkedIds.length
       ? db
           .all(`${activitySelect} WHERE a.id IN (${linkedIds.filter((item) => Number(item)).map(() => '?').join(',') || '0'})`, linkedIds.filter((item) => Number(item)))
-          .map(mapActivity)
+          .map((item) => mapActivityForClient(item, req))
       : [];
     const infoCards = linkedIds.length
       ? db
           .all(`${infoSelect} WHERE i.id IN (${linkedIds.filter((item) => Number(item)).map(() => '?').join(',') || '0'})`, linkedIds.filter((item) => Number(item)))
-          .map(mapInfo)
+          .map((item) => mapInfoForClient(item, req))
       : [];
     return {
       intent,
@@ -770,7 +804,7 @@ ${serializeAiProfile(profile)}
 
 待提炼资讯：
 ${infos.length ? infos.map((item, index) => `${index + 1}. ${item.title}｜分类：${item.category}｜摘要：${item.summary || item.content || ''}`).join('\n') : '暂无资讯'}`,
-      relatedInfos: infos.map(mapInfo)
+      relatedInfos: infos.map((item) => mapInfoForClient(item, req))
     };
   }
 
@@ -784,6 +818,20 @@ ${infos.length ? infos.map((item, index) => `${index + 1}. ${item.title}｜分�
 
 module.exports = function registerPublicRoutes(app, db) {
   fs.mkdirSync(userUploadDir, { recursive: true });
+
+  app.get(assetProxyPath, async (req, res) => {
+    const assetPath = String(req.query.path || '').trim();
+    if (!assetPath) {
+      return res.status(400).json({ message: '缺少资源路径' });
+    }
+    try {
+      await sendAssetToResponse(req, res, db, assetPath);
+    } catch (error) {
+      if (!res.headersSent) {
+        res.status(404).json({ message: error.message || '资源读取失败' });
+      }
+    }
+  });
   const infoSelect = `
     SELECT i.*,
       (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'info' AND f.target_id = i.id) AS favorite_count,
@@ -841,11 +889,11 @@ module.exports = function registerPublicRoutes(app, db) {
       return res.status(403).json({ message: '该账户已停用' });
     }
     db.run('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?', [new Date().toISOString(), new Date().toISOString(), user.id]);
-    res.json({ token: createToken(user.id), user: mapUser(user) });
+    res.json({ token: createToken(user.id), user: mapUserForClient(user, req) });
   });
 
   app.post('/api/auth/refresh', requireAuth, (req, res) => {
-    res.json({ token: createToken(req.user.id), user: mapUser(req.user) });
+    res.json({ token: createToken(req.user.id), user: mapUserForClient(req.user, req) });
   });
 
   app.post('/api/auth/change-password', requireAuth, (req, res) => {
@@ -866,20 +914,20 @@ module.exports = function registerPublicRoutes(app, db) {
 
     const hotInfos = db.all(`${infoSelect} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 6`);
     res.json({
-      banners: banners.map(mapBanner),
-      recommendations: recommendations.map(mapInfo),
-      hotInfos: hotInfos.map(mapInfo),
-      latestActivities: activities.map(mapActivity)
+      banners: banners.map((item) => mapBannerForClient(item, req)),
+      recommendations: recommendations.map((item) => mapInfoForClient(item, req)),
+      hotInfos: hotInfos.map((item) => mapInfoForClient(item, req)),
+      latestActivities: activities.map((item) => mapActivityForClient(item, req))
     });
   });
 
-  app.get('/api/banners', (_req, res) => {
+  app.get('/api/banners', (req, res) => {
     const rows = db.all('SELECT * FROM banners WHERE is_active = 1 ORDER BY sort_order ASC, id ASC');
-    res.json({ list: rows.map(mapBanner) });
+    res.json({ list: rows.map((item) => mapBannerForClient(item, req)) });
   });
 
   app.get('/api/user/profile', requireAuth, (req, res) => {
-    res.json(mapUser(req.user));
+    res.json(mapUserForClient(req.user, req));
   });
 
   app.put('/api/user/profile', requireAuth, (req, res) => {
@@ -893,10 +941,10 @@ module.exports = function registerPublicRoutes(app, db) {
     );
     ensureClassGroup(db, nextClassName);
     const updated = db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
-    res.json(mapUser(updated));
+    res.json(mapUserForClient(updated, req));
   });
 
-  app.post('/api/user/avatar/upload', requireAuth, (req, res) => {
+  app.post('/api/user/avatar/upload', requireAuth, async (req, res) => {
     const body = req.body || {};
     const fileName = String(body.fileName || '').trim();
     const content = String(body.content || '');
@@ -923,8 +971,17 @@ module.exports = function registerPublicRoutes(app, db) {
     const storedName = `${Date.now()}-${req.user.id}-${safeBase}${ext}`;
     const targetPath = path.join(userUploadDir, storedName);
     fs.writeFileSync(targetPath, Buffer.from(match[2], 'base64'));
-
-    res.json({ path: `/uploads/user/${storedName}` });
+    try {
+      const stored = await finalizeUploadedLocalFile(db, targetPath, {
+        contentType: mimeType
+      });
+      res.json({
+        path: stored.storedPath,
+        url: toAssetProxyUrl(req, stored.storedPath)
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || '头像上传失败' });
+    }
   });
 
   app.get('/api/user/settings', requireAuth, (req, res) => {
@@ -1227,7 +1284,7 @@ module.exports = function registerPublicRoutes(app, db) {
     const infoWhere = where ? where.replace(/\btitle\b/g, 'i.title').replace(/\bcontent\b/g, 'i.content').replace(/\bsummary\b/g, 'i.summary').replace(/\bsource\b/g, 'i.source').replace(/\bcategory\b/g, 'i.category').replace(/\blocation_type\b/g, 'i.location_type') : '';
     const rows = db.all(`${infoSelect} ${infoWhere} ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
     const total = db.get(`SELECT COUNT(*) AS count FROM infos ${where}`, params).count;
-    res.json({ list: rows.map(mapInfo), total, page: Number(page), pageSize: limit });
+    res.json({ list: rows.map((item) => mapInfoForClient(item, req)), total, page: Number(page), pageSize: limit });
   });
 
   app.get('/api/info/search', (req, res) => {
@@ -1249,8 +1306,8 @@ module.exports = function registerPublicRoutes(app, db) {
         )
       : [];
 
-    const infos = infoRows.map(mapInfo);
-    const activities = activityRows.map(mapActivity);
+    const infos = infoRows.map((item) => mapInfoForClient(item, req));
+    const activities = activityRows.map((item) => mapActivityForClient(item, req));
     const list = [
       ...infos.map((item) => ({ ...item, targetType: 'info' })),
       ...activities.map((item) => ({ ...item, targetType: 'activity' }))
@@ -1278,12 +1335,12 @@ module.exports = function registerPublicRoutes(app, db) {
     if (!row) {
       return res.status(404).json({ message: '信息不存在' });
     }
-    res.json(mapInfo(row));
+    res.json(mapInfoForClient(row, req));
   });
 
-  app.get('/api/publish/list', (_req, res) => {
+  app.get('/api/publish/list', (req, res) => {
     const rows = db.all(`${activitySelect} ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC`);
-    res.json({ list: rows.map(mapActivity) });
+    res.json({ list: rows.map((item) => mapActivityForClient(item, req)) });
   });
 
   app.get('/api/publish/detail', (req, res) => {
@@ -1317,7 +1374,7 @@ module.exports = function registerPublicRoutes(app, db) {
     if (!row) {
       return res.status(404).json({ message: '活动不存在' });
     }
-    res.json(mapActivity(row));
+    res.json(mapActivityForClient(row, req));
   });
 
   app.post('/api/publish/create', requireAuth, (req, res) => {
@@ -1348,7 +1405,7 @@ module.exports = function registerPublicRoutes(app, db) {
       ]
     );
     const created = db.get('SELECT * FROM activities ORDER BY id DESC LIMIT 1');
-    res.json(mapActivity(created));
+    res.json(mapActivityForClient(created, req));
   });
 
   app.post('/api/publish/apply', requireAuth, (req, res) => {
@@ -1392,7 +1449,7 @@ module.exports = function registerPublicRoutes(app, db) {
         [req.user.id, activityId]
       );
       return res.json({
-        ...mapActivity(updated),
+        ...mapActivityForClient(updated, req),
         action: 'cancel'
       });
     }
@@ -1427,7 +1484,7 @@ module.exports = function registerPublicRoutes(app, db) {
       [req.user.id, activityId]
     );
     res.json({
-      ...mapActivity(updated),
+      ...mapActivityForClient(updated, req),
       action: 'apply'
     });
   });
@@ -1445,7 +1502,7 @@ module.exports = function registerPublicRoutes(app, db) {
       ORDER BY datetime(aa.created_at) DESC`,
       [req.user.id]
     );
-    res.json({ list: rows.map(mapActivity) });
+    res.json({ list: rows.map((item) => mapActivityForClient(item, req)) });
   });
 
   app.get('/api/class-group/current', requireAuth, (req, res) => {
@@ -1872,9 +1929,9 @@ module.exports = function registerPublicRoutes(app, db) {
     res.json({ success: true, reason, leaveTime: String(body.leaveTime || '').trim() });
   });
 
-  app.get('/api/ai/recommend', (_req, res) => {
+  app.get('/api/ai/recommend', (req, res) => {
     const rows = db.all('SELECT * FROM infos ORDER BY is_top DESC, datetime(publish_time) DESC, id DESC LIMIT 4');
-    res.json({ recommendations: rows.map(mapInfo) });
+    res.json({ recommendations: rows.map((item) => mapInfoForClient(item, req)) });
   });
 
   app.get('/api/ai/settings', requireAuth, (req, res) => {
@@ -1940,7 +1997,7 @@ module.exports = function registerPublicRoutes(app, db) {
       let relatedInfos = [];
 
       if (['recommend_activities', 'summarize_notifications', 'extract_info_highlights'].includes(intent)) {
-        const context = buildAiIntentContext(db, req.user, intent, infoSelect, activitySelect);
+        const context = buildAiIntentContext(db, req.user, intent, infoSelect, activitySelect, req);
         finalMessages = [
           { role: 'system', content: context.systemPrompt },
           { role: 'user', content: context.userPrompt }
@@ -1963,7 +2020,7 @@ module.exports = function registerPublicRoutes(app, db) {
            ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC LIMIT 2`,
           [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
         );
-        relatedInfos = [...matchedInfos.map(mapInfo), ...matchedActivities.map(mapActivity)].slice(0, 4);
+        relatedInfos = [...matchedInfos.map((item) => mapInfoForClient(item, req)), ...matchedActivities.map((item) => mapActivityForClient(item, req))].slice(0, 4);
       }
 
       res.json({
@@ -1981,12 +2038,8 @@ module.exports = function registerPublicRoutes(app, db) {
   app.post('/api/ai/search', (req, res) => {
     const query = String((req.body || {}).query || '');
     const rows = db.all(`SELECT * FROM infos WHERE title LIKE ? OR content LIKE ? OR summary LIKE ? ORDER BY is_top DESC, datetime(publish_time) DESC, id DESC LIMIT 6`, [`%${query}%`, `%${query}%`, `%${query}%`]);
-    res.json({ list: rows.map(mapInfo) });
+    res.json({ list: rows.map((item) => mapInfoForClient(item, req)) });
   });
 
   app.get('/api/ai/history', (_req, res) => res.json({ list: [] }));
 };
-
-
-
-

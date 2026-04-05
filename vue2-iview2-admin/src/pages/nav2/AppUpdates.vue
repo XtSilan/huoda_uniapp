@@ -116,8 +116,8 @@
 </template>
 
 <script>
-import { API_BASE_URL } from '../../config/runtime';
 import { getAppUpdates, updateAppUpdate, uploadAppUpdatePackage } from '../../api';
+import { resolveAssetUrl } from '../../common/asset';
 
 function createEmptyConfig() {
   return {
@@ -188,9 +188,7 @@ export default {
       if (!this.form.packagePath) {
         return '';
       }
-      return this.form.packagePath.startsWith('http')
-        ? this.form.packagePath
-        : `${API_BASE_URL.replace(/\/api$/, '')}${this.form.packagePath}`;
+      return resolveAssetUrl(this.form.packagePath);
     },
     updateTypeText() {
       const map = {
