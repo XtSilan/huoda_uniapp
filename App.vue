@@ -27,6 +27,7 @@ export default {
         if (token) {
           const res = await authService.refresh();
           await saveSession(res.token, res.user);
+          this.redirectAfterSessionRestore();
           return;
         }
 
@@ -38,10 +39,21 @@ export default {
 
         const res = await authService.login(savedCredentials);
         await saveSession(res.token, res.user);
+        this.redirectAfterSessionRestore();
       } catch (error) {
         await clearSession();
         redirectToLogin();
       }
+    },
+    redirectAfterSessionRestore() {
+      const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : [];
+      const current = pages.length ? pages[pages.length - 1].route : '';
+      if (current && current !== 'pages/login/login') {
+        return;
+      }
+      setTimeout(() => {
+        uni.reLaunch({ url: '/pages/index/index' });
+      }, 50);
     }
   }
 };

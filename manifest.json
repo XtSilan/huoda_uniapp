@@ -2,8 +2,8 @@
     "name" : "活达",
     "appid" : "__UNI__F780FC6",
     "description" : "大学生个性化与信息聚合平台",
-    "versionName" : "2.6.0",
-    "versionCode" : 26,
+    "versionName" : "3.1.2",
+    "versionCode" : 312,
     "transformPx" : true,
     "uniStatistics" : {
         "enable" : false
