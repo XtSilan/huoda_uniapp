@@ -605,6 +605,183 @@ function buildHomeActivityRecommendations(db, reqUser, activitySelect, interests
   return dedupeById(sections).slice(0, 4);
 }
 
+function buildAiUserProfile(db, user) {
+  if (!user || !user.id) {
+    return null;
+  }
+
+  const interestsRow = db.get('SELECT interests FROM user_settings WHERE user_id = ?', [user.id]);
+  const interests = parseJson(interestsRow && interestsRow.interests, []);
+  const favorites = db.all(
+    `SELECT f.target_type, f.target_id, f.created_at, COALESCE(i.title, a.title, '') AS title
+    FROM favorites f
+    LEFT JOIN infos i ON f.target_type = 'info' AND i.id = f.target_id
+    LEFT JOIN activities a ON f.target_type = 'activity' AND a.id = f.target_id
+    WHERE f.user_id = ?
+    ORDER BY datetime(f.created_at) DESC, f.id DESC
+    LIMIT 6`,
+    [user.id]
+  );
+  const browseHistory = db.all(
+    `SELECT bh.target_type, bh.target_id, bh.title, bh.summary, bh.created_at
+    FROM browse_history bh
+    WHERE bh.user_id = ?
+    ORDER BY datetime(bh.created_at) DESC, bh.id DESC
+    LIMIT 8`,
+    [user.id]
+  );
+  const appliedActivities = db.all(
+    `SELECT a.id, a.title, a.activity_type, a.start_time, aa.created_at
+    FROM activity_applications aa
+    INNER JOIN activities a ON a.id = aa.activity_id
+    WHERE aa.user_id = ?
+    ORDER BY datetime(aa.created_at) DESC, aa.id DESC
+    LIMIT 6`,
+    [user.id]
+  );
+  const recentNotifications = db.all(
+    `SELECT type, title, content, created_at
+    FROM notifications
+    WHERE user_id = ?
+    ORDER BY datetime(created_at) DESC, id DESC
+    LIMIT 10`,
+    [user.id]
+  );
+
+  return {
+    interests,
+    favorites,
+    browseHistory,
+    appliedActivities,
+    recentNotifications
+  };
+}
+
+function serializeAiProfile(profile) {
+  if (!profile) {
+    return '暂无用户画像。';
+  }
+  const lines = [];
+  lines.push(`兴趣偏好：${profile.interests && profile.interests.length ? profile.interests.join('、') : '暂无'}`);
+  lines.push(
+    `最近收藏：${
+      profile.favorites && profile.favorites.length
+        ? profile.favorites.map((item) => `${item.target_type === 'activity' ? '活动' : '资讯'}《${item.title || '未命名'}》`).join('；')
+        : '暂无'
+    }`
+  );
+  lines.push(
+    `最近浏览：${
+      profile.browseHistory && profile.browseHistory.length
+        ? profile.browseHistory.map((item) => `${item.target_type === 'activity' ? '活动' : '资讯'}《${item.title || '未命名'}》`).join('；')
+        : '暂无'
+    }`
+  );
+  lines.push(
+    `最近报名：${
+      profile.appliedActivities && profile.appliedActivities.length
+        ? profile.appliedActivities.map((item) => `《${item.title}》`).join('；')
+        : '暂无'
+    }`
+  );
+  return lines.join('\n');
+}
+
+function getAiIntentPrompt(intent, options = {}) {
+  const prompts = {
+    recommend_activities: `你是校园助手“小达老师”。请根据用户画像和候选活动，推荐最适合该用户的活动。
+输出要求：
+1. 先给出简洁结论。
+2. 明确说明“为什么适合我”。
+3. 优先结合用户的收藏、浏览、报名记录。
+4. 不要空泛，要像校园助手在替学生做筛选。`,
+    summarize_notifications: `你是校园助手“小达老师”。请把最近通知总结成用户一眼能看懂的重点提醒。
+输出要求：
+1. 先给一句总览。
+2. 再分点列出最重要的 3 到 5 条提醒。
+3. 优先提示和用户行为相关的通知。
+4. 语气简洁，像消息中心摘要。`,
+    extract_info_highlights: `你是校园助手“小达老师”。请从最近校园资讯里提炼重点。
+输出要求：
+1. 先给一句整体判断。
+2. 再列出 3 到 5 条重点。
+3. 每条尽量说明“适合谁看”“要不要现在处理”。
+4. 不要照抄原文标题，要做提炼。`
+  };
+  return prompts[intent] || options.fallback || '你是校园助手“小达老师”，请结合校园上下文回答。';
+}
+
+function buildAiIntentContext(db, reqUser, intent, infoSelect, activitySelect) {
+  const profile = buildAiUserProfile(db, reqUser);
+
+  if (intent === 'recommend_activities') {
+    const activities = buildHomeActivityRecommendations(db, reqUser, activitySelect, profile && profile.interests ? profile.interests : []);
+    return {
+      intent,
+      systemPrompt: getAiIntentPrompt(intent),
+      userPrompt: `用户画像：
+${serializeAiProfile(profile)}
+
+候选活动：
+${activities.length ? activities.map((item, index) => `${index + 1}. ${item.title}｜类型：${item.activity_type || '其他'}｜推荐理由：${item.recommendation_reason || '无'}｜时间：${item.start_time || ''}｜地点：${item.location || ''}`).join('\n') : '暂无候选活动'}`,
+      relatedInfos: activities.map(mapActivity)
+    };
+  }
+
+  if (intent === 'summarize_notifications') {
+    const notifications = profile && profile.recentNotifications ? profile.recentNotifications : [];
+    const linkedIds = [];
+    notifications.forEach((item) => {
+      const title = String(item.title || '');
+      const content = String(item.content || '');
+      if (/活动/.test(title + content)) {
+        linkedIds.push(...db.all(`SELECT id FROM activities WHERE title LIKE ? ORDER BY datetime(publish_time) DESC LIMIT 2`, [`%${title.slice(0, 8)}%`]).map((row) => row.id));
+      }
+      if (/资讯|通知/.test(title + content)) {
+        linkedIds.push(...db.all(`SELECT id FROM infos WHERE title LIKE ? ORDER BY datetime(publish_time) DESC LIMIT 2`, [`%${title.slice(0, 8)}%`]).map((row) => row.id));
+      }
+    });
+    const activityCards = linkedIds.length
+      ? db
+          .all(`${activitySelect} WHERE a.id IN (${linkedIds.filter((item) => Number(item)).map(() => '?').join(',') || '0'})`, linkedIds.filter((item) => Number(item)))
+          .map(mapActivity)
+      : [];
+    const infoCards = linkedIds.length
+      ? db
+          .all(`${infoSelect} WHERE i.id IN (${linkedIds.filter((item) => Number(item)).map(() => '?').join(',') || '0'})`, linkedIds.filter((item) => Number(item)))
+          .map(mapInfo)
+      : [];
+    return {
+      intent,
+      systemPrompt: getAiIntentPrompt(intent),
+      userPrompt: `用户最近通知：
+${notifications.length ? notifications.map((item, index) => `${index + 1}. [${getNotificationTypeLabel(item.type)}] ${item.title}｜${item.content}`).join('\n') : '暂无通知'}`,
+      relatedInfos: dedupeById([...activityCards, ...infoCards]).slice(0, 4)
+    };
+  }
+
+  if (intent === 'extract_info_highlights') {
+    const infos = buildHomeInfoRecommendations(db, reqUser, infoSelect, profile && profile.interests ? profile.interests : []);
+    return {
+      intent,
+      systemPrompt: getAiIntentPrompt(intent),
+      userPrompt: `用户画像：
+${serializeAiProfile(profile)}
+
+待提炼资讯：
+${infos.length ? infos.map((item, index) => `${index + 1}. ${item.title}｜分类：${item.category}｜摘要：${item.summary || item.content || ''}`).join('\n') : '暂无资讯'}`,
+      relatedInfos: infos.map(mapInfo)
+    };
+  }
+
+  return {
+    intent: 'chat',
+    systemPrompt: '你是校园助手“小达老师”，请结合校园场景，用简洁中文回答。',
+    userPrompt: '',
+    relatedInfos: []
+  };
+}
+
 module.exports = function registerPublicRoutes(app, db) {
   fs.mkdirSync(userUploadDir, { recursive: true });
   const infoSelect = `
@@ -1757,31 +1934,44 @@ module.exports = function registerPublicRoutes(app, db) {
       const row = db.get('SELECT ai_settings FROM user_settings WHERE user_id = ?', [req.user.id]);
       const savedSettings = parseUserAiSettings(row && row.ai_settings, db);
       const config = body.config ? normalizeAiConfig(body.config) : resolveUserAiConfig(savedSettings, db);
+      const intent = String(body.intent || 'chat').trim();
       const messages = sanitizeMessages(body.messages || [{ role: 'user', content: body.message || '' }]);
-      const response = await chatWithAi(config, messages);
+      let finalMessages = messages;
+      let relatedInfos = [];
+
+      if (['recommend_activities', 'summarize_notifications', 'extract_info_highlights'].includes(intent)) {
+        const context = buildAiIntentContext(db, req.user, intent, infoSelect, activitySelect);
+        finalMessages = [
+          { role: 'system', content: context.systemPrompt },
+          { role: 'user', content: context.userPrompt }
+        ];
+        relatedInfos = context.relatedInfos || [];
+      }
+
+      const response = await chatWithAi(config, finalMessages);
       const keyword = String(body.message || (messages[messages.length - 1] && messages[messages.length - 1].content) || '').trim();
-      const relatedInfos = keyword
-        ? db.all(
-            `${infoSelect}
-             WHERE i.title LIKE ? OR i.content LIKE ? OR i.summary LIKE ?
-             ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 2`,
-            [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
-          )
-        : [];
-      const relatedActivities = keyword
-        ? db.all(
-            `${activitySelect}
-             WHERE a.title LIKE ? OR a.content LIKE ? OR a.summary LIKE ?
-             ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC LIMIT 2`,
-            [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
-          )
-        : [];
+      if (!relatedInfos.length && keyword) {
+        const matchedInfos = db.all(
+          `${infoSelect}
+           WHERE i.title LIKE ? OR i.content LIKE ? OR i.summary LIKE ?
+           ORDER BY i.is_top DESC, datetime(i.publish_time) DESC, i.id DESC LIMIT 2`,
+          [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
+        );
+        const matchedActivities = db.all(
+          `${activitySelect}
+           WHERE a.title LIKE ? OR a.content LIKE ? OR a.summary LIKE ?
+           ORDER BY a.is_top DESC, datetime(a.publish_time) DESC, a.id DESC LIMIT 2`,
+          [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
+        );
+        relatedInfos = [...matchedInfos.map(mapInfo), ...matchedActivities.map(mapActivity)].slice(0, 4);
+      }
 
       res.json({
         response,
+        intent,
         provider: config.provider,
         model: config.model,
-        relatedInfos: [...relatedInfos.map(mapInfo), ...relatedActivities.map(mapActivity)].slice(0, 4)
+        relatedInfos
       });
     } catch (error) {
       res.status(400).json({ message: error.message || 'AI 对话失败' });

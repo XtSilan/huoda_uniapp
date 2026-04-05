@@ -2,24 +2,37 @@
   <view class="page-shell ai-page">
     <view class="page-header">
       <page-nav fallback="/pages/index/index" :is-tab="true" />
-      <view class="page-eyebrow">AI 助手</view>
+      <view class="page-eyebrow">校园助手</view>
       <view class="page-title">小达老师</view>
       <view class="page-subtitle">{{ currentConversationTitle }} · {{ currentModelLabel }}</view>
     </view>
 
-    <view class="surface-card ai-toolbar">
-      <view class="ai-summary">
-        <view class="ai-summary__icon">AI</view>
-        <view class="ai-summary__body">
-          <view class="ai-summary__title">陪你查资讯、想活动、问校园问题</view>
-          <view class="ai-summary__desc">保留上下文继续聊，也可以随时开启新对话</view>
+    <view class="surface-card hero-card">
+      <view class="hero-main">
+        <view class="hero-badge">AI</view>
+        <view class="hero-body">
+          <view class="hero-title">像助手，不只是聊天</view>
+          <view class="hero-desc">找活动、看通知、提炼资讯重点，都可以直接问小达老师。</view>
         </view>
       </view>
-      <view class="ai-toolbar__actions">
+      <view class="hero-actions">
         <view class="toolbar-chip" @click="startNewConversation">新对话</view>
         <view class="toolbar-chip" @click="toggleHistoryPanel">记录</view>
-        <view class="toolbar-chip" @click="openSettings">设置</view>
+        <view class="toolbar-chip toolbar-chip--ghost" @click="openSettings">高级</view>
       </view>
+    </view>
+
+    <view class="section-block quick-entry-block">
+      <scroll-view class="quick-row" scroll-x>
+        <view
+          v-for="item in quickActions"
+          :key="item.intent"
+          class="quick-pill"
+          @click="runQuickIntent(item)"
+        >
+          {{ item.shortTitle }}
+        </view>
+      </scroll-view>
     </view>
 
     <view v-if="showHistoryPanel" class="surface-card conversation-panel">
@@ -57,11 +70,11 @@
         <view class="message-time">{{ message.time }}</view>
       </view>
 
-      <view v-if="isLoading" class="loading">正在思考中...</view>
+      <view v-if="isLoading" class="loading">小达老师正在整理内容...</view>
 
       <view v-if="!messages.length && !isLoading" class="empty-chat">
-        <view class="empty-chat__title">开始一段新对话</view>
-        <view class="empty-chat__desc">试试问我“最近有什么活动”“帮我总结校内资讯”或者“推荐适合大一的讲座”。</view>
+        <view class="empty-chat__title">先点上面的快捷入口试试</view>
+        <view class="empty-chat__desc">也可以直接输入问题继续追问。</view>
       </view>
 
       <view :id="bottomAnchorId" class="chat-bottom-space"></view>
@@ -71,7 +84,7 @@
 
     <view v-if="relatedInfos.length" class="section-block">
       <view class="section-row">
-        <text class="section-heading">相关资料</text>
+        <text class="section-heading">相关内容</text>
       </view>
       <view class="surface-card related-card">
         <view
@@ -81,26 +94,26 @@
           @click="goToDetail(item)"
         >
           <view class="related-item__title">{{ item.title }}</view>
-          <view class="related-item__desc">{{ item.summary || item.content }}</view>
+          <view class="related-item__desc">{{ item.recommendationReason || item.summary || item.content }}</view>
         </view>
       </view>
     </view>
 
     <view v-else class="section-block">
       <view class="surface-card tips-card">
-        <view class="tips-card__title">可以这样聊</view>
-        <view class="tips-card__desc">问活动推荐、资讯总结、校园问题、报名建议，我会按当前对话上下文继续回答。</view>
+        <view class="tips-card__title">你可以继续追问</view>
+        <view class="tips-card__desc">比如“再给我两个更适合大一的”或者“把重点改成三句话”。</view>
       </view>
     </view>
 
     <view class="input-wrap surface-card">
-      <input class="chat-input" v-model="inputMessage" placeholder="输入问题开始对话" @confirm="sendMessage" />
+      <input class="chat-input" v-model="inputMessage" placeholder="继续问小达老师..." @confirm="sendMessage" />
       <view class="send-chip" @click="sendMessage">{{ isLoading ? '发送中' : '发送' }}</view>
     </view>
 
     <view v-if="showSettings" class="overlay">
       <scroll-view class="settings-panel" scroll-y>
-        <view class="settings-title">AI 模型设置</view>
+        <view class="settings-title">高级模型设置</view>
 
         <view class="form-item">
           <view class="label">使用方案</view>
@@ -164,17 +177,9 @@
             <view class="label">Max Tokens</view>
             <input v-model="activeCustomConfig.maxTokens" class="field-input" type="number" placeholder="例如 512" />
           </view>
-          <view v-if="draftSettings.mode === 'custom-openai'" class="form-item">
-            <view class="label">Presence Penalty</view>
-            <input v-model="activeCustomConfig.presencePenalty" class="field-input" type="digit" placeholder="-2 到 2" />
-          </view>
-          <view v-if="draftSettings.mode === 'custom-openai'" class="form-item">
-            <view class="label">Frequency Penalty</view>
-            <input v-model="activeCustomConfig.frequencyPenalty" class="field-input" type="digit" placeholder="-2 到 2" />
-          </view>
         </view>
 
-        <view class="hint">管理员可在后台维护默认模型。你也可以自定义 OpenAI 或 Anthropic 配置。</view>
+        <view class="hint">普通用户一般不需要改这里，这里更适合调试模型或接入自定义服务。</view>
 
         <view class="actions">
           <custom-button text="校验当前方案" ghost @click="validateConfig" />
@@ -197,8 +202,14 @@ const DEFAULT_AI_CONFIG = {
   maxTokens: 512,
   presencePenalty: 0,
   frequencyPenalty: 0,
-  systemPrompt: '你是小达老师，是一个面向校园场景的 AI 助手。请优先用简洁、友好的中文回答。'
+  systemPrompt: '你是小达老师，是一个真正有用的校园助手。请用简洁、友好的中文回答。'
 };
+
+const QUICK_ACTIONS = [
+  { intent: 'recommend_activities', title: '推荐适合我的活动', shortTitle: '推荐活动' },
+  { intent: 'summarize_notifications', title: '总结最近通知', shortTitle: '总结通知' },
+  { intent: 'extract_info_highlights', title: '提炼资讯重点', shortTitle: '提炼资讯' }
+];
 
 const createDefaultSettings = () => ({
   mode: 'preset',
@@ -210,6 +221,7 @@ const createDefaultSettings = () => ({
 export default {
   data() {
     return {
+      quickActions: QUICK_ACTIONS,
       modeOptions: [
         { label: '默认模型', value: 'preset' },
         { label: '自定义 OpenAI', value: 'custom-openai' },
@@ -236,19 +248,15 @@ export default {
   },
   computed: {
     activeCustomConfig() {
-      return this.draftSettings.mode === 'custom-anthropic'
-        ? this.draftSettings.customAnthropic
-        : this.draftSettings.customOpenAI;
+      return this.draftSettings.mode === 'custom-anthropic' ? this.draftSettings.customAnthropic : this.draftSettings.customOpenAI;
     },
     currentModelLabel() {
       if (this.aiSettings.mode === 'preset') {
-        const preset =
-          this.presets.find((item) => item.id === this.aiSettings.selectedPresetId) ||
-          this.presets.find((item) => item.isDefault);
-        return preset ? `${preset.name} / ${preset.model}` : '未配置默认模型';
+        const preset = this.presets.find((item) => item.id === this.aiSettings.selectedPresetId) || this.presets.find((item) => item.isDefault);
+        return preset ? `${preset.name} / ${preset.model}` : '默认模型';
       }
       const config = this.aiSettings.mode === 'custom-anthropic' ? this.aiSettings.customAnthropic : this.aiSettings.customOpenAI;
-      return config.model || '未设置模型';
+      return config.model || '自定义模型';
     },
     currentConversationTitle() {
       const current = this.conversations.find((item) => item.id === this.currentConversationId);
@@ -293,17 +301,7 @@ export default {
     },
     loadConversations() {
       const saved = uni.getStorageSync(this.getStorageKey());
-      this.conversations = Array.isArray(saved)
-        ? saved.map((conversation, conversationIndex) => ({
-            ...conversation,
-            messages: Array.isArray(conversation.messages)
-              ? conversation.messages.map((message, messageIndex) => ({
-                  ...message,
-                  id: message.id || `history-${conversation.id || conversationIndex}-${messageIndex}`
-                }))
-              : []
-          }))
-        : [];
+      this.conversations = Array.isArray(saved) ? saved : [];
       if (!this.conversations.length) {
         this.ensureConversation();
         return;
@@ -312,8 +310,6 @@ export default {
       this.currentConversationId = current.id;
       this.messages = current.messages || [];
       this.relatedInfos = current.relatedInfos || [];
-      this.showNewMessageTip = false;
-      this.isAtChatBottom = true;
       this.scrollToBottom();
     },
     persistConversations() {
@@ -324,9 +320,8 @@ export default {
       if (index === -1) {
         return;
       }
-      const current = this.conversations[index];
       const next = {
-        ...current,
+        ...this.conversations[index],
         messages: this.messages,
         relatedInfos: this.relatedInfos,
         updatedAt: new Date().toISOString(),
@@ -344,9 +339,8 @@ export default {
       this.relatedInfos = [];
       this.showHistoryPanel = false;
       this.showNewMessageTip = false;
-      this.isAtChatBottom = true;
       this.persistConversations();
-      this.scrollToBottom();
+      this.scrollToBottom(true);
     },
     switchConversation(id) {
       const current = this.conversations.find((item) => item.id === id);
@@ -358,8 +352,7 @@ export default {
       this.relatedInfos = current.relatedInfos || [];
       this.showHistoryPanel = false;
       this.showNewMessageTip = false;
-      this.isAtChatBottom = true;
-      this.scrollToBottom();
+      this.scrollToBottom(true);
     },
     toggleHistoryPanel() {
       this.showHistoryPanel = !this.showHistoryPanel;
@@ -386,7 +379,7 @@ export default {
         customAnthropic: this.normalizeConfig(source.customAnthropic, 'anthropic')
       };
     },
-    validateCustomConfig(config, provider) {
+    validateCustomConfig(config) {
       if (!config.baseUrl) return '请填写 Base URL';
       if (!/^https?:\/\//i.test(config.baseUrl)) return 'Base URL 必须以 http:// 或 https:// 开头';
       if (!config.apiKey) return '请填写 API Key';
@@ -394,10 +387,6 @@ export default {
       if (Number.isNaN(config.temperature) || config.temperature < 0 || config.temperature > 2) return 'Temperature 需要在 0 到 2 之间';
       if (Number.isNaN(config.topP) || config.topP < 0 || config.topP > 1) return 'Top P 需要在 0 到 1 之间';
       if (Number.isNaN(config.maxTokens) || config.maxTokens < 1) return 'Max Tokens 必须大于 0';
-      if (provider === 'openai') {
-        if (Number.isNaN(config.presencePenalty) || config.presencePenalty < -2 || config.presencePenalty > 2) return 'Presence Penalty 需要在 -2 到 2 之间';
-        if (Number.isNaN(config.frequencyPenalty) || config.frequencyPenalty < -2 || config.frequencyPenalty > 2) return 'Frequency Penalty 需要在 -2 到 2 之间';
-      }
       return '';
     },
     validatePayload(payload) {
@@ -405,10 +394,7 @@ export default {
         const hasPreset = payload.selectedPresetId || this.presets.find((item) => item.isDefault);
         return hasPreset ? '' : '当前没有可用的默认模型';
       }
-      if (payload.mode === 'custom-openai') {
-        return this.validateCustomConfig(payload.customOpenAI, 'openai');
-      }
-      return this.validateCustomConfig(payload.customAnthropic, 'anthropic');
+      return this.validateCustomConfig(payload.mode === 'custom-openai' ? payload.customOpenAI : payload.customAnthropic);
     },
     async loadSettings() {
       try {
@@ -444,18 +430,14 @@ export default {
         return;
       }
       if (payload.mode === 'preset') {
-        uni.showToast({ title: '默认模型由后台维护，无需单独校验', icon: 'none' });
+        uni.showToast({ title: '默认模型由后台统一维护', icon: 'none' });
         return;
       }
       this.validating = true;
       try {
         const config = payload.mode === 'custom-openai' ? payload.customOpenAI : payload.customAnthropic;
         const res = await this.$api.ai.validateSettings(config);
-        uni.showModal({
-          title: '校验成功',
-          content: res.preview || '模型接口已连通',
-          showCancel: false
-        });
+        uni.showModal({ title: '校验成功', content: res.preview || '模型连接正常', showCancel: false });
       } catch (error) {
         uni.showToast({ title: error.message || '校验失败', icon: 'none' });
       } finally {
@@ -477,7 +459,7 @@ export default {
           ...(res.settings || payload)
         };
         this.draftSettings = JSON.parse(JSON.stringify(this.aiSettings));
-        uni.showToast({ title: 'AI 设置已保存', icon: 'success' });
+        uni.showToast({ title: '设置已保存', icon: 'success' });
         this.closeSettings();
       } catch (error) {
         uni.showToast({ title: error.message || '保存失败', icon: 'none' });
@@ -485,11 +467,31 @@ export default {
         this.saving = false;
       }
     },
+    async runQuickIntent(item) {
+      if (this.isLoading) {
+        return;
+      }
+      await this.sendAiRequest({
+        intent: item.intent,
+        displayText: item.title,
+        requestText: item.title,
+        useConversationHistory: false
+      });
+    },
     async sendMessage() {
-      const message = (this.inputMessage || '').trim();
+      const message = String(this.inputMessage || '').trim();
       if (!message || this.isLoading) {
         return;
       }
+      this.inputMessage = '';
+      await this.sendAiRequest({
+        intent: 'chat',
+        displayText: message,
+        requestText: message,
+        useConversationHistory: true
+      });
+    },
+    async sendAiRequest({ intent = 'chat', displayText = '', requestText = '', useConversationHistory = true }) {
       this.ensureConversation();
       const payload = this.buildPayload(this.aiSettings);
       const configError = this.validatePayload(payload);
@@ -499,31 +501,34 @@ export default {
         return;
       }
 
-      this.messages.push({
+      const userMessage = {
         id: `msg-${Date.now()}`,
-        content: message,
+        content: displayText,
         isMine: true,
         time: new Date().toLocaleTimeString()
-      });
+      };
+      this.messages.push(userMessage);
       this.updateCurrentConversation({
-        title: this.currentConversationTitle === '新对话' ? message.slice(0, 16) : this.currentConversationTitle
+        title: this.currentConversationTitle === '新对话' ? displayText.slice(0, 16) : this.currentConversationTitle
       });
-      this.inputMessage = '';
       this.isLoading = true;
       this.showNewMessageTip = false;
       this.scrollToBottom(true);
 
       try {
         const res = await this.$api.ai.chat({
-          message,
-          messages: this.messages.map((item) => ({
-            role: item.isMine ? 'user' : 'assistant',
-            content: item.content
-          }))
+          intent,
+          message: requestText,
+          messages: useConversationHistory
+            ? this.messages.map((item) => ({
+                role: item.isMine ? 'user' : 'assistant',
+                content: item.content
+              }))
+            : undefined
         });
         this.messages.push({
           id: `msg-${Date.now()}-reply`,
-          content: res.response || '模型没有返回内容。',
+          content: res.response || '小达老师暂时没有整理出内容。',
           isMine: false,
           time: new Date().toLocaleTimeString()
         });
@@ -532,7 +537,7 @@ export default {
       } catch (error) {
         this.messages.push({
           id: `msg-${Date.now()}-error`,
-          content: error.message || '调用失败，请检查当前模型配置。',
+          content: error.message || '请求失败，请稍后再试。',
           isMine: false,
           time: new Date().toLocaleTimeString()
         });
@@ -596,70 +601,97 @@ export default {
   padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
 }
 
-.ai-toolbar {
-  padding: 24rpx;
+.hero-card {
+  padding: 22rpx 24rpx;
 }
 
-.ai-summary {
+.hero-main {
   display: flex;
   align-items: center;
   gap: 18rpx;
 }
 
-.ai-summary__icon {
-  width: 84rpx;
-  height: 84rpx;
-  border-radius: 28rpx;
+.hero-badge {
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 24rpx;
   background: var(--primary-light);
   color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28rpx;
+  font-size: 26rpx;
   font-weight: 700;
 }
 
-.ai-summary__body {
+.hero-body {
   flex: 1;
 }
 
-.ai-summary__title {
+.hero-title {
   font-size: 30rpx;
   font-weight: 700;
   color: var(--text-main);
 }
 
-.ai-summary__desc {
-  margin-top: 10rpx;
+.hero-desc {
+  margin-top: 8rpx;
   font-size: 24rpx;
   line-height: 1.6;
   color: var(--text-sub);
 }
 
-.ai-toolbar__actions {
+.hero-actions {
   display: flex;
+  gap: 10rpx;
   flex-wrap: wrap;
-  gap: 12rpx;
-  margin-top: 20rpx;
+  margin-top: 18rpx;
 }
 
 .toolbar-chip,
 .send-chip,
 .close-chip {
-  min-width: 120rpx;
-  height: 64rpx;
+  min-width: 108rpx;
+  height: 58rpx;
   border-radius: var(--radius-full);
   background: var(--primary-light);
   color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24rpx;
+  font-size: 23rpx;
+  font-weight: 700;
+}
+
+.toolbar-chip--ghost {
+  background: #eef2f7;
+  color: var(--text-sub);
+}
+
+.quick-entry-block {
+  margin-top: 14rpx;
+}
+
+.quick-row {
+  white-space: nowrap;
+}
+
+.quick-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 58rpx;
+  margin-right: 12rpx;
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  background: #eef4ff;
+  color: #4b67d1;
+  font-size: 23rpx;
   font-weight: 700;
 }
 
 .conversation-panel {
-  margin-top: 20rpx;
+  margin-top: 18rpx;
   padding: 20rpx 24rpx;
 }
 
@@ -693,7 +725,7 @@ export default {
 
 .chat-panel {
   height: 700rpx;
-  margin-top: 28rpx;
+  margin-top: 18rpx;
   padding: 24rpx;
 }
 
