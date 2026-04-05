@@ -105,6 +105,99 @@ function showUpdateModal(options) {
   });
 }
 
+function formatBytes(bytes = 0) {
+  const size = Number(bytes || 0);
+  if (!size) {
+    return '0B';
+  }
+  if (size < 1024) {
+    return `${size}B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(size >= 100 * 1024 ? 0 : 1)}KB`;
+  }
+  if (size < 1024 * 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(size >= 100 * 1024 * 1024 ? 0 : 1)}MB`;
+  }
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+}
+
+function buildDownloadProgressText(progress = {}) {
+  const percent = Math.max(0, Math.min(100, Number(progress.progress || 0) || 0));
+  const receivedBytes = Number(progress.totalBytesWritten || 0) || 0;
+  const totalBytes = Number(progress.totalBytesExpectedToWrite || 0) || 0;
+  if (totalBytes > 0) {
+    return `下载更新 ${percent}% (${formatBytes(receivedBytes)}/${formatBytes(totalBytes)})`;
+  }
+  if (receivedBytes > 0) {
+    return `下载更新 ${percent}% (${formatBytes(receivedBytes)})`;
+  }
+  return '下载更新中...';
+}
+
+function createProgressIndicator(initialTitle = '下载更新中...') {
+  let currentTitle = String(initialTitle || '下载更新中...');
+  let waitingView = null;
+  let loadingVisible = false;
+
+  function showLoading(title) {
+    currentTitle = String(title || currentTitle || '下载更新中...');
+    uni.showLoading({
+      title: currentTitle,
+      mask: true
+    });
+    loadingVisible = true;
+  }
+
+  return {
+    show(title) {
+      currentTitle = String(title || currentTitle || '下载更新中...');
+      // #ifdef APP-PLUS
+      try {
+        if (plus.nativeUI && typeof plus.nativeUI.showWaiting === 'function') {
+          waitingView = plus.nativeUI.showWaiting(currentTitle, {
+            modal: true,
+            padlock: true
+          });
+          return;
+        }
+      } catch (_error) {}
+      // #endif
+      showLoading(currentTitle);
+    },
+    update(title) {
+      currentTitle = String(title || currentTitle || '下载更新中...');
+      // #ifdef APP-PLUS
+      if (waitingView) {
+        if (typeof waitingView.setTitle === 'function') {
+          waitingView.setTitle(currentTitle);
+          return;
+        }
+        if (typeof waitingView.setText === 'function') {
+          waitingView.setText(currentTitle);
+          return;
+        }
+      }
+      // #endif
+      showLoading(currentTitle);
+    },
+    close() {
+      // #ifdef APP-PLUS
+      if (waitingView) {
+        try {
+          waitingView.close();
+        } catch (_error) {}
+        waitingView = null;
+      }
+      // #endif
+      if (loadingVisible) {
+        uni.hideLoading();
+        loadingVisible = false;
+      }
+    }
+  };
+}
+
 export function getPlatformType() {
   // #ifdef APP-PLUS
   const system = uni.getSystemInfoSync();
@@ -193,11 +286,15 @@ function installDownloadedPackage(filePath, options = {}) {
 
 function downloadPackage(url) {
   return new Promise((resolve, reject) => {
-    uni.showLoading({ title: '下载更新中...', mask: true });
-    uni.downloadFile({
+    const progressIndicator = createProgressIndicator('准备下载更新...');
+    let downloadTask = null;
+    let lastProgressText = '';
+
+    progressIndicator.show('准备下载更新...');
+    downloadTask = uni.downloadFile({
       url,
       success: (res) => {
-        uni.hideLoading();
+        progressIndicator.close();
         if (res.statusCode !== 200 || !res.tempFilePath) {
           reject(new Error('下载更新失败'));
           return;
@@ -205,10 +302,24 @@ function downloadPackage(url) {
         resolve(res.tempFilePath);
       },
       fail: () => {
-        uni.hideLoading();
+        progressIndicator.close();
         reject(new Error('下载更新失败'));
       }
     });
+
+    if (downloadTask && typeof downloadTask.onProgressUpdate === 'function') {
+      downloadTask.onProgressUpdate((progress) => {
+        const nextText = buildDownloadProgressText(progress);
+        if (!nextText || nextText === lastProgressText) {
+          return;
+        }
+        lastProgressText = nextText;
+        progressIndicator.update(nextText);
+      });
+      return;
+    }
+
+    progressIndicator.update('下载更新中...');
   });
 }
 
