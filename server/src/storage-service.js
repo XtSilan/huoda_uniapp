@@ -600,10 +600,11 @@ async function toAttachmentDownloadUrl(req, db, assetPath, fileName, options = {
 
   const query = [`path=${encodeURIComponent(normalized)}`, 'download=1'];
   const downloadName = getDownloadFileName(normalized, fileName);
+  const downloadPath = downloadName ? `${assetProxyPath}/${encodeURIComponent(downloadName)}` : assetProxyPath;
   if (downloadName) {
     query.push(`name=${encodeURIComponent(downloadName)}`);
   }
-  return `${req.protocol}://${req.get('host')}${assetProxyPath}?${query.join('&')}`;
+  return `${req.protocol}://${req.get('host')}${downloadPath}?${query.join('&')}`;
 }
 
 async function sendAssetToResponse(req, res, db, assetPath) {

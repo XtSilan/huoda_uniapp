@@ -1,6 +1,6 @@
 {
-  "serverOrigin": "http://127.0.0.1:3000",
-  "baseUrl": "http://127.0.0.1:3000/api",
-  "adminOrigin": "http://127.0.0.1:8081",
-  "adminLoginUrl": "http://127.0.0.1:8081/#/login"
+  "serverOrigin": "http://134.175.120.51:3000",
+  "baseUrl": "http://134.175.120.51:3000/api",
+  "adminOrigin": "http://134.175.120.51:8081",
+  "adminLoginUrl": "http://134.175.120.51:8081/#/login"
 }

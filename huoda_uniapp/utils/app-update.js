@@ -95,8 +95,8 @@ function resolveUpdateUrl(url) {
   return `${match[1]}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 }
 
-function getUrlFileExtension(url = '', fallback = '.bin') {
-  const normalized = String(url || '').trim();
+function getPathFileExtension(value = '', fallback = '.bin') {
+  const normalized = String(value || '').trim();
   if (!normalized) {
     return fallback;
   }
@@ -105,8 +105,22 @@ function getUrlFileExtension(url = '', fallback = '.bin') {
   return match ? match[1].toLowerCase() : fallback;
 }
 
-function buildAppUpdateDownloadPath(url = '') {
-  const extension = getUrlFileExtension(url, '.bin');
+function getUpdateFileExtension(url = '', fileName = '', updateType = '') {
+  const nameExtension = getPathFileExtension(fileName, '');
+  if (nameExtension) {
+    return nameExtension;
+  }
+
+  const normalizedType = String(updateType || '').trim().toLowerCase();
+  if (normalizedType === 'wgt' || normalizedType === 'apk') {
+    return `.${normalizedType}`;
+  }
+
+  return getPathFileExtension(url, '.bin');
+}
+
+function buildAppUpdateDownloadPath(options = {}) {
+  const extension = getUpdateFileExtension(options.url, options.fileName, options.updateType);
   return `_doc/updates/huoda-update-${Date.now()}${extension}`;
 }
 
@@ -299,7 +313,7 @@ function installDownloadedPackage(filePath, options = {}) {
   });
 }
 
-function downloadPackage(url) {
+function downloadPackage(url, options = {}) {
   return new Promise((resolve, reject) => {
     const progressIndicator = createProgressIndicator('准备下载更新...');
     let downloadTask = null;
@@ -311,7 +325,11 @@ function downloadPackage(url) {
       downloadTask = plus.downloader.createDownload(
         url,
         {
-          filename: buildAppUpdateDownloadPath(url),
+          filename: buildAppUpdateDownloadPath({
+            url,
+            fileName: options.fileName,
+            updateType: options.updateType
+          }),
           retry: 1,
           timeout: 0
         },
@@ -389,7 +407,10 @@ export async function applyUpdate(updateInfo) {
     if (!wgtUrl) {
       throw new Error('WGT 更新地址未配置');
     }
-    const filePath = await downloadPackage(wgtUrl);
+    const filePath = await downloadPackage(wgtUrl, {
+      fileName: updateInfo.packageName,
+      updateType: 'wgt'
+    });
     await installDownloadedPackage(filePath, { force: true });
     markReleaseApplied(runtimeInfo.platform, releaseId);
     return { type: 'wgt' };
@@ -400,7 +421,10 @@ export async function applyUpdate(updateInfo) {
     if (!apkUrl) {
       throw new Error('APK 下载地址未配置');
     }
-    const filePath = await downloadPackage(apkUrl);
+    const filePath = await downloadPackage(apkUrl, {
+      fileName: updateInfo.packageName,
+      updateType: 'apk'
+    });
     await installDownloadedPackage(filePath, { force: false });
     clearDismissedRelease(runtimeInfo.platform, releaseId);
     return { type: 'apk' };

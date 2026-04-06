@@ -854,6 +854,19 @@ module.exports = function registerPublicRoutes(app, db) {
       }
     }
   });
+  app.get(`${assetProxyPath}/:downloadName`, async (req, res) => {
+    const assetPath = String(req.query.path || '').trim();
+    if (!assetPath) {
+      return res.status(400).json({ message: '缺少资源路径' });
+    }
+    try {
+      await sendAssetToResponse(req, res, db, assetPath);
+    } catch (error) {
+      if (!res.headersSent) {
+        res.status(404).json({ message: error.message || '资源读取失败' });
+      }
+    }
+  });
   const infoSelect = `
     SELECT i.*,
       (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'info' AND f.target_id = i.id) AS favorite_count,
