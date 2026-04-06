@@ -360,9 +360,12 @@ export default {
           oss: { ...this.form.oss }
         });
         const result = res.result || {};
+        const signatureText = result.usedCompatibilitySignature
+          ? '已自动回退到兼容签名，请关闭「启用 V4 签名」后重新保存配置'
+          : (result.authorizationV4 === false ? '当前使用兼容签名' : '当前使用 V4 签名');
         this.$Modal.success({
           title: 'OSS 测试通过',
-          content: `Bucket：${result.bucket || '-'}<br>Region：${result.region || '-'}<br>测试对象：${result.sampleObject || '-'}`
+          content: `Bucket：${result.bucket || '-'}<br>Region：${result.region || '-'}<br>测试对象：${result.sampleObject || '-'}<br>签名模式：${signatureText}`
         });
       } catch (error) {
         this.$Message.error((error.response && error.response.data && error.response.data.message) || '测试失败');

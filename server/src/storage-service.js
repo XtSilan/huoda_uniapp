@@ -404,6 +404,23 @@ async function withOssClientFallback(settings, action, options = {}) {
   }
 }
 
+async function putObjectWithFallback(settings, objectKey, source, options = {}) {
+  const headers = options.headers || {};
+  const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
+
+  return withOssClientFallback(
+    settings,
+    async (client, effectiveSettings) => {
+      await client.put(objectKey, source, { headers });
+      return {
+        objectKey,
+        settings: effectiveSettings
+      };
+    },
+    { onLog }
+  );
+}
+
 function buildObjectKey(assetPath, settings) {
   const localPath = normalizeLocalAssetPath(assetPath);
   if (!localPath || isHttpUrl(localPath)) {
@@ -492,9 +509,8 @@ async function ensureObjectUploadedForAsset(db, assetPath, options = {}) {
     throw new Error(`待上传的本地文件不存在：${localPath}`);
   }
 
-  const client = createOssClient(settings);
   const objectKey = buildObjectKey(localPath, settings);
-  await client.put(objectKey, absolutePath, {
+  await putObjectWithFallback(settings, objectKey, absolutePath, {
     headers: {
       'Content-Type': options.contentType || guessContentType(localPath)
     }
@@ -860,47 +876,53 @@ async function syncLocalUploadsToOss(db, options = {}) {
   if (error) {
     throw new Error(error);
   }
-  const client = createOssClient(settings);
   const files = walkLocalUploadFiles(uploadRootDir, []).filter((filePath) => {
     const relative = path.relative(uploadRootDir, filePath).split(path.sep).join('/');
     return !relative.startsWith('_tmp/');
   });
 
-  onLog(`开始转入 OSS，共发现 ${files.length} 个本地文件`);
-  onProgress({
-    stage: 'uploading',
-    total: files.length,
-    current: 0,
-    percent: files.length ? 0 : 90,
-    currentItem: ''
-  });
-
   let uploadedCount = 0;
-  for (const absolutePath of files) {
-    const localPath = getAssetPathFromAbsolutePath(absolutePath);
-    if (!localPath) {
-      continue;
-    }
-    onLog(`上传 ${localPath}`);
-    try {
-      await client.put(buildObjectKey(localPath, settings), absolutePath, {
-        headers: {
-          'Content-Type': guessContentType(localPath)
-        }
+  await withOssClientFallback(
+    settings,
+    async (client) => {
+      uploadedCount = 0;
+      onLog(`开始转入 OSS，共发现 ${files.length} 个本地文件`);
+      onProgress({
+        stage: 'uploading',
+        total: files.length,
+        current: 0,
+        percent: files.length ? 0 : 90,
+        currentItem: ''
       });
-    } catch (error) {
-      onLog(formatStorageError(error, `上传失败：${localPath}`));
-      throw error;
-    }
-    uploadedCount += 1;
-    onProgress({
-      stage: 'uploading',
-      total: files.length,
-      current: uploadedCount,
-      percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 90,
-      currentItem: localPath
-    });
-  }
+
+      for (const absolutePath of files) {
+        const localPath = getAssetPathFromAbsolutePath(absolutePath);
+        if (!localPath) {
+          continue;
+        }
+        onLog(`上传 ${localPath}`);
+        try {
+          await client.put(buildObjectKey(localPath, settings), absolutePath, {
+            headers: {
+              'Content-Type': guessContentType(localPath)
+            }
+          });
+        } catch (innerError) {
+          onLog(formatStorageError(innerError, `上传失败：${localPath}`));
+          throw innerError;
+        }
+        uploadedCount += 1;
+        onProgress({
+          stage: 'uploading',
+          total: files.length,
+          current: uploadedCount,
+          percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 90,
+          currentItem: localPath
+        });
+      }
+    },
+    { onLog }
+  );
 
   onLog('上传完成，开始改写数据库路径并切换存储提供方');
   onProgress({
@@ -996,41 +1018,47 @@ async function syncLocalUploadsToOssWithProgress(db, options = {}) {
     throw new Error(error);
   }
 
-  const client = createOssClient(settings);
   const files = walkLocalUploadFiles(uploadRootDir, []).filter((filePath) => {
     const relative = path.relative(uploadRootDir, filePath).split(path.sep).join('/');
     return !relative.startsWith('_tmp/');
   });
 
-  onLog(`开始转入 OSS，共发现 ${files.length} 个本地文件`);
-  onProgress({ stage: 'uploading', total: files.length, current: 0, percent: files.length ? 0 : 90, currentItem: '' });
-
   let uploadedCount = 0;
-  for (const absolutePath of files) {
-    const localPath = getAssetPathFromAbsolutePath(absolutePath);
-    if (!localPath) {
-      continue;
-    }
-    onLog(`上传 ${localPath}`);
-    try {
-      await client.put(buildObjectKey(localPath, settings), absolutePath, {
-        headers: {
-          'Content-Type': guessContentType(localPath)
+  await withOssClientFallback(
+    settings,
+    async (client) => {
+      uploadedCount = 0;
+      onLog(`开始转入 OSS，共发现 ${files.length} 个本地文件`);
+      onProgress({ stage: 'uploading', total: files.length, current: 0, percent: files.length ? 0 : 90, currentItem: '' });
+
+      for (const absolutePath of files) {
+        const localPath = getAssetPathFromAbsolutePath(absolutePath);
+        if (!localPath) {
+          continue;
         }
-      });
-    } catch (error) {
-      onLog(formatStorageError(error, `上传失败：${localPath}`));
-      throw error;
-    }
-    uploadedCount += 1;
-    onProgress({
-      stage: 'uploading',
-      total: files.length,
-      current: uploadedCount,
-      percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 90,
-      currentItem: localPath
-    });
-  }
+        onLog(`上传 ${localPath}`);
+        try {
+          await client.put(buildObjectKey(localPath, settings), absolutePath, {
+            headers: {
+              'Content-Type': guessContentType(localPath)
+            }
+          });
+        } catch (innerError) {
+          onLog(formatStorageError(innerError, `上传失败：${localPath}`));
+          throw innerError;
+        }
+        uploadedCount += 1;
+        onProgress({
+          stage: 'uploading',
+          total: files.length,
+          current: uploadedCount,
+          percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 90,
+          currentItem: localPath
+        });
+      }
+    },
+    { onLog }
+  );
 
   onLog('上传完成，开始改写数据库路径并切换存储提供方');
   onProgress({ stage: 'migrating', total: files.length, current: uploadedCount, percent: 95, currentItem: '' });
@@ -1197,31 +1225,36 @@ function startStorageSwitchTask(db, target) {
 }
 
 async function validateOssConnection(settings) {
-  const client = createOssClient(settings);
   const stamp = Date.now();
   const probeObject = buildObjectKey(`/uploads/_health/oss-${stamp}.txt`, settings);
   const content = Buffer.from(`huoda-oss-healthcheck-${stamp}`, 'utf8');
+  const result = await withOssClientFallback(settings, async (client, effectiveSettings) => {
+    await client.put(probeObject, content, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8'
+      }
+    });
 
-  await client.put(probeObject, content, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8'
+    const streamResult = await client.getStream(probeObject);
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+      streamResult.stream.on('data', (chunk) => chunks.push(chunk));
+      streamResult.stream.on('end', resolve);
+      streamResult.stream.on('error', reject);
+    });
+
+    await client.delete(probeObject);
+
+    const contentMatched = Buffer.concat(chunks).toString('utf8') === content.toString('utf8');
+    if (!contentMatched) {
+      throw new Error('OSS 读写校验未通过，请检查 Bucket 权限或网络链路');
     }
+
+    return {
+      contentMatched,
+      effectiveSettings
+    };
   });
-
-  const streamResult = await client.getStream(probeObject);
-  const chunks = [];
-  await new Promise((resolve, reject) => {
-    streamResult.stream.on('data', (chunk) => chunks.push(chunk));
-    streamResult.stream.on('end', resolve);
-    streamResult.stream.on('error', reject);
-  });
-
-  await client.delete(probeObject);
-
-  const contentMatched = Buffer.concat(chunks).toString('utf8') === content.toString('utf8');
-  if (!contentMatched) {
-    throw new Error('OSS 读写校验未通过，请检查 Bucket 权限或网络链路');
-  }
 
   return {
     ok: true,
@@ -1229,7 +1262,16 @@ async function validateOssConnection(settings) {
     region: settings.oss.region,
     objectPrefix: settings.oss.objectPrefix,
     sampleObject: probeObject,
-    contentMatched
+    contentMatched: result.contentMatched,
+    authorizationV4: result.effectiveSettings && result.effectiveSettings.oss ? result.effectiveSettings.oss.authorizationV4 !== false : settings.oss.authorizationV4 !== false,
+    usedCompatibilitySignature: Boolean(
+      settings &&
+        settings.oss &&
+        settings.oss.authorizationV4 !== false &&
+        result.effectiveSettings &&
+        result.effectiveSettings.oss &&
+        result.effectiveSettings.oss.authorizationV4 === false
+    )
   };
 }
 
