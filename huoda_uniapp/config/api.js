@@ -1,14 +1,24 @@
 import runtimeConfig from './runtime.json';
 
 const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
+const ensureProtocol = (value = '') => {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+  return `http://${normalized}`;
+};
 const joinUrl = (origin, suffix) => `${trimTrailingSlash(origin)}${suffix}`;
 
 const runtime = runtimeConfig || {};
 
-export const SERVER_ORIGIN = trimTrailingSlash(process.env.VUE_APP_SERVER_ORIGIN || runtime.serverOrigin || '');
-export const BASE_URL = trimTrailingSlash(process.env.VUE_APP_BASE_URL || runtime.baseUrl || joinUrl(SERVER_ORIGIN, '/api'));
-export const ADMIN_ORIGIN = trimTrailingSlash(process.env.VUE_APP_ADMIN_ORIGIN || runtime.adminOrigin || '');
-export const ADMIN_LOGIN_URL = process.env.VUE_APP_ADMIN_LOGIN_URL || runtime.adminLoginUrl || joinUrl(ADMIN_ORIGIN, '/#/login');
+export const SERVER_ORIGIN = trimTrailingSlash(ensureProtocol(process.env.VUE_APP_SERVER_ORIGIN || runtime.serverOrigin || ''));
+export const BASE_URL = trimTrailingSlash(ensureProtocol(process.env.VUE_APP_BASE_URL || runtime.baseUrl || joinUrl(SERVER_ORIGIN, '/api')));
+export const ADMIN_ORIGIN = trimTrailingSlash(ensureProtocol(process.env.VUE_APP_ADMIN_ORIGIN || runtime.adminOrigin || ''));
+export const ADMIN_LOGIN_URL = ensureProtocol(process.env.VUE_APP_ADMIN_LOGIN_URL || runtime.adminLoginUrl || joinUrl(ADMIN_ORIGIN, '/#/login'));
 
 const API = {
   auth: {
