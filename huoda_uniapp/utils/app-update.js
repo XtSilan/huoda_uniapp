@@ -134,34 +134,9 @@ function showUpdateModal(options) {
   });
 }
 
-function formatBytes(bytes = 0) {
-  const size = Number(bytes || 0);
-  if (!size) {
-    return '0B';
-  }
-  if (size < 1024) {
-    return `${size}B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(size >= 100 * 1024 ? 0 : 1)}KB`;
-  }
-  if (size < 1024 * 1024 * 1024) {
-    return `${(size / (1024 * 1024)).toFixed(size >= 100 * 1024 * 1024 ? 0 : 1)}MB`;
-  }
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)}GB`;
-}
-
 function buildDownloadProgressText(progress = {}) {
   const percent = Math.max(0, Math.min(100, Number(progress.progress || 0) || 0));
-  const receivedBytes = Number(progress.totalBytesWritten || 0) || 0;
-  const totalBytes = Number(progress.totalBytesExpectedToWrite || 0) || 0;
-  if (totalBytes > 0) {
-    return `下载更新 ${percent}% (${formatBytes(receivedBytes)}/${formatBytes(totalBytes)})`;
-  }
-  if (receivedBytes > 0) {
-    return `下载更新 ${percent}% (${formatBytes(receivedBytes)})`;
-  }
-  return '下载更新中...';
+  return `下载更新 ${percent}%`;
 }
 
 function createProgressIndicator(initialTitle = '下载更新中...') {
