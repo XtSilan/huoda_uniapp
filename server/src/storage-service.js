@@ -336,13 +336,20 @@ function validateOssConfig(settings) {
   return '';
 }
 
-function createOssClient(settings) {
+function createOssClient(settings, overrides = {}) {
   ensureOssSdkInstalled();
-  const error = validateOssConfig(settings);
+  const mergedSettings = {
+    ...settings,
+    oss: {
+      ...((settings && settings.oss) || {}),
+      ...overrides
+    }
+  };
+  const error = validateOssConfig(mergedSettings);
   if (error) {
     throw new Error(error);
   }
-  const oss = settings.oss;
+  const oss = mergedSettings.oss;
   const config = {
     region: normalizeRegion(oss.region),
     bucket: String(oss.bucket || '').trim(),
@@ -356,6 +363,45 @@ function createOssClient(settings) {
     config.cname = Boolean(oss.cname);
   }
   return new OSS(config);
+}
+
+function isOssSignatureMismatchError(error) {
+  if (!error) {
+    return false;
+  }
+  const code = String(error.code || '').trim();
+  const message = String(error.message || '').trim();
+  return code === 'SignatureDoesNotMatch' || /signature we calculated does not match/i.test(message);
+}
+
+async function withOssClientFallback(settings, action, options = {}) {
+  const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
+  const primaryClient = createOssClient(settings);
+
+  try {
+    return await action(primaryClient, settings);
+  } catch (error) {
+    const canRetryWithLegacySignature = Boolean(
+      settings &&
+        settings.oss &&
+        settings.oss.authorizationV4 !== false &&
+        isOssSignatureMismatchError(error)
+    );
+    if (!canRetryWithLegacySignature) {
+      throw error;
+    }
+
+    onLog('检测到 OSS V4 签名与当前接口不兼容，正在自动切换为兼容签名重试');
+    const fallbackSettings = {
+      ...settings,
+      oss: {
+        ...settings.oss,
+        authorizationV4: false
+      }
+    };
+    const fallbackClient = createOssClient(fallbackSettings);
+    return action(fallbackClient, fallbackSettings);
+  }
 }
 
 function buildObjectKey(assetPath, settings) {
@@ -774,22 +820,27 @@ function migrateDatabaseAssetPaths(db, targetProvider) {
 }
 
 async function listAllObjects(client, prefix) {
-  let marker = '';
+  let continuationToken = '';
   const objects = [];
   do {
-    const result = await client.list({
+    const query = {
       prefix,
-      marker,
       'max-keys': 1000
+    };
+    if (continuationToken) {
+      query.continuationToken = continuationToken;
+    }
+    const result = await client.listV2(query, {
+      timeout: 60000
     });
     if (Array.isArray(result.objects)) {
       objects.push(...result.objects);
     }
-    marker = result.nextMarker || '';
+    continuationToken = result.nextContinuationToken || '';
     if (!result.isTruncated) {
       break;
     }
-  } while (marker);
+  } while (continuationToken);
   return objects;
 }
 
@@ -884,9 +935,15 @@ async function syncOssToLocal(db, options = {}) {
   if (error) {
     throw new Error(error);
   }
-  const client = createOssClient(settings);
   const prefix = buildObjectKey('/uploads/', settings);
-  const objects = await listAllObjects(client, prefix);
+  const { client, objects } = await withOssClientFallback(
+    settings,
+    async (selectedClient) => ({
+      client: selectedClient,
+      objects: await listAllObjects(selectedClient, prefix)
+    }),
+    { onLog }
+  );
 
   let downloadedCount = 0;
   for (const object of objects) {
@@ -1003,11 +1060,17 @@ async function syncOssToLocalWithProgress(db, options = {}) {
     throw new Error(error);
   }
 
-  const client = createOssClient(settings);
   const prefix = buildObjectKey('/uploads/', settings);
   onLog(`开始从 OSS 同步到本地，列举前缀 ${prefix}`);
   onProgress({ stage: 'listing', total: 0, current: 0, percent: 5, currentItem: prefix });
-  const objects = await listAllObjects(client, prefix);
+  const { client, objects } = await withOssClientFallback(
+    settings,
+    async (selectedClient) => ({
+      client: selectedClient,
+      objects: await listAllObjects(selectedClient, prefix)
+    }),
+    { onLog }
+  );
   onLog(`已从 OSS 列举到 ${objects.length} 个对象`);
   onProgress({ stage: 'downloading', total: objects.length, current: 0, percent: objects.length ? 10 : 90, currentItem: '' });
 
