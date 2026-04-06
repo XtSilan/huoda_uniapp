@@ -871,7 +871,7 @@ module.exports = function registerPublicRoutes(app, db) {
     res.json({ ok: true });
   });
 
-  app.get('/api/app/version', (req, res) => {
+  app.get('/api/app/version', async (req, res) => {
     const platform = String(req.query.platform || 'android').toLowerCase();
     const currentVersionName = String(req.query.versionName || '0.0.0');
     const currentVersionCode = Number(req.query.versionCode || 0) || 0;
@@ -880,8 +880,13 @@ module.exports = function registerPublicRoutes(app, db) {
     const latestVersion = String(current.latestVersion || currentVersionName || '0.0.0');
     const latestVersionCode = Number(current.versionCode || 0) || 0;
     const hasUpdate = compareVersion(latestVersion, currentVersionName) > 0 || latestVersionCode > currentVersionCode;
+    const packagePath = current.packagePath || '';
+    const packageName = current.packageName || '';
+    const wgtPath = current.wgtUrl || packagePath || '';
+    const apkPath = current.apkUrl || packagePath || '';
 
-    res.json({
+    try {
+      res.json({
       platform,
       hasUpdate,
       latestVersion,
@@ -890,15 +895,18 @@ module.exports = function registerPublicRoutes(app, db) {
       force: Boolean(current.force),
       title: current.title || '发现新版本',
       description: current.description || '',
-      wgtUrl: resolvePublicAssetUrl(req, current.wgtUrl || current.packagePath || ''),
-      apkUrl: resolvePublicAssetUrl(req, current.apkUrl || current.packagePath || ''),
-      packagePath: current.packagePath || '',
-      packageName: current.packageName || '',
+      wgtUrl: await toAttachmentDownloadUrl(req, db, wgtPath, packageName || 'update.wgt'),
+      apkUrl: await toAttachmentDownloadUrl(req, db, apkPath, packageName || 'update.apk'),
+      packagePath,
+      packageName,
       packageSize: Number(current.packageSize || 0) || 0,
       releaseId: current.releaseId || '',
       marketUrl: current.marketUrl || '',
       publishedAt: current.publishedAt || ''
-    });
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message || '鐗堟湰淇℃伅鑾峰彇澶辫触' });
+    }
   });
 
   app.post('/api/auth/login', (req, res) => {

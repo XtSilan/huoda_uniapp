@@ -510,7 +510,6 @@ async function createSignedOssDownloadUrl(settings, assetPath, fileName, options
   const objectKey = buildObjectKey(assetPath, settings);
   const downloadName = getDownloadFileName(assetPath, fileName);
   const expires = Number(options.expires || 3600);
-  const contentType = options.contentType || guessContentType(normalizeLocalAssetPath(assetPath));
   const disposition = buildDownloadContentDisposition(downloadName);
 
   if (settings.oss && settings.oss.authorizationV4 !== false && typeof client.signatureUrlV4 === 'function') {
@@ -519,8 +518,7 @@ async function createSignedOssDownloadUrl(settings, assetPath, fileName, options
       expires,
       {
         queries: {
-          'response-content-disposition': disposition,
-          'response-content-type': contentType
+          'response-content-disposition': disposition
         }
       },
       objectKey
@@ -530,8 +528,7 @@ async function createSignedOssDownloadUrl(settings, assetPath, fileName, options
   return client.signatureUrl(objectKey, {
     expires,
     response: {
-      'content-disposition': disposition,
-      'content-type': contentType
+      'content-disposition': disposition
     }
   });
 }

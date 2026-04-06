@@ -379,53 +379,14 @@ export default {
     },
     getAttachmentDownloadDirectory() {
       // #ifdef APP-PLUS
-      try {
-        const systemInfo = uni.getSystemInfoSync();
-        const platform = String(systemInfo.platform || systemInfo.osName || '').toLowerCase();
-        if (platform.includes('android')) {
-          const Environment = plus.android.importClass('android.os.Environment');
-          const directory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-          plus.android.importClass(directory);
-          const absolutePath = String(directory.getAbsolutePath() || '').replace(/\\/g, '/');
-          if (absolutePath) {
-            return absolutePath.endsWith('/') ? absolutePath : `${absolutePath}/`;
-          }
-        }
-      } catch (_error) {}
+      return ATTACHMENT_DOWNLOAD_DIR;
       // #endif
 
       return ATTACHMENT_DOWNLOAD_DIR;
     },
     ensureAttachmentStoragePermission() {
       // #ifdef APP-PLUS
-      return new Promise((resolve) => {
-        try {
-          const systemInfo = uni.getSystemInfoSync();
-          const platform = String(systemInfo.platform || systemInfo.osName || '').toLowerCase();
-          if (!platform.includes('android')) {
-            resolve(true);
-            return;
-          }
-
-          const Build = plus.android.importClass('android.os.Build');
-          if (Number(Build.VERSION.SDK_INT) >= 30) {
-            resolve(true);
-            return;
-          }
-
-          plus.android.requestPermissions(
-            ['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE'],
-            (result) => {
-              const deniedAlways = Array.isArray(result.deniedAlways) ? result.deniedAlways : [];
-              const deniedPresent = Array.isArray(result.deniedPresent) ? result.deniedPresent : [];
-              resolve(!deniedAlways.length && !deniedPresent.length);
-            },
-            () => resolve(false)
-          );
-        } catch (_error) {
-          resolve(false);
-        }
-      });
+      return Promise.resolve(true);
       // #endif
 
       // #ifndef APP-PLUS

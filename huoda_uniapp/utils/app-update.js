@@ -95,6 +95,21 @@ function resolveUpdateUrl(url) {
   return `${match[1]}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 }
 
+function getUrlFileExtension(url = '', fallback = '.bin') {
+  const normalized = String(url || '').trim();
+  if (!normalized) {
+    return fallback;
+  }
+  const clean = normalized.split('?')[0].split('#')[0];
+  const match = clean.match(/(\.[a-zA-Z0-9]{1,12})$/);
+  return match ? match[1].toLowerCase() : fallback;
+}
+
+function buildAppUpdateDownloadPath(url = '') {
+  const extension = getUrlFileExtension(url, '.bin');
+  return `_doc/updates/huoda-update-${Date.now()}${extension}`;
+}
+
 function showUpdateModal(options) {
   return new Promise((resolve) => {
     uni.showModal({
@@ -291,6 +306,47 @@ function downloadPackage(url) {
     let lastProgressText = '';
 
     progressIndicator.show('准备下载更新...');
+    // #ifdef APP-PLUS
+    try {
+      downloadTask = plus.downloader.createDownload(
+        url,
+        {
+          filename: buildAppUpdateDownloadPath(url),
+          retry: 1,
+          timeout: 0
+        },
+        (download, status) => {
+          progressIndicator.close();
+          if (status !== 200 || !(download && download.filename)) {
+            reject(new Error(`涓嬭浇鏇存柊澶辫触 (${status || 0})`));
+            return;
+          }
+          resolve(download.filename);
+        }
+      );
+
+      if (downloadTask && typeof downloadTask.addEventListener === 'function') {
+        downloadTask.addEventListener('statechanged', (download) => {
+          const totalBytes = Number(download && download.totalSize) || 0;
+          const writtenBytes = Number(download && download.downloadedSize) || 0;
+          const nextText = buildDownloadProgressText({
+            progress: totalBytes > 0 ? Math.min(100, Math.round((writtenBytes / totalBytes) * 100)) : 0,
+            totalBytesWritten: writtenBytes,
+            totalBytesExpectedToWrite: totalBytes
+          });
+          if (!nextText || nextText === lastProgressText) {
+            return;
+          }
+          lastProgressText = nextText;
+          progressIndicator.update(nextText);
+        });
+      }
+
+      downloadTask.start();
+      return;
+    } catch (_error) {}
+    // #endif
+
     downloadTask = uni.downloadFile({
       url,
       success: (res) => {
