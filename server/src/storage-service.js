@@ -37,6 +37,9 @@ const DEFAULT_STORAGE_CONFIG = {
   }
 };
 
+let activeStorageSwitchTask = null;
+let lastStorageSwitchTask = null;
+
 function parseJson(value, fallback) {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -251,6 +254,65 @@ function setLastSyncStatus(db, payload = {}) {
   );
 }
 
+function createStorageSwitchTask(target, settings) {
+  const task = {
+    id: `storage-switch-${Date.now()}`,
+    target,
+    status: 'running',
+    stage: 'preparing',
+    startedAt: new Date().toISOString(),
+    finishedAt: '',
+    percent: 0,
+    current: 0,
+    total: 0,
+    currentItem: '',
+    errorMessage: '',
+    settings: {
+      bucket: settings && settings.oss ? String(settings.oss.bucket || '').trim() : '',
+      region: settings && settings.oss ? String(settings.oss.region || '').trim() : '',
+      endpoint: settings && settings.oss ? String(settings.oss.endpoint || '').trim() : '',
+      objectPrefix: settings && settings.oss ? String(settings.oss.objectPrefix || '').trim() : '',
+      secure: Boolean(settings && settings.oss ? settings.oss.secure !== false : true),
+      authorizationV4: Boolean(settings && settings.oss ? settings.oss.authorizationV4 !== false : true),
+      cname: Boolean(settings && settings.oss ? settings.oss.cname : false)
+    },
+    result: null,
+    logs: []
+  };
+  activeStorageSwitchTask = task;
+  lastStorageSwitchTask = task;
+  return task;
+}
+
+function appendStorageSwitchLog(task, message, level = 'info') {
+  if (!task || !message) {
+    return;
+  }
+  task.logs.push({
+    time: new Date().toISOString(),
+    level,
+    message: String(message)
+  });
+  if (task.logs.length > 200) {
+    task.logs = task.logs.slice(-200);
+  }
+}
+
+function updateStorageSwitchTask(task, payload = {}) {
+  if (!task) {
+    return;
+  }
+  Object.assign(task, payload);
+}
+
+function cloneStorageSwitchTask(task) {
+  return task ? JSON.parse(JSON.stringify(task)) : null;
+}
+
+function getStorageSwitchTaskState() {
+  return cloneStorageSwitchTask(activeStorageSwitchTask || lastStorageSwitchTask);
+}
+
 function ensureOssSdkInstalled() {
   if (!OSS) {
     throw new Error('未检测到 ali-oss 依赖，请先在 server 目录执行 npm install ali-oss@^6.x');
@@ -426,10 +488,88 @@ function toAssetProxyUrl(req, assetPath) {
   return `${req.protocol}://${req.get('host')}${assetProxyPath}?path=${encodeURIComponent(normalized)}`;
 }
 
+function buildDownloadContentDisposition(fileName) {
+  const normalized = String(fileName || '').trim() || 'download';
+  const asciiFallback = normalized.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+  const encoded = encodeURIComponent(normalized);
+  return `attachment; filename="${asciiFallback || 'download'}"; filename*=UTF-8''${encoded}`;
+}
+
+function getDownloadFileName(assetPath, fileName) {
+  const normalizedName = String(fileName || '').trim();
+  if (normalizedName) {
+    return normalizedName;
+  }
+  const localPath = normalizeLocalAssetPath(assetPath);
+  const fallbackName = localPath ? path.basename(localPath) : '';
+  return fallbackName || 'download';
+}
+
+async function createSignedOssDownloadUrl(settings, assetPath, fileName, options = {}) {
+  const client = createOssClient(settings);
+  const objectKey = buildObjectKey(assetPath, settings);
+  const downloadName = getDownloadFileName(assetPath, fileName);
+  const expires = Number(options.expires || 3600);
+  const contentType = options.contentType || guessContentType(normalizeLocalAssetPath(assetPath));
+  const disposition = buildDownloadContentDisposition(downloadName);
+
+  if (settings.oss && settings.oss.authorizationV4 !== false && typeof client.signatureUrlV4 === 'function') {
+    return client.signatureUrlV4(
+      'GET',
+      expires,
+      {
+        queries: {
+          'response-content-disposition': disposition,
+          'response-content-type': contentType
+        }
+      },
+      objectKey
+    );
+  }
+
+  return client.signatureUrl(objectKey, {
+    expires,
+    response: {
+      'content-disposition': disposition,
+      'content-type': contentType
+    }
+  });
+}
+
+async function toAttachmentDownloadUrl(req, db, assetPath, fileName, options = {}) {
+  const normalized = String(assetPath || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (isHttpUrl(normalized)) {
+    return normalized;
+  }
+
+  const settings = getStorageSettings(db);
+  const shouldUseOssDirectUrl = settings.provider === 'oss' || isOssAssetPath(normalized);
+  if (shouldUseOssDirectUrl) {
+    try {
+      return await createSignedOssDownloadUrl(settings, normalized, fileName, options);
+    } catch (_error) {
+      // Fall back to asset proxy when signed URL generation fails.
+    }
+  }
+
+  const query = [`path=${encodeURIComponent(normalized)}`, 'download=1'];
+  const downloadName = getDownloadFileName(normalized, fileName);
+  if (downloadName) {
+    query.push(`name=${encodeURIComponent(downloadName)}`);
+  }
+  return `${req.protocol}://${req.get('host')}${assetProxyPath}?${query.join('&')}`;
+}
+
 async function sendAssetToResponse(req, res, db, assetPath) {
   const normalized = String(assetPath || '').trim();
   const localPath = normalizeLocalAssetPath(normalized);
   const settings = getStorageSettings(db);
+  const shouldDownload = ['1', 'true', 'yes'].includes(String(req.query.download || '').trim().toLowerCase());
+  const downloadName = getDownloadFileName(normalized, req.query.name);
+  const contentType = guessContentType(localPath);
 
   if (!localPath || isHttpUrl(normalized)) {
     return res.status(404).json({ message: '资源不存在' });
@@ -438,6 +578,11 @@ async function sendAssetToResponse(req, res, db, assetPath) {
   const shouldTryOss = settings.provider === 'oss' || isOssAssetPath(normalized);
   if (shouldTryOss) {
     try {
+      if (shouldDownload) {
+        const signedUrl = await createSignedOssDownloadUrl(settings, normalized, downloadName);
+        return res.redirect(signedUrl);
+      }
+
       const client = createOssClient(settings);
       const objectKey = buildObjectKey(normalized, settings);
       const result = await client.getStream(objectKey);
@@ -445,7 +590,7 @@ async function sendAssetToResponse(req, res, db, assetPath) {
       if (headers['content-type']) {
         res.setHeader('Content-Type', headers['content-type']);
       } else {
-        res.setHeader('Content-Type', guessContentType(localPath));
+        res.setHeader('Content-Type', contentType);
       }
       if (headers['content-length']) {
         res.setHeader('Content-Length', headers['content-length']);
@@ -455,6 +600,9 @@ async function sendAssetToResponse(req, res, db, assetPath) {
       }
       if (headers['last-modified']) {
         res.setHeader('Last-Modified', headers['last-modified']);
+      }
+      if (shouldDownload) {
+        res.setHeader('Content-Disposition', buildDownloadContentDisposition(downloadName));
       }
       await pipeline(result.stream, res);
       return;
@@ -467,8 +615,44 @@ async function sendAssetToResponse(req, res, db, assetPath) {
   if (!absolutePath || !fs.existsSync(absolutePath)) {
     return res.status(404).json({ message: '资源不存在' });
   }
-  res.type(guessContentType(localPath));
+  res.type(contentType);
+  if (shouldDownload) {
+    res.setHeader('Content-Disposition', buildDownloadContentDisposition(downloadName));
+  }
   res.sendFile(absolutePath);
+}
+
+function formatStorageError(error, context = '') {
+  if (!error) {
+    return context || '未知错误';
+  }
+
+  const details = [];
+  if (context) {
+    details.push(context);
+  }
+
+  const message = String(error.message || error.code || '未知错误').trim();
+  if (message) {
+    details.push(message);
+  }
+  if (error.code && !message.includes(error.code)) {
+    details.push(`code=${error.code}`);
+  }
+  if (error.status) {
+    details.push(`status=${error.status}`);
+  }
+  if (error.requestId) {
+    details.push(`requestId=${error.requestId}`);
+  }
+
+  const responseHeaders = error.res && error.res.headers ? error.res.headers : {};
+  const ossRequestId = responseHeaders['x-oss-request-id'] || responseHeaders['x-oss-requestid'];
+  if (ossRequestId) {
+    details.push(`ossRequestId=${ossRequestId}`);
+  }
+
+  return details.join(' | ');
 }
 
 function walkLocalUploadFiles(dirPath, result = []) {
@@ -619,7 +803,9 @@ async function downloadObjectToLocal(client, objectKey, absolutePath) {
   await pipeline(result.stream, output);
 }
 
-async function syncLocalUploadsToOss(db) {
+async function syncLocalUploadsToOss(db, options = {}) {
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => {};
+  const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
   const settings = getStorageSettings(db);
   const error = validateOssConfig(settings);
   if (error) {
@@ -631,19 +817,50 @@ async function syncLocalUploadsToOss(db) {
     return !relative.startsWith('_tmp/');
   });
 
+  onLog(`开始转入 OSS，共发现 ${files.length} 个本地文件`);
+  onProgress({
+    stage: 'uploading',
+    total: files.length,
+    current: 0,
+    percent: files.length ? 0 : 90,
+    currentItem: ''
+  });
+
   let uploadedCount = 0;
   for (const absolutePath of files) {
     const localPath = getAssetPathFromAbsolutePath(absolutePath);
     if (!localPath) {
       continue;
     }
-    await client.put(buildObjectKey(localPath, settings), absolutePath, {
-      headers: {
-        'Content-Type': guessContentType(localPath)
-      }
-    });
+    onLog(`上传 ${localPath}`);
+    try {
+      await client.put(buildObjectKey(localPath, settings), absolutePath, {
+        headers: {
+          'Content-Type': guessContentType(localPath)
+        }
+      });
+    } catch (error) {
+      onLog(formatStorageError(error, `上传失败：${localPath}`));
+      throw error;
+    }
     uploadedCount += 1;
+    onProgress({
+      stage: 'uploading',
+      total: files.length,
+      current: uploadedCount,
+      percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 90,
+      currentItem: localPath
+    });
   }
+
+  onLog('上传完成，开始改写数据库路径并切换存储提供方');
+  onProgress({
+    stage: 'migrating',
+    total: files.length,
+    current: uploadedCount,
+    percent: 95,
+    currentItem: ''
+  });
 
   const migrated = migrateDatabaseAssetPaths(db, 'oss');
   setStorageProvider(db, 'oss');
@@ -663,7 +880,8 @@ async function syncLocalUploadsToOss(db) {
   };
 }
 
-async function syncOssToLocal(db) {
+async function syncOssToLocal(db, options = {}) {
+  const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
   const settings = getStorageSettings(db);
   const error = validateOssConfig(settings);
   if (error) {
@@ -687,7 +905,12 @@ async function syncOssToLocal(db) {
     if (!absolutePath) {
       continue;
     }
-    await downloadObjectToLocal(client, objectKey, absolutePath);
+    try {
+      await downloadObjectToLocal(client, objectKey, absolutePath);
+    } catch (error) {
+      onLog(formatStorageError(error, `下载失败：${objectKey}`));
+      throw error;
+    }
     downloadedCount += 1;
   }
 
@@ -706,6 +929,209 @@ async function syncOssToLocal(db) {
   return {
     provider: 'local',
     stats
+  };
+}
+
+async function syncLocalUploadsToOssWithProgress(db, options = {}) {
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => {};
+  const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
+  const settings = getStorageSettings(db);
+  const error = validateOssConfig(settings);
+  if (error) {
+    throw new Error(error);
+  }
+
+  const client = createOssClient(settings);
+  const files = walkLocalUploadFiles(uploadRootDir, []).filter((filePath) => {
+    const relative = path.relative(uploadRootDir, filePath).split(path.sep).join('/');
+    return !relative.startsWith('_tmp/');
+  });
+
+  onLog(`开始转入 OSS，共发现 ${files.length} 个本地文件`);
+  onProgress({ stage: 'uploading', total: files.length, current: 0, percent: files.length ? 0 : 90, currentItem: '' });
+
+  let uploadedCount = 0;
+  for (const absolutePath of files) {
+    const localPath = getAssetPathFromAbsolutePath(absolutePath);
+    if (!localPath) {
+      continue;
+    }
+    onLog(`上传 ${localPath}`);
+    try {
+      await client.put(buildObjectKey(localPath, settings), absolutePath, {
+        headers: {
+          'Content-Type': guessContentType(localPath)
+        }
+      });
+    } catch (error) {
+      onLog(formatStorageError(error, `上传失败：${localPath}`));
+      throw error;
+    }
+    uploadedCount += 1;
+    onProgress({
+      stage: 'uploading',
+      total: files.length,
+      current: uploadedCount,
+      percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 90,
+      currentItem: localPath
+    });
+  }
+
+  onLog('上传完成，开始改写数据库路径并切换存储提供方');
+  onProgress({ stage: 'migrating', total: files.length, current: uploadedCount, percent: 95, currentItem: '' });
+
+  const migrated = migrateDatabaseAssetPaths(db, 'oss');
+  setStorageProvider(db, 'oss');
+  const stats = {
+    uploadedCount,
+    ...migrated
+  };
+
+  onLog('转入 OSS 完成');
+  onProgress({ stage: 'completed', total: files.length, current: uploadedCount, percent: 100, currentItem: '' });
+
+  return {
+    provider: 'oss',
+    stats,
+    message: `已同步 ${uploadedCount} 个本地文件到 OSS，并切换为 OSS 存储`
+  };
+}
+
+async function syncOssToLocalWithProgress(db, options = {}) {
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => {};
+  const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
+  const settings = getStorageSettings(db);
+  const error = validateOssConfig(settings);
+  if (error) {
+    throw new Error(error);
+  }
+
+  const client = createOssClient(settings);
+  const prefix = buildObjectKey('/uploads/', settings);
+  onLog(`开始从 OSS 同步到本地，列举前缀 ${prefix}`);
+  onProgress({ stage: 'listing', total: 0, current: 0, percent: 5, currentItem: prefix });
+  const objects = await listAllObjects(client, prefix);
+  onLog(`已从 OSS 列举到 ${objects.length} 个对象`);
+  onProgress({ stage: 'downloading', total: objects.length, current: 0, percent: objects.length ? 10 : 90, currentItem: '' });
+
+  let downloadedCount = 0;
+  for (const object of objects) {
+    const objectKey = String(object && object.name ? object.name : '').trim();
+    if (!objectKey || objectKey.endsWith('/')) {
+      continue;
+    }
+    const localPath = mapObjectKeyToLocalAssetPath(objectKey, settings);
+    if (!localPath) {
+      continue;
+    }
+    const absolutePath = getAbsoluteLocalAssetPath(localPath);
+    if (!absolutePath) {
+      continue;
+    }
+    onLog(`下载 ${objectKey}`);
+    try {
+      await downloadObjectToLocal(client, objectKey, absolutePath);
+    } catch (error) {
+      onLog(formatStorageError(error, `下载失败：${objectKey}`));
+      throw error;
+    }
+    downloadedCount += 1;
+    onProgress({
+      stage: 'downloading',
+      total: objects.length,
+      current: downloadedCount,
+      percent: objects.length ? Math.min(90, 10 + Math.round((downloadedCount / objects.length) * 80)) : 90,
+      currentItem: objectKey
+    });
+  }
+
+  onLog('下载完成，开始改写数据库路径并切换存储提供方');
+  onProgress({ stage: 'migrating', total: objects.length, current: downloadedCount, percent: 95, currentItem: '' });
+
+  const migrated = migrateDatabaseAssetPaths(db, 'local');
+  setStorageProvider(db, 'local');
+  const stats = {
+    downloadedCount,
+    ...migrated
+  };
+
+  onLog('切回本地完成');
+  onProgress({ stage: 'completed', total: objects.length, current: downloadedCount, percent: 100, currentItem: '' });
+
+  return {
+    provider: 'local',
+    stats,
+    message: `已从 OSS 同步 ${downloadedCount} 个文件到本地，并切换为本地存储`
+  };
+}
+
+function startStorageSwitchTask(db, target) {
+  if (activeStorageSwitchTask && activeStorageSwitchTask.status === 'running') {
+    return {
+      started: false,
+      task: cloneStorageSwitchTask(activeStorageSwitchTask)
+    };
+  }
+
+  const settings = getStorageSettings(db);
+  const task = createStorageSwitchTask(target, settings);
+  appendStorageSwitchLog(task, `开始执行存储切换，目标：${target === 'oss' ? 'OSS' : '本地'}`);
+  appendStorageSwitchLog(
+    task,
+    `当前配置：bucket=${task.settings.bucket || '-'}, region=${task.settings.region || '-'}, endpoint=${task.settings.endpoint || '(默认)'}, prefix=${task.settings.objectPrefix || '(空)'}, v4=${task.settings.authorizationV4}, cname=${task.settings.cname}`
+  );
+
+  Promise.resolve()
+    .then(async () => {
+      const result =
+        target === 'oss'
+          ? await syncLocalUploadsToOssWithProgress(db, {
+              onProgress: (payload) => updateStorageSwitchTask(task, payload),
+              onLog: (message) => appendStorageSwitchLog(task, message)
+            })
+          : await syncOssToLocalWithProgress(db, {
+              onProgress: (payload) => updateStorageSwitchTask(task, payload),
+              onLog: (message) => appendStorageSwitchLog(task, message)
+            });
+
+      task.status = 'success';
+      task.result = result;
+      task.finishedAt = new Date().toISOString();
+      setLastSyncStatus(db, {
+        direction: target === 'oss' ? 'local-to-oss' : 'oss-to-local',
+        status: 'success',
+        message: result.message || '存储切换成功',
+        stats: {
+          ...(result.stats || {}),
+          logs: task.logs
+        },
+        at: task.finishedAt
+      });
+    })
+    .catch((error) => {
+      task.status = 'failed';
+      task.finishedAt = new Date().toISOString();
+      task.errorMessage = formatStorageError(error, `存储切换失败，阶段：${task.stage || 'unknown'}，当前项：${task.currentItem || '-'}`);
+      appendStorageSwitchLog(task, task.errorMessage, 'error');
+      setLastSyncStatus(db, {
+        direction: target === 'oss' ? 'local-to-oss' : 'oss-to-local',
+        status: 'failed',
+        message: task.errorMessage,
+        stats: {
+          logs: task.logs,
+          errorMessage: task.errorMessage
+        },
+        at: task.finishedAt
+      });
+    })
+    .finally(() => {
+      lastStorageSwitchTask = task;
+      activeStorageSwitchTask = null;
+    });
+
+  return {
+    started: true,
+    task: cloneStorageSwitchTask(task)
   };
 }
 
@@ -763,12 +1189,15 @@ module.exports = {
   normalizeOssAssetPath,
   toProviderStoredPath,
   toAssetProxyUrl,
+  toAttachmentDownloadUrl,
   sendAssetToResponse,
   ensureObjectUploadedForAsset,
   finalizeUploadedLocalFile,
   getAssetPathFromAbsolutePath,
   getAbsoluteLocalAssetPath,
   migrateSingleAssetPath,
+  getStorageSwitchTaskState,
+  startStorageSwitchTask,
   syncLocalUploadsToOss,
   syncOssToLocal
 };

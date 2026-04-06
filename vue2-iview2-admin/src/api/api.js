@@ -69,3 +69,4 @@ export const getStorageSettings = () => http.get('/admin/storage').then((res) =>
 export const updateStorageSettings = (payload) => http.put('/admin/storage', payload).then((res) => res.data);
 export const validateStorageSettings = (payload) => http.post('/admin/storage/validate', payload).then((res) => res.data);
 export const switchStorageProvider = (payload) => http.post('/admin/storage/switch', payload).then((res) => res.data);
+export const getStorageSwitchProgress = () => http.get('/admin/storage/progress').then((res) => res.data);

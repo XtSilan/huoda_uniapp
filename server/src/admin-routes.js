@@ -25,8 +25,8 @@ const {
   validateOssConfig,
   createOssClient,
   finalizeUploadedLocalFile,
-  syncLocalUploadsToOss,
-  syncOssToLocal,
+  getStorageSwitchTaskState,
+  startStorageSwitchTask,
   toAssetProxyUrl
 } = require('./storage-service');
 
@@ -116,10 +116,6 @@ function normalizePopupAnnouncementPayload(body = {}) {
     buttonText: String(body.buttonText || '我知道了').trim() || '我知道了',
     isActive: body.isActive !== undefined ? Boolean(body.isActive) : true
   };
-}
-
-function getStorageSwitchConfirmText(target) {
-  return target === 'oss' ? '确认转入OSS' : '确认切回本地';
 }
 
 function getStorageSwitchConfirmText() {
@@ -349,6 +345,13 @@ module.exports = function registerAdminRoutes(app, db) {
     }
   });
 
+  app.get('/api/admin/storage/progress', requireAdmin, (_req, res) => {
+    res.json({
+      task: getStorageSwitchTaskState(),
+      settings: sanitizeStorageSettings(getStorageSettings(db))
+    });
+  });
+
   app.post('/api/admin/storage/switch', requireAdmin, async (req, res) => {
     const target = String((req.body && req.body.target) || '').trim().toLowerCase();
     const confirmText = String((req.body && req.body.confirmText) || '').trim();
@@ -361,11 +364,12 @@ module.exports = function registerAdminRoutes(app, db) {
     }
 
     try {
-      const result = target === 'oss' ? await syncLocalUploadsToOss(db) : await syncOssToLocal(db);
+      const result = startStorageSwitchTask(db, target);
       res.json({
         success: true,
         target,
         result,
+        task: result.task,
         settings: sanitizeStorageSettings(getStorageSettings(db))
       });
     } catch (error) {

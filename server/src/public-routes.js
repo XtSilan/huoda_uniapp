@@ -28,6 +28,7 @@ const { readAppUpdateConfig } = require('./app-update-store');
 const {
   assetProxyPath,
   toAssetProxyUrl,
+  toAttachmentDownloadUrl,
   sendAssetToResponse,
   finalizeUploadedLocalFile
 } = require('./storage-service');
@@ -75,6 +76,27 @@ function mapInfoForClient(row, req) {
       path: item && item.path ? item.path : '',
       url: resolvePublicAssetUrl(req, item && item.path ? item.path : '')
     }))
+  };
+}
+
+async function mapInfoDetailForClient(row, req, db) {
+  const mapped = mapInfoForClient(row, req);
+  const attachments = await Promise.all(
+    (mapped.attachments || []).map(async (item) => {
+      const assetPath = item && item.path ? item.path : '';
+      const name = item && item.name ? item.name : '';
+      return {
+        ...item,
+        path: assetPath,
+        url: resolvePublicAssetUrl(req, assetPath),
+        downloadUrl: await toAttachmentDownloadUrl(req, db, assetPath, name)
+      };
+    })
+  );
+
+  return {
+    ...mapped,
+    attachments
   };
 }
 
@@ -1316,7 +1338,7 @@ module.exports = function registerPublicRoutes(app, db) {
     res.json({ infos, activities, list, total: list.length, page: 1, pageSize: list.length });
   });
 
-  app.get('/api/info/detail', (req, res) => {
+  app.get('/api/info/detail', async (req, res) => {
     const row = db.get(
       `SELECT i.*,
         (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'info' AND f.target_id = i.id) AS favorite_count,
@@ -1335,7 +1357,7 @@ module.exports = function registerPublicRoutes(app, db) {
     if (!row) {
       return res.status(404).json({ message: '信息不存在' });
     }
-    res.json(mapInfoForClient(row, req));
+    res.json(await mapInfoDetailForClient(row, req, db));
   });
 
   app.get('/api/publish/list', (req, res) => {

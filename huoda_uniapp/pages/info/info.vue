@@ -696,7 +696,7 @@ export default {
       });
 
       const task = plus.downloader.createDownload(
-        encodeURI(fileUrl),
+        fileUrl,
         {
           filename: filePath,
           retry: 1,
@@ -831,7 +831,7 @@ export default {
       // #endif
     },
     openAttachment(item) {
-      const fileUrl = this.resolveAssetUrl(item && (item.url || item.path));
+      const fileUrl = this.resolveAssetUrl(item && (item.downloadUrl || item.url || item.path));
       if (!fileUrl) {
         return;
       }

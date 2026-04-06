@@ -36,6 +36,7 @@
             <p><strong>V4 签名</strong>：建议开启。</p>
             <p><strong>CNAME</strong>：只有 Endpoint 填的是你自己的自定义域名时才勾选。</p>
             <p><strong>权限建议</strong>：RAM 用户至少要有 `PutObject`、`GetObject`、`DeleteObject`、`ListBucket/ListObjects` 权限，才能完整支持测试和切换。</p>
+            <p><strong>测试说明</strong>：测试 OSS 会上传、读取再删除一个临时对象，所以控制台里通常看不到保留文件。</p>
           </div>
         </Panel>
       </Collapse>
@@ -96,6 +97,32 @@
       </Form>
     </Card>
 
+    <Card v-if="task" title="切换进度" style="margin-top: 16px;">
+      <p>
+        <Tag :color="task.status === 'success' ? 'green' : task.status === 'failed' ? 'red' : 'blue'">
+          {{ taskStatusText }}
+        </Tag>
+      </p>
+      <p style="margin-top: 10px;">目标：{{ task.target === 'oss' ? '转入 OSS' : '切回本地' }}</p>
+      <p style="margin-top: 8px;">阶段：{{ taskStageText }}</p>
+      <p v-if="task.currentItem" style="margin-top: 8px; word-break: break-all;">当前对象：{{ task.currentItem }}</p>
+      <p style="margin-top: 8px;">进度：{{ task.current || 0 }} / {{ task.total || 0 }}</p>
+      <Progress :percent="task.percent || 0" :status="task.status === 'failed' ? 'wrong' : task.status === 'success' ? 'success' : 'active'" style="margin-top: 12px;" />
+      <Alert v-if="task.errorMessage" type="error" show-icon style="margin-top: 16px;">
+        {{ task.errorMessage }}
+      </Alert>
+      <div v-if="task.logs && task.logs.length" class="log-panel">
+        <div class="log-title">切换日志</div>
+        <div class="log-list">
+          <div v-for="(item, index) in task.logs" :key="`${item.time}-${index}`" class="log-item">
+            <span class="log-time">{{ item.time }}</span>
+            <Tag :color="item.level === 'error' ? 'red' : 'blue'">{{ item.level || 'info' }}</Tag>
+            <span class="log-message">{{ item.message }}</span>
+          </div>
+        </div>
+      </div>
+    </Card>
+
     <Card title="切换操作" style="margin-top: 16px;">
       <Alert type="warning" show-icon>
         转入 OSS 会把本地 uploads 文件上传到 OSS，并批量把数据库路径改成 `oss://...`。
@@ -105,8 +132,8 @@
       </Alert>
 
       <div style="margin-top: 16px;">
-        <Button type="success" :loading="switching === 'oss'" @click="openConfirmDialog('oss')">一键转入 OSS</Button>
-        <Button style="margin-left: 8px;" :loading="switching === 'local'" @click="openConfirmDialog('local')">切回本地</Button>
+        <Button type="success" :loading="switching === 'oss'" :disabled="isTaskRunning && switching !== 'oss'" @click="openConfirmDialog('oss')">一键转入 OSS</Button>
+        <Button style="margin-left: 8px;" :loading="switching === 'local'" :disabled="isTaskRunning && switching !== 'local'" @click="openConfirmDialog('local')">切回本地</Button>
       </div>
     </Card>
 
@@ -134,7 +161,8 @@ import {
   getStorageSettings,
   updateStorageSettings,
   validateStorageSettings,
-  switchStorageProvider
+  switchStorageProvider,
+  getStorageSwitchProgress
 } from '../../api';
 
 const CONFIRM_KEYWORD = '我同意';
@@ -184,7 +212,7 @@ function formatDateTime(value) {
     return value;
   }
   const pad = (item) => `${item}`.padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 export default {
@@ -193,10 +221,12 @@ export default {
       saving: false,
       validating: false,
       switching: '',
+      pollTimer: null,
       confirmKeyword: CONFIRM_KEYWORD,
       confirmDialog: createEmptyConfirmDialog(),
       settings: createEmptySettings(),
-      form: createEmptySettings()
+      form: createEmptySettings(),
+      task: null
     };
   },
   computed: {
@@ -206,10 +236,40 @@ export default {
         return '暂无记录';
       }
       return `${formatDateTime(lastSync.at)}${lastSync.status ? ` (${lastSync.status})` : ''}`;
+    },
+    isTaskRunning() {
+      return Boolean(this.task && this.task.status === 'running');
+    },
+    taskStatusText() {
+      if (!this.task) {
+        return '';
+      }
+      if (this.task.status === 'success') {
+        return '已完成';
+      }
+      if (this.task.status === 'failed') {
+        return '失败';
+      }
+      return '执行中';
+    },
+    taskStageText() {
+      const map = {
+        preparing: '准备中',
+        listing: '列举 OSS 对象',
+        uploading: '上传文件到 OSS',
+        downloading: '从 OSS 下载文件',
+        migrating: '改写数据库路径',
+        completed: '已完成'
+      };
+      return this.task ? (map[this.task.stage] || this.task.stage || '-') : '-';
     }
   },
   mounted() {
     this.loadData();
+    this.fetchSwitchProgress(true);
+  },
+  beforeDestroy() {
+    this.stopPolling();
   },
   methods: {
     async loadData() {
@@ -234,6 +294,44 @@ export default {
           accessKeySecret: ''
         }
       };
+    },
+    async fetchSwitchProgress(silent = false) {
+      try {
+        const res = await getStorageSwitchProgress();
+        this.task = res.task || null;
+        if (this.task && this.task.status === 'running') {
+          this.switching = this.task.target || '';
+          this.startPolling();
+          return;
+        }
+        this.switching = '';
+        this.stopPolling();
+        if (res.settings) {
+          this.settings = {
+            ...this.settings,
+            ...res.settings
+          };
+        }
+      } catch (error) {
+        if (!silent) {
+          this.$Message.error((error.response && error.response.data && error.response.data.message) || '获取切换进度失败');
+        }
+      }
+    },
+    startPolling() {
+      if (this.pollTimer) {
+        return;
+      }
+      this.pollTimer = setInterval(() => {
+        this.fetchSwitchProgress(true);
+      }, 1000);
+    },
+    stopPolling() {
+      if (!this.pollTimer) {
+        return;
+      }
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
     },
     async saveSettings() {
       this.saving = true;
@@ -304,8 +402,8 @@ export default {
       }
 
       this.confirmDialog.submitting = true;
-      const switched = await this.switchProvider(this.confirmDialog.target, confirmText);
-      if (switched) {
+      const started = await this.switchProvider(this.confirmDialog.target, confirmText);
+      if (started) {
         this.confirmDialog = createEmptyConfirmDialog();
       } else {
         this.confirmDialog.submitting = false;
@@ -315,18 +413,22 @@ export default {
       this.switching = target;
       try {
         const res = await switchStorageProvider({ target, confirmText });
-        this.$Message.success(target === 'oss' ? '已切换到 OSS' : '已切回本地');
-        this.settings = {
-          ...this.settings,
-          ...(res.settings || {})
-        };
-        await this.loadData();
+        if (res.task) {
+          this.task = res.task;
+        }
+        if (res.result && res.result.started === false) {
+          this.$Message.warning('已有存储切换任务正在执行');
+        } else {
+          this.$Message.success(target === 'oss' ? '已开始转入 OSS' : '已开始切回本地');
+        }
+        this.startPolling();
         return true;
       } catch (error) {
+        this.switching = '';
         this.$Message.error((error.response && error.response.data && error.response.data.message) || '切换失败');
         return false;
       } finally {
-        this.switching = '';
+        this.confirmDialog.submitting = false;
       }
     }
   }
@@ -348,5 +450,41 @@ export default {
 
 .guide-panel p:last-child {
   margin-bottom: 0;
+}
+
+.log-panel {
+  margin-top: 16px;
+}
+
+.log-title {
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+.log-list {
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px 12px;
+  background: #f7f9fc;
+  border: 1px solid #e8eaec;
+  border-radius: 6px;
+}
+
+.log-item + .log-item {
+  margin-top: 8px;
+}
+
+.log-time {
+  display: inline-block;
+  width: 160px;
+  color: #999;
+  font-size: 12px;
+}
+
+.log-message {
+  margin-left: 8px;
+  color: #444;
+  word-break: break-all;
 }
 </style>
