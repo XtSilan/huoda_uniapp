@@ -14,6 +14,11 @@ try {
 const uploadRootDir = path.resolve(__dirname, '..', 'uploads');
 const assetProxyPath = '/api/assets/object';
 const allowedLocalRootPrefix = '/uploads/';
+const OSS_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
+const OSS_RETRY_MAX = 3;
+const OSS_MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
+const OSS_MULTIPART_PART_SIZE = 512 * 1024;
+const OSS_MULTIPART_PARALLEL = 1;
 
 const DEFAULT_STORAGE_CONFIG = {
   provider: 'local',
@@ -356,7 +361,9 @@ function createOssClient(settings, overrides = {}) {
     accessKeyId: String(oss.accessKeyId || '').trim(),
     accessKeySecret: String(oss.accessKeySecret || '').trim(),
     authorizationV4: oss.authorizationV4 !== false,
-    secure: oss.secure !== false
+    secure: oss.secure !== false,
+    timeout: OSS_REQUEST_TIMEOUT_MS,
+    retryMax: OSS_RETRY_MAX
   };
   if (String(oss.endpoint || '').trim()) {
     config.endpoint = String(oss.endpoint || '').trim();
@@ -407,11 +414,29 @@ async function withOssClientFallback(settings, action, options = {}) {
 async function putObjectWithFallback(settings, objectKey, source, options = {}) {
   const headers = options.headers || {};
   const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
+  const timeout = Number(options.timeout || 0) > 0 ? Number(options.timeout) : OSS_REQUEST_TIMEOUT_MS;
 
   return withOssClientFallback(
     settings,
     async (client, effectiveSettings) => {
-      await client.put(objectKey, source, { headers });
+      const isFilePath = typeof source === 'string' && fs.existsSync(source) && fs.statSync(source).isFile();
+      const shouldUseMultipart =
+        isFilePath &&
+        fs.statSync(source).size >= OSS_MULTIPART_THRESHOLD_BYTES;
+
+      if (shouldUseMultipart) {
+        await client.multipartUpload(objectKey, source, {
+          headers,
+          timeout,
+          partSize: OSS_MULTIPART_PART_SIZE,
+          parallel: OSS_MULTIPART_PARALLEL
+        });
+      } else {
+        await client.put(objectKey, source, {
+          headers,
+          timeout
+        });
+      }
       return {
         objectKey,
         settings: effectiveSettings
@@ -513,7 +538,8 @@ async function ensureObjectUploadedForAsset(db, assetPath, options = {}) {
   await putObjectWithFallback(settings, objectKey, absolutePath, {
     headers: {
       'Content-Type': options.contentType || guessContentType(localPath)
-    }
+    },
+    timeout: OSS_REQUEST_TIMEOUT_MS
   });
 
   return {
@@ -848,7 +874,7 @@ async function listAllObjects(client, prefix) {
       query.continuationToken = continuationToken;
     }
     const result = await client.listV2(query, {
-      timeout: 60000
+      timeout: OSS_REQUEST_TIMEOUT_MS
     });
     if (Array.isArray(result.objects)) {
       objects.push(...result.objects);
@@ -901,11 +927,20 @@ async function syncLocalUploadsToOss(db, options = {}) {
           continue;
         }
         onLog(`上传 ${localPath}`);
+        onProgress({
+          stage: 'uploading',
+          total: files.length,
+          current: uploadedCount,
+          percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 0,
+          currentItem: localPath
+        });
         try {
-          await client.put(buildObjectKey(localPath, settings), absolutePath, {
+          await putObjectWithFallback(settings, buildObjectKey(localPath, settings), absolutePath, {
             headers: {
               'Content-Type': guessContentType(localPath)
-            }
+            },
+            timeout: OSS_REQUEST_TIMEOUT_MS,
+            onLog
           });
         } catch (innerError) {
           onLog(formatStorageError(innerError, `上传失败：${localPath}`));
@@ -1037,11 +1072,20 @@ async function syncLocalUploadsToOssWithProgress(db, options = {}) {
           continue;
         }
         onLog(`上传 ${localPath}`);
+        onProgress({
+          stage: 'uploading',
+          total: files.length,
+          current: uploadedCount,
+          percent: files.length ? Math.min(90, Math.round((uploadedCount / files.length) * 90)) : 0,
+          currentItem: localPath
+        });
         try {
-          await client.put(buildObjectKey(localPath, settings), absolutePath, {
+          await putObjectWithFallback(settings, buildObjectKey(localPath, settings), absolutePath, {
             headers: {
               'Content-Type': guessContentType(localPath)
-            }
+            },
+            timeout: OSS_REQUEST_TIMEOUT_MS,
+            onLog
           });
         } catch (innerError) {
           onLog(formatStorageError(innerError, `上传失败：${localPath}`));
@@ -1232,7 +1276,8 @@ async function validateOssConnection(settings) {
     await client.put(probeObject, content, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8'
-      }
+      },
+      timeout: OSS_REQUEST_TIMEOUT_MS
     });
 
     const streamResult = await client.getStream(probeObject);
