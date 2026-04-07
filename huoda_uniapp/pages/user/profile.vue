@@ -42,7 +42,7 @@
 </template>
 
 <script>
-import { resolveAssetUrl } from '../../utils/assets';
+import { cacheAvatarFromRemote, clearCachedAvatarPath, getCachedAvatarPath, resolveAssetUrl } from '../../utils/assets';
 
 export default {
   data() {
@@ -96,8 +96,29 @@ export default {
           this.userInfo = { ...this.userInfo, ...localUser };
         }
       }
-      this.localAvatarPath = uni.getStorageSync('userAvatarLocalPath') || '';
+      this.syncAvatarPreview();
       uni.setStorageSync('userInfo', this.userInfo);
+    },
+    async syncAvatarPreview() {
+      const cachedPath = getCachedAvatarPath(this.userInfo.avatarUrl);
+      if (cachedPath) {
+        this.localAvatarPath = cachedPath;
+        uni.setStorageSync('userAvatarLocalPath', cachedPath);
+        return;
+      }
+      if (!this.userInfo.avatarUrl) {
+        this.localAvatarPath = '';
+        uni.removeStorageSync('userAvatarLocalPath');
+        clearCachedAvatarPath();
+        return;
+      }
+      try {
+        const localPath = await cacheAvatarFromRemote(this.userInfo.avatarUrl);
+        this.localAvatarPath = localPath;
+        uni.setStorageSync('userAvatarLocalPath', localPath);
+      } catch (_error) {
+        this.localAvatarPath = '';
+      }
     },
     readLocalImage(filePath) {
       return new Promise((resolve, reject) => {
@@ -117,6 +138,36 @@ export default {
               reader.readAsDataURL(blob);
             })
             .catch(() => reject(new Error('读取本地图片失败')));
+          return;
+        }
+
+        if (typeof plus !== 'undefined' && plus.io && typeof plus.io.resolveLocalFileSystemURL === 'function') {
+          const fileName = filePath.split('/').pop().split('\\').pop() || `avatar-${Date.now()}.png`;
+          plus.io.resolveLocalFileSystemURL(
+            filePath,
+            (entry) => {
+              entry.file(
+                (file) => {
+                  const reader = new plus.io.FileReader();
+                  reader.onloadend = (event) => {
+                    const result = event && event.target ? event.target.result : '';
+                    if (!result) {
+                      reject(new Error('读取本地图片失败'));
+                      return;
+                    }
+                    resolve({
+                      fileName,
+                      content: result
+                    });
+                  };
+                  reader.onerror = () => reject(new Error('读取本地图片失败'));
+                  reader.readAsDataURL(file);
+                },
+                () => reject(new Error('读取本地图片失败'))
+              );
+            },
+            () => reject(new Error('读取本地图片失败'))
+          );
           return;
         }
 
@@ -169,8 +220,6 @@ export default {
           }
 
           this.uploadingAvatar = true;
-          this.localAvatarPath = filePath;
-          uni.setStorageSync('userAvatarLocalPath', filePath);
 
           try {
             const payload = await this.readLocalImage(filePath);
@@ -178,6 +227,7 @@ export default {
             this.userInfo.avatarUrl = uploadRes.path || '';
             const saved = await this.$api.user.updateProfile(this.userInfo);
             this.userInfo = { ...this.userInfo, ...saved };
+            await this.syncAvatarPreview();
             uni.setStorageSync('userInfo', this.userInfo);
             uni.$emit('userInfoUpdated', this.userInfo);
             uni.showToast({ title: '头像上传成功', icon: 'success' });

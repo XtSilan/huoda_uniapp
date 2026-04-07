@@ -1,55 +1,59 @@
 <template>
   <view class="page-shell ai-page">
     <view class="page-header">
-      <page-nav fallback="/pages/index/index" :is-tab="true" />
-      <view class="page-eyebrow">校园助手</view>
+      <view class="topbar">
+        <page-nav fallback="/pages/index/index" :is-tab="true" />
+        <view class="topbar-actions" @click.stop>
+          <view class="topbar-action topbar-action--subtle" @click="openSettings">
+            <svg class="gear-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M10.84 2.68a1.2 1.2 0 0 1 2.32 0l.3 1.34a8.56 8.56 0 0 1 1.93.8l1.17-.7a1.2 1.2 0 0 1 1.64.44l1.16 2a1.2 1.2 0 0 1-.28 1.56l-1.02.92c.14.63.21 1.27.21 1.92s-.07 1.29-.21 1.92l1.02.92a1.2 1.2 0 0 1 .28 1.56l-1.16 2a1.2 1.2 0 0 1-1.64.44l-1.17-.7c-.6.34-1.25.61-1.93.8l-.3 1.34a1.2 1.2 0 0 1-2.32 0l-.3-1.34a8.56 8.56 0 0 1-1.93-.8l-1.17.7a1.2 1.2 0 0 1-1.64-.44l-1.16-2a1.2 1.2 0 0 1 .28-1.56l1.02-.92A8.7 8.7 0 0 1 4.5 12c0-.65.07-1.29.21-1.92l-1.02-.92a1.2 1.2 0 0 1-.28-1.56l1.16-2a1.2 1.2 0 0 1 1.64-.44l1.17.7c.6-.34 1.25-.61 1.93-.8l.3-1.34ZM12 15.4a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8Z"
+                fill="currentColor"
+              />
+            </svg>
+          </view>
+          <view
+            class="topbar-action topbar-action--book"
+            :class="{ active: showHistoryPanel }"
+            @click="toggleHistoryPanel"
+          >
+            <view class="book-icon">
+              <view class="book-icon__page book-icon__page--left"></view>
+              <view class="book-icon__page book-icon__page--right"></view>
+              <view class="book-icon__spine"></view>
+            </view>
+            <text class="topbar-action__label">历史</text>
+          </view>
+          <view class="topbar-action topbar-action--primary" @click="startNewConversation">+</view>
+        </view>
+      </view>
+
       <view class="page-title">小达老师</view>
-      <view class="page-subtitle">{{ currentConversationTitle }} · {{ currentModelLabel }}</view>
+      <view class="page-subtitle">{{ currentConversationTitle }} · 平台默认模型 / {{ currentModelLabel }}</view>
     </view>
 
-    <view class="surface-card hero-card">
-      <view class="hero-main">
-        <view class="hero-badge">AI</view>
-        <view class="hero-body">
-          <view class="hero-title">像助手，不只是聊天</view>
-          <view class="hero-desc">找活动、看通知、提炼资讯重点，都可以直接问小达老师。</view>
+    <view v-if="showHistoryPanel" class="history-float-mask" @click="closeHistoryPanel">
+      <view class="surface-card conversation-panel" @click.stop>
+        <view class="conversation-panel__arrow"></view>
+        <view class="conversation-panel__head">
+          <view class="conversation-panel__title">历史对话</view>
+          <view class="conversation-panel__action" @click="startNewConversation">新建</view>
         </view>
-      </view>
-      <view class="hero-actions">
-        <view class="toolbar-chip" @click="startNewConversation">新对话</view>
-        <view class="toolbar-chip" @click="toggleHistoryPanel">记录</view>
-        <view class="toolbar-chip toolbar-chip--ghost" @click="openSettings">高级</view>
-      </view>
-    </view>
-
-    <view class="section-block quick-entry-block">
-      <scroll-view class="quick-row" scroll-x>
-        <view
-          v-for="item in quickActions"
-          :key="item.intent"
-          class="quick-pill"
-          @click="runQuickIntent(item)"
-        >
-          {{ item.shortTitle }}
-        </view>
-      </scroll-view>
-    </view>
-
-    <view v-if="showHistoryPanel" class="surface-card conversation-panel">
-      <view class="conversation-panel__title">聊天记录</view>
-      <view v-if="conversations.length === 0" class="empty-inline">还没有历史对话</view>
-      <view
-        v-for="item in conversations"
-        :key="item.id"
-        class="conversation-item"
-        :class="{ active: item.id === currentConversationId }"
-        @click="switchConversation(item.id)"
-      >
-        <view class="conversation-item__title">{{ item.title || '新对话' }}</view>
-        <view class="conversation-item__meta">{{ formatConversationTime(item.updatedAt) }}</view>
+        <view v-if="conversations.length === 0" class="empty-inline">还没有历史对话</view>
+        <scroll-view v-else class="conversation-scroll" scroll-y>
+          <view
+            v-for="item in conversations"
+            :key="item.id"
+            class="conversation-item"
+            :class="{ active: item.id === currentConversationId }"
+            @click="switchConversation(item.id)"
+          >
+            <view class="conversation-item__title">{{ item.title || '新对话' }}</view>
+            <view class="conversation-item__meta">{{ formatConversationTime(item.updatedAt) }}</view>
+          </view>
+        </scroll-view>
       </view>
     </view>
-
     <scroll-view
       class="chat-panel surface-card"
       scroll-y
@@ -82,6 +86,23 @@
 
     <view v-if="showNewMessageTip" class="new-message-tip" @click="jumpToLatestMessage">有一条新消息</view>
 
+    <view
+      v-if="isInputFocused"
+      class="floating-quick-actions"
+      :class="{ 'floating-quick-actions--active': isInputFocused }"
+    >
+      <scroll-view class="floating-quick-actions__row" scroll-x>
+        <view
+          v-for="item in quickActions"
+          :key="item.intent"
+          class="floating-quick-actions__pill"
+          @click="runQuickIntent(item)"
+        >
+          {{ item.shortTitle }}
+        </view>
+      </scroll-view>
+    </view>
+
     <view v-if="relatedInfos.length" class="section-block">
       <view class="section-row">
         <text class="section-heading">相关内容</text>
@@ -101,14 +122,23 @@
 
     <view v-else class="section-block">
       <view class="surface-card tips-card">
-        <view class="tips-card__title">你可以继续追问</view>
+        <view class="tips-card__title">{{ currentConversationTitle }}</view>
         <view class="tips-card__desc">比如“再给我两个更适合大一的”或者“把重点改成三句话”。</view>
       </view>
     </view>
 
     <view class="input-wrap surface-card">
-      <input class="chat-input" v-model="inputMessage" placeholder="继续问小达老师..." @confirm="sendMessage" />
-      <view class="send-chip" @click="sendMessage">{{ isLoading ? '发送中' : '发送' }}</view>
+      <view class="input-row">
+        <input
+          class="chat-input"
+          v-model="inputMessage"
+          placeholder="继续问小达老师..."
+          @focus="handleInputFocus"
+          @blur="handleInputBlur"
+          @confirm="sendMessage"
+        />
+        <view class="send-chip" @click="sendMessage">{{ isLoading ? '发送中' : '发送' }}</view>
+      </view>
     </view>
 
     <view v-if="showSettings" class="overlay">
@@ -243,7 +273,8 @@ export default {
       currentConversationId: '',
       messages: [],
       showNewMessageTip: false,
-      isAtChatBottom: true
+      isAtChatBottom: true,
+      isInputFocused: false
     };
   },
   computed: {
@@ -417,7 +448,11 @@ export default {
     },
     openSettings() {
       this.draftSettings = JSON.parse(JSON.stringify(this.aiSettings));
+      this.showHistoryPanel = false;
       this.showSettings = true;
+    },
+    closeHistoryPanel() {
+      this.showHistoryPanel = false;
     },
     closeSettings() {
       this.showSettings = false;
@@ -557,7 +592,7 @@ export default {
     },
     handleChatScroll(event) {
       const detail = (event && event.detail) || {};
-      const panelHeight = uni.upx2px(700);
+      const panelHeight = uni.upx2px(940);
       const threshold = uni.upx2px(80);
       const scrollTop = Number(detail.scrollTop || 0);
       const scrollHeight = Number(detail.scrollHeight || 0);
@@ -574,6 +609,12 @@ export default {
     jumpToLatestMessage() {
       this.showNewMessageTip = false;
       this.scrollToBottom(true);
+    },
+    handleInputFocus() {
+      this.isInputFocused = true;
+    },
+    handleInputBlur() {
+      this.isInputFocused = false;
     },
     scrollToBottom(force = false) {
       if (force) {
@@ -598,64 +639,132 @@ export default {
 
 <style scoped>
 .ai-page {
-  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(280rpx + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at top right, rgba(140, 124, 255, 0.22), transparent 32%),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.85), transparent 24%),
+    linear-gradient(180deg, #f7f5ff 0%, #f4f6fb 42%, #eef2f8 100%);
 }
 
-.hero-card {
-  padding: 22rpx 24rpx;
+.page-header {
+  margin-bottom: 8rpx;
 }
 
-.hero-main {
+.topbar {
   display: flex;
   align-items: center;
-  gap: 18rpx;
+  justify-content: space-between;
 }
 
-.hero-badge {
-  width: 76rpx;
-  height: 76rpx;
-  border-radius: 24rpx;
-  background: var(--primary-light);
-  color: var(--primary-color);
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 8rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12rpx 34rpx rgba(110, 102, 170, 0.12);
+  backdrop-filter: blur(12rpx);
+}
+
+.topbar-action {
+  width: 68rpx;
+  height: 68rpx;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 26rpx;
   font-weight: 700;
+  color: #7b75a8;
+  background: #f6f4ff;
 }
 
-.hero-body {
-  flex: 1;
+.topbar-action--book {
+  width: 126rpx;
+  border-radius: 999rpx;
+  gap: 10rpx;
+  padding: 0 18rpx;
 }
 
-.hero-title {
-  font-size: 30rpx;
+.topbar-action__label {
+  font-size: 22rpx;
   font-weight: 700;
-  color: var(--text-main);
+  line-height: 1;
 }
 
-.hero-desc {
+.gear-icon {
+  width: 34rpx;
+  height: 34rpx;
+  display: block;
+  color: currentColor;
+}
+
+.topbar-action--primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #a48cff 0%, #7a64ff 100%);
+  box-shadow: 0 12rpx 28rpx rgba(122, 100, 255, 0.26);
+}
+
+.topbar-action--book.active,
+.topbar-action--subtle:active {
+  background: #efeaff;
+  color: var(--primary-color);
+}
+
+.book-icon {
+  position: relative;
+  width: 34rpx;
+  height: 28rpx;
+}
+
+.book-icon__page {
+  position: absolute;
+  top: 0;
+  width: 16rpx;
+  height: 28rpx;
+  border: 2rpx solid currentColor;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.book-icon__page--left {
+  left: 0;
+  border-radius: 8rpx 2rpx 2rpx 8rpx;
+}
+
+.book-icon__page--right {
+  right: 0;
+  border-radius: 2rpx 8rpx 8rpx 2rpx;
+}
+
+.book-icon__spine {
+  position: absolute;
+  top: 3rpx;
+  left: 50%;
+  width: 2rpx;
+  height: 22rpx;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+.page-title {
+  margin-top: 16rpx;
+  font-size: 58rpx;
+}
+
+.page-subtitle {
   margin-top: 8rpx;
   font-size: 24rpx;
-  line-height: 1.6;
-  color: var(--text-sub);
 }
 
-.hero-actions {
-  display: flex;
-  gap: 10rpx;
-  flex-wrap: wrap;
-  margin-top: 18rpx;
-}
-
-.toolbar-chip,
 .send-chip,
 .close-chip {
-  min-width: 108rpx;
+  min-width: 104rpx;
   height: 58rpx;
-  border-radius: var(--radius-full);
-  background: var(--primary-light);
-  color: var(--primary-color);
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  background: #f1edff;
+  color: #7267d9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -663,36 +772,40 @@ export default {
   font-weight: 700;
 }
 
-.toolbar-chip--ghost {
-  background: #eef2f7;
-  color: var(--text-sub);
-}
-
-.quick-entry-block {
-  margin-top: 14rpx;
-}
-
-.quick-row {
-  white-space: nowrap;
-}
-
-.quick-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 58rpx;
-  margin-right: 12rpx;
-  padding: 0 22rpx;
-  border-radius: 999rpx;
-  background: #eef4ff;
-  color: #4b67d1;
-  font-size: 23rpx;
-  font-weight: 700;
+.history-float-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 26;
 }
 
 .conversation-panel {
-  margin-top: 18rpx;
-  padding: 20rpx 24rpx;
+  position: absolute;
+  top: calc(116rpx + env(safe-area-inset-top));
+  right: 24rpx;
+  width: 360rpx;
+  max-height: 560rpx;
+  padding: 20rpx;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 20rpx 48rpx rgba(104, 96, 163, 0.18);
+}
+
+.conversation-panel__arrow {
+  position: absolute;
+  top: -12rpx;
+  right: 136rpx;
+  width: 24rpx;
+  height: 24rpx;
+  background: #ffffff;
+  transform: rotate(45deg);
+  border-radius: 6rpx;
+}
+
+.conversation-panel__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 1;
 }
 
 .conversation-panel__title {
@@ -701,13 +814,29 @@ export default {
   color: var(--text-main);
 }
 
+.conversation-panel__action {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #7267d9;
+}
+
+.conversation-scroll {
+  max-height: 468rpx;
+  margin-top: 14rpx;
+}
+
 .conversation-item {
-  padding: 18rpx 0;
-  border-bottom: 1rpx solid #eef1f7;
+  padding: 18rpx 4rpx;
+  border-bottom: 1rpx solid #eff1f8;
+}
+
+.conversation-item.active {
+  background: linear-gradient(90deg, rgba(241, 237, 255, 0.9), rgba(255, 255, 255, 0));
+  border-radius: 18rpx;
 }
 
 .conversation-item.active .conversation-item__title {
-  color: var(--primary-color);
+  color: #6f63df;
 }
 
 .conversation-item__title {
@@ -724,15 +853,17 @@ export default {
 }
 
 .chat-panel {
-  height: 700rpx;
-  margin-top: 18rpx;
-  padding: 24rpx;
+  height: 940rpx;
+  margin-top: 10rpx;
+  padding: 20rpx 24rpx 28rpx;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 22rpx 48rpx rgba(110, 112, 160, 0.08);
 }
 
 .message {
   width: fit-content;
   max-width: 84%;
-  margin-bottom: 22rpx;
+  margin-bottom: 24rpx;
 }
 
 .message.mine {
@@ -750,15 +881,15 @@ export default {
 }
 
 .message-content {
-  padding: 18rpx 20rpx;
+  padding: 18rpx 22rpx;
   border-radius: 24rpx;
-  background: #f7f8fc;
+  background: #f4f5fb;
   color: var(--text-main);
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 .message.mine .message-content {
-  background: var(--primary-gradient);
+  background: linear-gradient(135deg, #8c74ff 0%, #6f60ec 100%);
   color: #ffffff;
 }
 
@@ -774,13 +905,17 @@ export default {
 }
 
 .empty-chat {
-  padding: 80rpx 20rpx;
+  min-height: 100%;
+  padding: 120rpx 24rpx 100rpx;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .empty-chat__title,
 .tips-card__title {
-  font-size: 30rpx;
+  font-size: 34rpx;
   font-weight: 700;
   color: var(--text-main);
 }
@@ -795,7 +930,9 @@ export default {
 
 .related-card,
 .tips-card {
-  padding: 20rpx 24rpx;
+  margin-top: 10rpx;
+  padding: 22rpx 24rpx;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .related-item {
@@ -821,16 +958,56 @@ export default {
 
 .new-message-tip {
   position: fixed;
-  right: 40rpx;
-  bottom: calc(152rpx + env(safe-area-inset-bottom));
+  right: 36rpx;
+  bottom: calc(286rpx + env(safe-area-inset-bottom));
   z-index: 25;
   padding: 16rpx 24rpx;
   border-radius: 999rpx;
-  background: var(--primary-gradient);
+  background: linear-gradient(135deg, #8b7fff 0%, #6f60ec 100%);
   color: #ffffff;
   font-size: 24rpx;
   font-weight: 700;
-  box-shadow: 0 14rpx 28rpx rgba(104, 76, 214, 0.2);
+  box-shadow: 0 14rpx 28rpx rgba(111, 96, 236, 0.2);
+}
+
+.floating-quick-actions {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: calc(148rpx + env(safe-area-inset-bottom));
+  z-index: 21;
+  pointer-events: none;
+  padding: 8rpx;
+  border-radius: 999rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 14rpx 30rpx rgba(121, 125, 166, 0.12);
+  backdrop-filter: blur(14rpx);
+  transform: translateY(0);
+}
+
+.floating-quick-actions__row {
+  white-space: nowrap;
+}
+
+.floating-quick-actions--active {
+  animation: quick-actions-pop 240ms ease;
+}
+
+.floating-quick-actions__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 62rpx;
+  margin-right: 10rpx;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10rpx 24rpx rgba(121, 125, 166, 0.12);
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #6458d9;
+  pointer-events: auto;
 }
 
 .input-wrap {
@@ -838,18 +1015,23 @@ export default {
   left: 24rpx;
   right: 24rpx;
   bottom: calc(24rpx + env(safe-area-inset-bottom));
-  padding: 16rpx;
-  display: flex;
-  gap: 12rpx;
-  align-items: center;
+  padding: 16rpx 18rpx;
   z-index: 20;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 22rpx 46rpx rgba(121, 125, 166, 0.14);
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
 }
 
 .chat-input,
 .field-input,
 .textarea {
   width: 100%;
-  background: #f6f7fb;
+  background: #f5f6fc;
   border-radius: 24rpx;
   font-size: 28rpx;
   color: var(--text-main);
@@ -859,6 +1041,11 @@ export default {
 .field-input {
   height: 88rpx;
   padding: 0 24rpx;
+}
+
+.send-chip {
+  min-width: 94rpx;
+  background: #f1edff;
 }
 
 .overlay {
@@ -965,5 +1152,16 @@ export default {
 
 .close-chip {
   margin: 20rpx auto 0;
+}
+
+@keyframes quick-actions-pop {
+  from {
+    opacity: 0.86;
+    transform: translateY(16rpx) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 </style>

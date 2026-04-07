@@ -76,7 +76,7 @@
 
 <script>
 import { ADMIN_LOGIN_URL } from '../../config/api';
-import { resolveAssetUrl } from '../../utils/assets';
+import { cacheAvatarFromRemote, getCachedAvatarPath, resolveAssetUrl } from '../../utils/assets';
 import { clearSession } from '../../utils/session';
 
 export default {
@@ -93,12 +93,16 @@ export default {
         history: 0,
         views: 0
       },
+      localAvatarPath: '',
       unreadNotifications: 0,
       notificationDoNotDisturb: false
     };
   },
   computed: {
     avatarSrc() {
+      if (this.localAvatarPath) {
+        return this.localAvatarPath;
+      }
       if (!this.userInfo.avatarUrl) {
         return '/static/avatar.png';
       }
@@ -181,6 +185,23 @@ export default {
         if (localUser) {
           this.userInfo = localUser;
         }
+      }
+      this.syncAvatarPreview();
+    },
+    async syncAvatarPreview() {
+      const cachedPath = getCachedAvatarPath(this.userInfo.avatarUrl);
+      if (cachedPath) {
+        this.localAvatarPath = cachedPath;
+        return;
+      }
+      if (!this.userInfo.avatarUrl) {
+        this.localAvatarPath = '';
+        return;
+      }
+      try {
+        this.localAvatarPath = await cacheAvatarFromRemote(this.userInfo.avatarUrl);
+      } catch (_error) {
+        this.localAvatarPath = '';
       }
     },
     async loadStats() {
