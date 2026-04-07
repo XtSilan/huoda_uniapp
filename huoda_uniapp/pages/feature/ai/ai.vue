@@ -274,7 +274,8 @@ export default {
       messages: [],
       showNewMessageTip: false,
       isAtChatBottom: true,
-      isInputFocused: false
+      isInputFocused: false,
+      inputBlurTimer: null
     };
   },
   computed: {
@@ -298,7 +299,17 @@ export default {
     this.loadSettings();
     this.loadConversations();
   },
+  onUnload() {
+    this.clearInputBlurTimer();
+  },
   methods: {
+    clearInputBlurTimer() {
+      if (!this.inputBlurTimer) {
+        return;
+      }
+      clearTimeout(this.inputBlurTimer);
+      this.inputBlurTimer = null;
+    },
     selectMode(mode) {
       this.draftSettings.mode = mode;
     },
@@ -506,6 +517,8 @@ export default {
       if (this.isLoading) {
         return;
       }
+      this.clearInputBlurTimer();
+      this.isInputFocused = false;
       await this.sendAiRequest({
         intent: item.intent,
         displayText: item.title,
@@ -611,10 +624,15 @@ export default {
       this.scrollToBottom(true);
     },
     handleInputFocus() {
+      this.clearInputBlurTimer();
       this.isInputFocused = true;
     },
     handleInputBlur() {
-      this.isInputFocused = false;
+      this.clearInputBlurTimer();
+      this.inputBlurTimer = setTimeout(() => {
+        this.isInputFocused = false;
+        this.inputBlurTimer = null;
+      }, 180);
     },
     scrollToBottom(force = false) {
       if (force) {
