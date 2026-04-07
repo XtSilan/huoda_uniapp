@@ -52,7 +52,12 @@ export const addClassGroupStudent = (id, userId) => http.post(`/admin/class-grou
 export const removeClassGroupStudent = (id, userId) => http.delete(`/admin/class-groups/${id}/students/${userId}`).then((res) => res.data);
 export const uploadClassGroupQr = (payload) => http.post('/admin/class-groups/upload', payload).then((res) => res.data);
 export const getAppUpdates = () => http.get('/admin/app-updates').then((res) => res.data);
-export const uploadAppUpdatePackage = (payload) => http.post('/admin/app-updates/upload', payload).then((res) => res.data);
+export const uploadAppUpdatePackage = (payload) =>
+  http
+    .post('/admin/app-updates/upload', payload, {
+      timeout: 10 * 60 * 1000
+    })
+    .then((res) => res.data);
 export const updateAppUpdate = (platform, payload) => http.put(`/admin/app-updates/${platform}`, payload).then((res) => res.data);
 export const getPopupAnnouncement = () => http.get('/admin/popup-announcement').then((res) => res.data);
 export const uploadPopupAnnouncementImage = (payload) => http.post('/admin/popup-announcement/upload', payload).then((res) => res.data);
