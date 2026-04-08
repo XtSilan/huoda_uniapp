@@ -957,10 +957,19 @@ module.exports = function registerAdminRoutes(app, db) {
       if (!objectKey) {
         return res.status(400).json({ message: '无效文件路径' });
       }
-      const url =
+      const signedUrl =
         settings.oss && settings.oss.authorizationV4 !== false && typeof client.signatureUrlV4 === 'function'
           ? client.signatureUrlV4('GET', expires, {}, objectKey)
           : client.signatureUrl(objectKey, { expires });
+      const url =
+        typeof signedUrl === 'string'
+          ? signedUrl
+          : String(
+              (signedUrl && (signedUrl.url || signedUrl.signedUrl || signedUrl.signatureUrl || signedUrl.href)) || ''
+            ).trim();
+      if (!url) {
+        return res.status(400).json({ message: '生成 OSS 直链失败：返回了非字符串链接' });
+      }
 
       return res.json({
         url,

@@ -192,12 +192,14 @@ export default {
         try {
           const res = await getMediaLibraryDirectUrl({ path });
           if (res && res.url) {
-            url = res.url;
+            url = typeof res.url === 'string' ? res.url : (res.url.url || res.url.href || '');
           }
         } catch (_error) {
           // Keep fallback URL when direct link generation fails.
         }
       }
+      url = typeof url === 'string' ? url : String(url || '');
+      url = url.trim();
       if (!url) {
         this.$Message.warning('文件地址不可用');
         return;
