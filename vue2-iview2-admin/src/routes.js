@@ -13,6 +13,7 @@ import AppUpdates from './pages/nav2/AppUpdates.vue';
 import PopupAnnouncement from './pages/nav2/PopupAnnouncement.vue';
 import Notifications from './pages/nav2/Notifications.vue';
 import StorageSettings from './pages/nav2/StorageSettings.vue';
+import MediaLibrary from './pages/nav2/MediaLibrary.vue';
 import Reports from './pages/charts/echarts.vue';
 import NotFound from './pages/404.vue';
 
@@ -32,6 +33,7 @@ export default [
       { path: '/notifications', component: Notifications, name: '消息通知管理' },
       { path: '/app-updates', component: AppUpdates, name: '版本更新管理' },
       { path: '/storage-settings', component: StorageSettings, name: '对象存储配置' },
+      { path: '/media-library', component: MediaLibrary, name: '媒体库' },
       { path: '/ai-models', component: AiModels, name: 'AI 默认模型' },
       { path: '/infos', component: Infos, name: '信息管理' },
       { path: '/activities', component: Activities, name: '活动管理' },

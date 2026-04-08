@@ -24,7 +24,14 @@ const {
   validateOssConnection,
   validateOssConfig,
   createOssClient,
+  uploadRootDir,
   finalizeUploadedLocalFile,
+  getAssetPathFromAbsolutePath,
+  getAbsoluteLocalAssetPath,
+  buildObjectKey,
+  mapObjectKeyToLocalAssetPath,
+  normalizeLocalAssetPath,
+  normalizeOssAssetPath,
   getStorageSwitchTaskState,
   startStorageSwitchTask,
   toAssetProxyUrl
@@ -34,6 +41,7 @@ const classGroupUploadDir = path.resolve(__dirname, '..', 'uploads', 'class-grou
 const infoAttachmentUploadDir = path.resolve(__dirname, '..', 'uploads', 'info-attachments');
 const appUpdateUploadDir = path.resolve(__dirname, '..', 'uploads', 'app-updates');
 const popupAnnouncementUploadDir = path.resolve(__dirname, '..', 'uploads', 'popup-announcements');
+const mediaLibraryUploadDir = path.resolve(__dirname, '..', 'uploads', 'media-library');
 const wgtExtractRootDir = path.resolve(__dirname, '..', '..', 'huoda_uniapp', 'unpackage', 'release', 'apk');
 
 function decodeUploadFileName(fileName) {
@@ -57,6 +65,243 @@ function buildStoredFileName(fileName, fallback = 'file') {
   const ext = path.extname(normalizedFileName || '').slice(0, 20);
   const safeBase = path.basename(normalizedFileName || '', path.extname(normalizedFileName || '')).replace(/[^a-zA-Z0-9_-]/g, '') || fallback;
   return `${Date.now()}-${safeBase}${ext}`;
+}
+
+function toPathVariants(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return [];
+  }
+  const local = normalizeLocalAssetPath(normalized);
+  const oss = local ? normalizeOssAssetPath(local) : '';
+  const withLeading = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  const withoutLeading = withLeading.replace(/^\/+/, '');
+  const localWithLeading = local ? (local.startsWith('/') ? local : `/${local}`) : '';
+  const localWithoutLeading = localWithLeading ? localWithLeading.replace(/^\/+/, '') : '';
+  return [...new Set([normalized, withLeading, withoutLeading, local, oss, localWithLeading, localWithoutLeading].filter(Boolean))];
+}
+
+function replacePathInText(source, fromPath, toPath) {
+  let next = String(source || '');
+  const fromVariants = toPathVariants(fromPath);
+  const toVariants = toPathVariants(toPath);
+  const replacement = toVariants.length ? toVariants[0] : '';
+  fromVariants.forEach((item) => {
+    if (!item) {
+      return;
+    }
+    next = next.split(item).join(replacement);
+  });
+  return next;
+}
+
+function sameAssetPath(left, right) {
+  const leftVariants = toPathVariants(left);
+  const rightVariants = toPathVariants(right);
+  return leftVariants.some((item) => rightVariants.includes(item));
+}
+
+function walkUploadFiles(dirPath, list = []) {
+  if (!fs.existsSync(dirPath)) {
+    return list;
+  }
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  entries.forEach((entry) => {
+    const absolutePath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      walkUploadFiles(absolutePath, list);
+      return;
+    }
+    if (entry.isFile()) {
+      list.push(absolutePath);
+    }
+  });
+  return list;
+}
+
+function getMimeTypeByExt(fileName) {
+  const ext = path.extname(String(fileName || '').toLowerCase());
+  const map = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain',
+    '.zip': 'application/zip',
+    '.apk': 'application/vnd.android.package-archive',
+    '.wgt': 'application/octet-stream',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.mp4': 'video/mp4',
+    '.mp3': 'audio/mpeg'
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
+function isImageByMimeType(mimeType = '') {
+  return String(mimeType || '').toLowerCase().startsWith('image/');
+}
+
+function mapMediaFileItem(req, absolutePath) {
+  const stat = fs.statSync(absolutePath);
+  const assetPath = getAssetPathFromAbsolutePath(absolutePath);
+  const mimeType = getMimeTypeByExt(assetPath || absolutePath);
+  return {
+    name: path.basename(absolutePath),
+    path: assetPath,
+    folder: path.dirname(assetPath || '').replace(/\\/g, '/'),
+    size: Number(stat.size || 0),
+    mimeType,
+    isImage: isImageByMimeType(mimeType),
+    updatedAt: stat.mtime ? stat.mtime.toISOString() : '',
+    url: toAssetProxyUrl(req, assetPath)
+  };
+}
+
+function normalizeObjectPrefix(value) {
+  return String(value || '').trim().replace(/^\/+|\/+$/g, '');
+}
+
+function getMediaObjectKeyPrefix(settings = {}) {
+  const basePrefix = normalizeObjectPrefix(settings && settings.oss ? settings.oss.objectPrefix : '');
+  return basePrefix ? `${basePrefix}/uploads/` : 'uploads/';
+}
+
+async function listAllObjectsForPrefix(client, prefix) {
+  const objects = [];
+  let continuationToken = '';
+  do {
+    const query = {
+      prefix,
+      'max-keys': 1000
+    };
+    if (continuationToken) {
+      query.continuationToken = continuationToken;
+    }
+    const result = await client.listV2(query);
+    if (Array.isArray(result.objects)) {
+      objects.push(...result.objects);
+    }
+    continuationToken = result.nextContinuationToken || '';
+    if (!result.isTruncated) {
+      break;
+    }
+  } while (continuationToken);
+  return objects;
+}
+
+function mapMediaObjectItem(req, settings, object) {
+  const objectKey = String(object && object.name ? object.name : '').trim();
+  const localAssetPath = mapObjectKeyToLocalAssetPath(objectKey, settings);
+  if (!localAssetPath) {
+    return null;
+  }
+  const mimeType = getMimeTypeByExt(localAssetPath);
+  return {
+    name: path.basename(localAssetPath),
+    path: normalizeOssAssetPath(localAssetPath),
+    folder: path.dirname(localAssetPath || '').replace(/\\/g, '/'),
+    size: Number((object && object.size) || 0),
+    mimeType,
+    isImage: isImageByMimeType(mimeType),
+    updatedAt: object && object.lastModified ? new Date(object.lastModified).toISOString() : '',
+    url: toAssetProxyUrl(req, normalizeOssAssetPath(localAssetPath))
+  };
+}
+
+function updateAssetReferencesInDb(db, fromPath, toPath) {
+  if (!fromPath) {
+    return;
+  }
+  const now = new Date().toISOString();
+
+  const updateScalarPathColumn = (table, idColumn, valueColumn) => {
+    const rows = db.all(`SELECT ${idColumn} AS id, ${valueColumn} AS value FROM ${table}`);
+    rows.forEach((row) => {
+      const current = String(row.value || '').trim();
+      if (!current || !sameAssetPath(current, fromPath)) {
+        return;
+      }
+      db.run(`UPDATE ${table} SET ${valueColumn} = ?, updated_at = ? WHERE ${idColumn} = ?`, [toPath || '', now, row.id]);
+    });
+  };
+
+  updateScalarPathColumn('users', 'id', 'avatar_url');
+  updateScalarPathColumn('banners', 'id', 'image_url');
+  updateScalarPathColumn('class_groups', 'id', 'qr_code');
+  updateScalarPathColumn('popup_announcements', 'id', 'image_url');
+
+  const infoRows = db.all('SELECT id, attachments, content FROM infos');
+  infoRows.forEach((row) => {
+    let changed = false;
+    const attachments = parseJson(row.attachments, []);
+    const nextAttachments = [];
+    attachments.forEach((item) => {
+      const currentPath = item && item.path ? String(item.path).trim() : '';
+      if (!currentPath || !sameAssetPath(currentPath, fromPath)) {
+        nextAttachments.push(item);
+        return;
+      }
+      changed = true;
+      if (!toPath) {
+        return;
+      }
+      nextAttachments.push({
+        ...item,
+        path: toPath,
+        url: replacePathInText(item.url || '', currentPath, toPath),
+        downloadUrl: replacePathInText(item.downloadUrl || '', currentPath, toPath)
+      });
+    });
+    const nextContent = replacePathInText(row.content || '', fromPath, toPath);
+    if (nextContent !== String(row.content || '')) {
+      changed = true;
+    }
+    if (changed) {
+      db.run('UPDATE infos SET attachments = ?, content = ?, updated_at = ? WHERE id = ?', [
+        JSON.stringify(nextAttachments),
+        nextContent,
+        now,
+        row.id
+      ]);
+    }
+  });
+
+  const activityRows = db.all('SELECT id, images, content FROM activities');
+  activityRows.forEach((row) => {
+    let changed = false;
+    const images = parseJson(row.images, []);
+    const nextImages = [];
+    images.forEach((item) => {
+      if (!sameAssetPath(item, fromPath)) {
+        nextImages.push(item);
+        return;
+      }
+      changed = true;
+      if (toPath) {
+        nextImages.push(toPath);
+      }
+    });
+    const nextContent = replacePathInText(row.content || '', fromPath, toPath);
+    if (nextContent !== String(row.content || '')) {
+      changed = true;
+    }
+    if (changed) {
+      db.run('UPDATE activities SET images = ?, content = ?, updated_at = ? WHERE id = ?', [
+        JSON.stringify(nextImages),
+        nextContent,
+        now,
+        row.id
+      ]);
+    }
+  });
 }
 
 function normalizeInfoPayload(body = {}) {
@@ -288,6 +533,7 @@ module.exports = function registerAdminRoutes(app, db) {
   fs.mkdirSync(infoAttachmentUploadDir, { recursive: true });
   fs.mkdirSync(appUpdateUploadDir, { recursive: true });
   fs.mkdirSync(popupAnnouncementUploadDir, { recursive: true });
+  fs.mkdirSync(mediaLibraryUploadDir, { recursive: true });
 
   const infoAttachmentUpload = multer({
     storage: multer.diskStorage({
@@ -306,6 +552,16 @@ module.exports = function registerAdminRoutes(app, db) {
     }),
     limits: {
       fileSize: 300 * 1024 * 1024
+    }
+  });
+
+  const mediaLibraryUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, mediaLibraryUploadDir),
+      filename: (_req, file, cb) => cb(null, buildStoredFileName(file.originalname, 'media'))
+    }),
+    limits: {
+      fileSize: 1024 * 1024 * 1024
     }
   });
 
@@ -625,6 +881,224 @@ module.exports = function registerAdminRoutes(app, db) {
     } catch (error) {
       res.status(400).json({ message: error.message || '附件上传失败' });
     }
+  });
+
+  app.get('/api/admin/media-library', requireAdmin, (req, res) => {
+    const keyword = String(req.query.keyword || '').trim().toLowerCase();
+    const settings = getStorageSettings(db);
+
+    const filterByKeyword = (items = []) =>
+      items.filter((item) => {
+        if (!item || !item.path) {
+          return false;
+        }
+        if (!keyword) {
+          return true;
+        }
+        return String(item.path || '').toLowerCase().includes(keyword) || String(item.name || '').toLowerCase().includes(keyword);
+      });
+
+    const handleDone = (list = []) => {
+      const filtered = filterByKeyword(list).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      res.json({
+        list: filtered,
+        total: filtered.length
+      });
+    };
+
+    if (settings.provider !== 'oss') {
+      const files = walkUploadFiles(uploadRootDir, []).map((absolutePath) => mapMediaFileItem(req, absolutePath));
+      handleDone(files);
+      return;
+    }
+
+    (async () => {
+      try {
+        const client = createOssClient(settings);
+        const objects = await listAllObjectsForPrefix(client, getMediaObjectKeyPrefix(settings));
+        const list = objects
+          .map((item) => mapMediaObjectItem(req, settings, item))
+          .filter(Boolean);
+        handleDone(list);
+      } catch (error) {
+        res.status(400).json({ message: error.message || '读取 OSS 媒体列表失败' });
+      }
+    })();
+  });
+
+  app.post('/api/admin/media-library/upload', requireAdmin, mediaLibraryUpload.single('file'), async (req, res) => {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ message: '请先选择文件' });
+    }
+    try {
+      const stored = await finalizeUploadedLocalFile(db, file.path, {
+        contentType: String(file.mimetype || '').trim()
+      });
+      const absolutePath = getAbsoluteLocalAssetPath(stored.localPath || stored.storedPath);
+      const settings = getStorageSettings(db);
+      const isOss = settings.provider === 'oss';
+      const storedPath = stored.storedPath || stored.localPath || '';
+      const item = absolutePath && fs.existsSync(absolutePath) ? mapMediaFileItem(req, absolutePath) : null;
+      res.json({
+        success: true,
+        item: item || {
+          name: decodeUploadFileName(file.originalname),
+          path: storedPath,
+          url: toAssetProxyUrl(req, storedPath),
+          mimeType: String(file.mimetype || '').trim(),
+          isImage: isImageByMimeType(file.mimetype),
+          size: Number(file.size || 0) || 0,
+          updatedAt: new Date().toISOString(),
+          provider: isOss ? 'oss' : 'local'
+        }
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || '文件上传失败' });
+    }
+  });
+
+  app.post('/api/admin/media-library/rename', requireAdmin, (req, res) => {
+    const currentPath = String((req.body && req.body.path) || '').trim();
+    const newNameRaw = decodeUploadFileName((req.body && req.body.newName) || '');
+    const newName = path.basename(String(newNameRaw || '').trim());
+    if (!currentPath || !newName) {
+      return res.status(400).json({ message: '路径和新文件名不能为空' });
+    }
+    if (/[\\/:*?"<>|]/.test(newName)) {
+      return res.status(400).json({ message: '文件名包含非法字符' });
+    }
+
+    const settings = getStorageSettings(db);
+    const useOss = settings.provider === 'oss' || String(currentPath).startsWith('oss://');
+
+    const doLocalRename = () => {
+      const oldAbsolutePath = getAbsoluteLocalAssetPath(currentPath);
+      if (!oldAbsolutePath || !fs.existsSync(oldAbsolutePath)) {
+        return res.status(404).json({ message: '文件不存在' });
+      }
+
+      const stat = fs.statSync(oldAbsolutePath);
+      if (!stat.isFile()) {
+        return res.status(400).json({ message: '暂不支持重命名目录' });
+      }
+
+      const nextAbsolutePath = path.join(path.dirname(oldAbsolutePath), newName);
+      if (fs.existsSync(nextAbsolutePath)) {
+        return res.status(400).json({ message: '目标文件名已存在' });
+      }
+
+      fs.renameSync(oldAbsolutePath, nextAbsolutePath);
+      const oldAssetPath = getAssetPathFromAbsolutePath(oldAbsolutePath);
+      const nextAssetPath = getAssetPathFromAbsolutePath(nextAbsolutePath);
+      updateAssetReferencesInDb(db, oldAssetPath, nextAssetPath);
+
+      return res.json({
+        success: true,
+        item: mapMediaFileItem(req, nextAbsolutePath)
+      });
+    };
+
+    if (!useOss) {
+      doLocalRename();
+      return;
+    }
+
+    (async () => {
+      try {
+        const client = createOssClient(settings);
+        const oldObjectKey = buildObjectKey(currentPath, settings);
+        const oldLocalPath = mapObjectKeyToLocalAssetPath(oldObjectKey, settings);
+        if (!oldObjectKey || !oldLocalPath) {
+          return res.status(400).json({ message: '当前文件路径无效' });
+        }
+        const dirName = path.posix.dirname(oldLocalPath);
+        const nextLocalPath = path.posix.join(dirName, newName);
+        const nextStoredPath = normalizeOssAssetPath(nextLocalPath);
+        const nextObjectKey = buildObjectKey(nextStoredPath, settings);
+
+        await client.copy(nextObjectKey, oldObjectKey);
+        await client.delete(oldObjectKey);
+
+        // Keep local mirror if exists.
+        const oldAbsolutePath = getAbsoluteLocalAssetPath(oldLocalPath);
+        const nextAbsolutePath = getAbsoluteLocalAssetPath(nextLocalPath);
+        if (oldAbsolutePath && nextAbsolutePath && fs.existsSync(oldAbsolutePath)) {
+          fs.mkdirSync(path.dirname(nextAbsolutePath), { recursive: true });
+          fs.renameSync(oldAbsolutePath, nextAbsolutePath);
+        }
+
+        updateAssetReferencesInDb(db, normalizeOssAssetPath(oldLocalPath), nextStoredPath);
+
+        const objectStat = await client.head(nextObjectKey);
+        const item = mapMediaObjectItem(req, settings, {
+          name: nextObjectKey,
+          size: Number((objectStat.res && objectStat.res.headers && objectStat.res.headers['content-length']) || 0),
+          lastModified: objectStat.res && objectStat.res.headers ? objectStat.res.headers['last-modified'] : new Date().toUTCString()
+        });
+        res.json({
+          success: true,
+          item
+        });
+      } catch (error) {
+        res.status(400).json({ message: error.message || 'OSS 文件重命名失败' });
+      }
+    })();
+  });
+
+  app.post('/api/admin/media-library/delete', requireAdmin, (req, res) => {
+    const currentPath = String((req.body && req.body.path) || '').trim();
+    if (!currentPath) {
+      return res.status(400).json({ message: '文件路径不能为空' });
+    }
+    const settings = getStorageSettings(db);
+    const useOss = settings.provider === 'oss' || String(currentPath).startsWith('oss://');
+
+    const doLocalDelete = () => {
+      const absolutePath = getAbsoluteLocalAssetPath(currentPath);
+      if (!absolutePath || !fs.existsSync(absolutePath)) {
+        return res.status(404).json({ message: '文件不存在' });
+      }
+
+      const stat = fs.statSync(absolutePath);
+      if (!stat.isFile()) {
+        return res.status(400).json({ message: '暂不支持删除目录' });
+      }
+
+      fs.unlinkSync(absolutePath);
+      const assetPath = getAssetPathFromAbsolutePath(absolutePath);
+      updateAssetReferencesInDb(db, assetPath, '');
+
+      return res.json({
+        success: true
+      });
+    };
+
+    if (!useOss) {
+      doLocalDelete();
+      return;
+    }
+
+    (async () => {
+      try {
+        const client = createOssClient(settings);
+        const objectKey = buildObjectKey(currentPath, settings);
+        const localPath = mapObjectKeyToLocalAssetPath(objectKey, settings);
+        if (!objectKey || !localPath) {
+          return res.status(400).json({ message: '当前文件路径无效' });
+        }
+        await client.delete(objectKey);
+
+        const absolutePath = getAbsoluteLocalAssetPath(localPath);
+        if (absolutePath && fs.existsSync(absolutePath)) {
+          fs.unlinkSync(absolutePath);
+        }
+        updateAssetReferencesInDb(db, normalizeOssAssetPath(localPath), '');
+        res.json({ success: true });
+      } catch (error) {
+        res.status(400).json({ message: error.message || 'OSS 文件删除失败' });
+      }
+    })();
   });
 
   app.get('/api/admin/activities', requireAdmin, (_req, res) => {

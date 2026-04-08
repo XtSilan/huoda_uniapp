@@ -783,6 +783,20 @@ function migrateImagesJson(rawValue, targetProvider) {
   return JSON.stringify(list.map((item) => migrateSingleAssetPath(item, targetProvider)));
 }
 
+function migrateAssetPathsInText(rawValue, targetProvider) {
+  const source = String(rawValue || '');
+  if (!source) {
+    return source;
+  }
+
+  // Matches:
+  // - oss://uploads/...
+  // - /uploads/...
+  // - uploads/...
+  const pathPattern = /(oss:\/\/uploads\/[^\s"'<>]+|\/uploads\/[^\s"'<>]+|(?<![A-Za-z0-9_./-])uploads\/[^\s"'<>]+)/gi;
+  return source.replace(pathPattern, (matched) => migrateSingleAssetPath(matched, targetProvider));
+}
+
 function migrateAppUpdateConfig(targetProvider) {
   const current = readAppUpdateConfig();
   const next = Object.keys(current).reduce((result, platform) => {
@@ -825,18 +839,27 @@ function migrateDatabaseAssetPaths(db, targetProvider) {
     }
   });
 
-  db.all('SELECT id, attachments FROM infos').forEach((row) => {
+  db.all('SELECT id, attachments, source_url, content FROM infos').forEach((row) => {
     const next = migrateAttachmentsJson(row.attachments, targetProvider);
-    if (next !== String(row.attachments || '')) {
-      db.run('UPDATE infos SET attachments = ?, updated_at = ? WHERE id = ?', [next, new Date().toISOString(), row.id]);
+    const nextSourceUrl = migrateSingleAssetPath(row.source_url || '', targetProvider);
+    const nextContent = migrateAssetPathsInText(row.content || '', targetProvider);
+    if (next !== String(row.attachments || '') || nextSourceUrl !== String(row.source_url || '') || nextContent !== String(row.content || '')) {
+      db.run('UPDATE infos SET attachments = ?, source_url = ?, content = ?, updated_at = ? WHERE id = ?', [
+        next,
+        nextSourceUrl,
+        nextContent,
+        new Date().toISOString(),
+        row.id
+      ]);
       stats.infos += 1;
     }
   });
 
-  db.all('SELECT id, images FROM activities').forEach((row) => {
+  db.all('SELECT id, images, content FROM activities').forEach((row) => {
     const next = migrateImagesJson(row.images, targetProvider);
-    if (next !== String(row.images || '')) {
-      db.run('UPDATE activities SET images = ?, updated_at = ? WHERE id = ?', [next, new Date().toISOString(), row.id]);
+    const nextContent = migrateAssetPathsInText(row.content || '', targetProvider);
+    if (next !== String(row.images || '') || nextContent !== String(row.content || '')) {
+      db.run('UPDATE activities SET images = ?, content = ?, updated_at = ? WHERE id = ?', [next, nextContent, new Date().toISOString(), row.id]);
       stats.activities += 1;
     }
   });

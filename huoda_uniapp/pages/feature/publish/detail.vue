@@ -29,7 +29,7 @@
 
     <view class="surface-card content-card">
       <view class="section-heading">活动详情</view>
-      <view class="content">{{ activity.content || '暂无详情说明' }}</view>
+      <rich-text class="content rich-content" :nodes="renderedContent"></rich-text>
       <view class="content-action">
         <custom-button :text="collectionButtonText" ghost @click="toggleCollection" />
       </view>
@@ -42,6 +42,9 @@
 </template>
 
 <script>
+import { resolveAssetUrl } from '../../../utils/assets';
+import { normalizeRichContent, richTextSummary } from '../../../utils/rich-content';
+
 export default {
   data() {
     return {
@@ -68,6 +71,9 @@ export default {
     },
     applyButtonText() {
       return this.activity.isApplied ? '已报名' : '立即报名';
+    },
+    renderedContent() {
+      return normalizeRichContent(this.activity.content || '<p>暂无详情说明</p>');
     }
   },
   onLoad(options) {
@@ -80,11 +86,15 @@ export default {
       uni.showLoading({ title: '加载中' });
       try {
         this.activity = await this.$api.publish.getDetail(id);
+        this.activity = {
+          ...this.activity,
+          images: (this.activity.images || []).map((item) => resolveAssetUrl(item) || item)
+        };
         await this.$api.user.recordHistory({
           targetType: 'activity',
           targetId: id,
           title: this.activity.title,
-          summary: this.activity.summary || this.activity.content
+          summary: this.activity.summary || richTextSummary(this.activity.content, 90)
         });
       } catch (error) {
         uni.showToast({ title: error.message || '加载失败', icon: 'none' });
@@ -215,6 +225,10 @@ export default {
   margin-top: 20rpx;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.rich-content {
+  white-space: normal;
 }
 
 .content-action {

@@ -32,7 +32,7 @@
       <view v-if="detail.sourceUrl || isUrl(detail.source)" class="detail-source-link" @click="openSourceLink">
         来源链接：{{ detail.source || normalizedSourceUrl }}
       </view>
-      <view class="detail-content">{{ detail.content }}</view>
+      <rich-text class="detail-content rich-content" :nodes="renderedDetailContent"></rich-text>
       <view v-if="detail.attachments && detail.attachments.length" class="detail-attachments">
         <view class="detail-attachments__title">附件资料</view>
         <view
@@ -95,7 +95,7 @@
               <text>{{ item.favoriteCount || 0 }} 收藏</text>
             </view>
           </view>
-          <view class="content-card__desc">{{ item.summary || item.content }}</view>
+          <view class="content-card__desc">{{ displayExcerpt(item) }}</view>
           <view class="content-card__meta">{{ item.source || '校园发布' }} · {{ item.locationType || '资讯' }}</view>
         </view>
       </view>
@@ -120,7 +120,7 @@
               <text>{{ item.applyCount || 0 }} 参与</text>
             </view>
           </view>
-          <view class="content-card__desc">{{ item.summary || item.content }}</view>
+          <view class="content-card__desc">{{ displayExcerpt(item) }}</view>
           <view class="content-card__meta">{{ item.organizer || '校园组织' }} · {{ item.location || '地点待定' }}</view>
         </view>
       </view>
@@ -171,7 +171,7 @@
               </view>
             </view>
             <view class="content-card__title">{{ item.title }}</view>
-            <view class="content-card__desc">{{ item.summary || item.content }}</view>
+            <view class="content-card__desc">{{ displayExcerpt(item) }}</view>
             <view class="content-card__meta">{{ item.source || '校园发布' }}</view>
           </view>
         </scroll-view>
@@ -184,6 +184,7 @@
 
 <script>
 import { resolveAssetUrl } from '../../utils/assets';
+import { normalizeRichContent, richTextSummary } from '../../utils/rich-content';
 import { canInstallApkOnAndroid, openOrInstallLocalFile, openUnknownAppSourcesSettings, scanFileToMediaLibrary } from '../../utils/native-file';
 
 const ATTACHMENT_DOWNLOAD_DIR = '_downloads/';
@@ -258,6 +259,9 @@ export default {
       if (status === 'completed') return '下载完成';
       if (status === 'failed') return '下载失败';
       return '准备下载';
+    },
+    renderedDetailContent() {
+      return normalizeRichContent(this.detail.content || '<p>暂无内容</p>');
     }
   },
   onLoad(options) {
@@ -301,12 +305,12 @@ export default {
       try {
         if (this.searchMode && this.searchText) {
           const res = await this.$api.info.searchInfo({ search: this.searchText });
-          this.searchInfos = res.infos || [];
-          this.searchActivities = res.activities || [];
+          this.searchInfos = (res.infos || []).map((item) => this.normalizeListItem(item));
+          this.searchActivities = (res.activities || []).map((item) => this.normalizeListItem(item));
           return;
         }
         const res = await this.$api.info.getInfoList({ locationType: this.activeLocation, pageSize: 100 });
-        this.infoList = res.list || [];
+        this.infoList = (res.list || []).map((item) => this.normalizeListItem(item));
         if (!this.categories.find((item) => item.name === this.activeCategory && item.count > 0)) {
           const firstAvailable = this.categories.find((item) => item.count > 0);
           this.activeCategory = firstAvailable ? firstAvailable.name : '全部';
@@ -317,12 +321,12 @@ export default {
     },
     async loadDetail(id) {
       try {
-        this.detail = await this.$api.info.getInfoDetail(id);
+        this.detail = this.normalizeListItem(await this.$api.info.getInfoDetail(id));
         await this.$api.user.recordHistory({
           targetType: 'info',
           targetId: id,
           title: this.detail.title,
-          summary: this.detail.summary || this.detail.content
+          summary: this.detail.summary || richTextSummary(this.detail.content, 90)
         });
       } catch (error) {
         uni.showToast({ title: error.message || '获取详情失败', icon: 'none' });
@@ -362,6 +366,22 @@ export default {
     },
     resolveAssetUrl(filePath) {
       return resolveAssetUrl(filePath);
+    },
+    normalizeListItem(item = {}) {
+      const next = {
+        ...item
+      };
+      if (Array.isArray(next.images)) {
+        next.images = next.images.map((img) => this.resolveAssetUrl(img) || img);
+      }
+      return next;
+    },
+    displayExcerpt(item = {}) {
+      const summary = String(item.summary || '').trim();
+      if (summary) {
+        return summary;
+      }
+      return richTextSummary(item.content || '', 90);
     },
     getAttachmentKey(item) {
       return String((item && (item.name || item.path || item.url)) || '').trim();
@@ -921,8 +941,12 @@ export default {
 }
 
 .detail-content {
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
+}
+
+.rich-content {
+  overflow: hidden;
 }
 
 .content-card__meta {

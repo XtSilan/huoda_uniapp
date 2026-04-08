@@ -34,6 +34,15 @@ export const uploadInfoAttachment = (payload) =>
       timeout: 10 * 60 * 1000
     })
     .then((res) => res.data);
+export const getMediaLibraryFiles = (params = {}) => http.get('/admin/media-library', { params }).then((res) => res.data);
+export const uploadMediaLibraryFile = (payload) =>
+  http
+    .post('/admin/media-library/upload', payload, {
+      timeout: 10 * 60 * 1000
+    })
+    .then((res) => res.data);
+export const renameMediaLibraryFile = (payload) => http.post('/admin/media-library/rename', payload).then((res) => res.data);
+export const deleteMediaLibraryFile = (payload) => http.post('/admin/media-library/delete', payload).then((res) => res.data);
 export const getActivities = () => http.get('/admin/activities').then((res) => res.data);
 export const createActivity = (payload) => http.post('/admin/activities', payload).then((res) => res.data);
 export const updateActivity = (id, payload) => http.put(`/admin/activities/${id}`, payload).then((res) => res.data);
