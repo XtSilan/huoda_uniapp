@@ -1,12 +1,20 @@
-import request, { toQueryString } from '../utils/request';
+import request, { invalidateRequestCache, toQueryString } from '../utils/request';
 import API from '../config/api';
 
-const getSettings = () => request(API.ai.settings);
+const getSettings = () =>
+  request(API.ai.settings, {
+    cache: {
+      ttl: 60 * 1000
+    }
+  });
 
 const updateSettings = (payload) =>
   request(API.ai.settings, {
     method: 'PUT',
     data: payload
+  }).then((res) => {
+    invalidateRequestCache('/ai/settings');
+    return res;
   });
 
 const validateSettings = (payload) =>
@@ -18,7 +26,11 @@ const validateSettings = (payload) =>
 
 const getRecommendations = (params = {}) => {
   const query = toQueryString(params);
-  return request(query ? `${API.ai.recommend}?${query}` : API.ai.recommend);
+  return request(query ? `${API.ai.recommend}?${query}` : API.ai.recommend, {
+    cache: {
+      ttl: 60 * 1000
+    }
+  });
 };
 
 const chat = (payload) =>
@@ -34,7 +46,12 @@ const search = (query) =>
     data: { query }
   });
 
-const getChatHistory = () => request(API.ai.history);
+const getChatHistory = () =>
+  request(API.ai.history, {
+    cache: {
+      ttl: 20 * 1000
+    }
+  });
 
 export default {
   getSettings,
