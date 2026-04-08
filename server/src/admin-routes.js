@@ -926,6 +926,52 @@ module.exports = function registerAdminRoutes(app, db) {
     })();
   });
 
+  app.get('/api/admin/media-library/direct-url', requireAdmin, async (req, res) => {
+    const assetPath = String(req.query.path || '').trim();
+    const expiresRaw = Number(req.query.expires || 3600);
+    const expires = Number.isFinite(expiresRaw) && expiresRaw > 0 ? Math.floor(expiresRaw) : 3600;
+    if (!assetPath) {
+      return res.status(400).json({ message: '文件路径不能为空' });
+    }
+    if (/^https?:\/\//i.test(assetPath)) {
+      return res.json({
+        url: assetPath,
+        provider: 'remote',
+        expires: 0
+      });
+    }
+
+    const settings = getStorageSettings(db);
+    const useOss = settings.provider === 'oss' || String(assetPath).startsWith('oss://');
+    if (!useOss) {
+      return res.json({
+        url: toAssetProxyUrl(req, assetPath),
+        provider: 'local',
+        expires: 0
+      });
+    }
+
+    try {
+      const client = createOssClient(settings);
+      const objectKey = buildObjectKey(assetPath, settings);
+      if (!objectKey) {
+        return res.status(400).json({ message: '无效文件路径' });
+      }
+      const url =
+        settings.oss && settings.oss.authorizationV4 !== false && typeof client.signatureUrlV4 === 'function'
+          ? client.signatureUrlV4('GET', expires, {}, objectKey)
+          : client.signatureUrl(objectKey, { expires });
+
+      return res.json({
+        url,
+        provider: 'oss',
+        expires
+      });
+    } catch (error) {
+      return res.status(400).json({ message: error.message || '生成 OSS 直链失败' });
+    }
+  });
+
   app.post('/api/admin/media-library/upload', requireAdmin, mediaLibraryUpload.single('file'), async (req, res) => {
     const file = req.file;
     if (!file) {

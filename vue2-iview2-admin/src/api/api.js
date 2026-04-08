@@ -35,6 +35,7 @@ export const uploadInfoAttachment = (payload) =>
     })
     .then((res) => res.data);
 export const getMediaLibraryFiles = (params = {}) => http.get('/admin/media-library', { params }).then((res) => res.data);
+export const getMediaLibraryDirectUrl = (params = {}) => http.get('/admin/media-library/direct-url', { params }).then((res) => res.data);
 export const uploadMediaLibraryFile = (payload) =>
   http
     .post('/admin/media-library/upload', payload, {

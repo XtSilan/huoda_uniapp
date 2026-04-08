@@ -27,6 +27,7 @@
 import { resolveAssetUrl } from '../../common/asset';
 import {
   getMediaLibraryFiles,
+  getMediaLibraryDirectUrl,
   uploadMediaLibraryFile,
   renameMediaLibraryFile,
   deleteMediaLibraryFile
@@ -184,8 +185,19 @@ export default {
         }
       }
     },
-    copyUrl(row) {
-      const url = row && row.url ? row.url : resolveAssetUrl(row.path);
+    async copyUrl(row) {
+      const path = row && row.path ? row.path : '';
+      let url = row && row.url ? row.url : resolveAssetUrl(path);
+      if (path) {
+        try {
+          const res = await getMediaLibraryDirectUrl({ path });
+          if (res && res.url) {
+            url = res.url;
+          }
+        } catch (_error) {
+          // Keep fallback URL when direct link generation fails.
+        }
+      }
       if (!url) {
         this.$Message.warning('文件地址不可用');
         return;
