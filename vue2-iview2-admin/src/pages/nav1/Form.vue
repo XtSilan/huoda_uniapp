@@ -159,7 +159,7 @@ export default {
                 {
                   props: { size: 'small', type: 'error' },
                   style: { marginLeft: '8px' },
-                  on: { click: () => this.remove(params.row.id) }
+                  on: { click: () => this.remove(params.row) }
                 },
                 '删除'
               )
@@ -287,9 +287,16 @@ export default {
       await this.loadActivities();
       this.visible = false;
     },
-    async remove(id) {
-      await deleteActivity(id);
-      await this.loadActivities();
+    remove(row) {
+      this.$Modal.confirm({
+        title: '确认删除活动',
+        content: `确定删除活动“${row.title}”吗？该操作不可恢复。`,
+        onOk: async () => {
+          await deleteActivity(row.id);
+          this.$Message.success('活动已删除');
+          await this.loadActivities();
+        }
+      });
     }
   }
 };

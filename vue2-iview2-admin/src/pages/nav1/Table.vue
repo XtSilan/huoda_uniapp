@@ -136,7 +136,7 @@ export default {
                 {
                   props: { size: 'small', type: 'error' },
                   style: { marginLeft: '8px' },
-                  on: { click: () => this.remove(params.row.id) }
+                  on: { click: () => this.remove(params.row) }
                 },
                 '删除'
               )
@@ -252,9 +252,16 @@ export default {
       this.form = this.createEmptyForm();
       this.visible = false;
     },
-    async remove(id) {
-      await deleteInfo(id);
-      await this.loadInfos();
+    remove(row) {
+      this.$Modal.confirm({
+        title: '确认删除信息',
+        content: `确定删除信息“${row.title}”吗？该操作不可恢复。`,
+        onOk: async () => {
+          await deleteInfo(row.id);
+          this.$Message.success('信息已删除');
+          await this.loadInfos();
+        }
+      });
     }
   }
 };
