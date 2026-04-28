@@ -3,7 +3,7 @@
     <Alert show-icon style="margin-bottom: 16px;">
       对象存储切换
       <template slot="desc">
-        这里统一配置阿里云 OSS，并提供转入 OSS、切回本地两个入口。切换时会同步文件并批量改写数据库中的资源路径，且带二次确认。
+        提供阿里云OSS和本地存储一键切换
       </template>
     </Alert>
 

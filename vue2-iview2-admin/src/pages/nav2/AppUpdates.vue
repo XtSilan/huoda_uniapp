@@ -1,11 +1,7 @@
 <template>
   <div>
     <Alert show-icon style="margin-bottom: 16px;">
-      Android 更新改成后台上传更新包后再发布。
-      <template slot="desc">
-        发布页统一维护当前版本、待发布版本、更新方式、更新说明、强制更新和安装包信息。
-        WGT 上传后会自动读取 `manifest.json` 里的版本号和版本 code，APK 仍然手动填写版本信息。
-      </template>
+      版本更新管理
     </Alert>
 
     <Card title="Android 更新发布">
